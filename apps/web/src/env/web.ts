@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+const defaultSiteUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+	? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+	: "http://localhost:3200";
+
 const webEnvSchema = z.object({
 	// Node
 	NODE_ENV: z.enum(["development", "production", "test"]),
@@ -7,7 +11,7 @@ const webEnvSchema = z.object({
 	NEXT_RUNTIME: z.enum(["nodejs", "edge"]).optional(),
 
 	// Public
-	NEXT_PUBLIC_SITE_URL: z.url().default("http://localhost:3200"),
+	NEXT_PUBLIC_SITE_URL: z.url().default(defaultSiteUrl),
 	NEXT_PUBLIC_MARBLE_API_URL: z.url().default("https://api.marblecms.com"),
 
 	// Server

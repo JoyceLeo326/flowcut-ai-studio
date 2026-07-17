@@ -4,6 +4,8 @@ FlowCut AI Studio is a local-first video editor with reviewable AI edit plans
 and an optional ChatCut cloud handoff. It is a new derivative project based on
 the MIT-licensed OpenCut Classic editor.
 
+Public preview: [flowcut-ai-studio-jrleo326-6617s-projects.vercel.app](https://flowcut-ai-studio-jrleo326-6617s-projects.vercel.app)
+
 ## Current MVP
 
 - Import video, image, and audio files into browser-local project storage.

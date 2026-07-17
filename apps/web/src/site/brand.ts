@@ -1,5 +1,9 @@
+const vercelSiteUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+	? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+	: undefined;
+
 export const SITE_URL =
-	process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3200";
+	process.env.NEXT_PUBLIC_SITE_URL ?? vercelSiteUrl ?? "http://localhost:3200";
 
 export const SITE_INFO = {
 	title: "FlowCut AI Studio",
