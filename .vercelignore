@@ -1,0 +1,15 @@
+.git/
+.github/
+.tools/
+.test-assets/
+.vscode/
+apps/desktop/
+docs/
+notes/
+rust/
+script/
+target/
+Cargo.lock
+Cargo.toml
+docker-compose.yml
+wrangler.jsonc
