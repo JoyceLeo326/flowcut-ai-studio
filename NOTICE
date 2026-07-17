@@ -1,0 +1,11 @@
+FlowCut AI Studio
+
+This project is derived from OpenCut Classic, Copyright (c) 2025 OpenCut.
+OpenCut Classic is licensed under the MIT License. The full license text is in
+LICENSE and the upstream project is available at:
+https://github.com/OpenCut-app/OpenCut
+
+ChatCut is an optional external workflow connected through the official
+ChatCut agent plugin/MCP service. ChatCut source code is not copied into or
+distributed with this repository. ChatCut is a trademark of its respective
+owner and its hosted features may require an account or paid credits.
