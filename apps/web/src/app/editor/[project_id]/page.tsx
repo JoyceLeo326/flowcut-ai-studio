@@ -2,9 +2,9 @@
 
 import { useParams } from "next/navigation";
 import {
-	ResizablePanelGroup,
-	ResizablePanel,
 	ResizableHandle,
+	ResizablePanel,
+	ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { AssetsPanel } from "@/components/editor/panels/assets";
 import { InspectorPanel } from "@/components/editor/panels/inspector";
@@ -17,16 +17,19 @@ import { MigrationDialog } from "@/project/components/migration-dialog";
 import { usePanelStore } from "@/editor/panel-store";
 import { usePasteMedia } from "@/media/use-paste-media";
 import { MobileGate } from "@/components/editor/mobile-gate";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useEditor } from "@/editor/use-editor";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChangelogNotification } from "@/changelog/components/changelog-notification";
 import {
 	createPreviewOverlayControl,
 	isPreviewOverlayVisible,
 	mergePreviewOverlaySources,
+	type PreviewOverlayControl,
+	type PreviewOverlayInstance,
 } from "@/preview/overlays";
 import { usePreviewStore } from "@/preview/preview-store";
 import { getGuidePreviewOverlaySource } from "@/guides";
@@ -34,10 +37,37 @@ import {
 	bookmarkNotesPreviewOverlay,
 	getBookmarkPreviewOverlaySource,
 } from "@/timeline/bookmarks/index";
+import { FolderOpen, MonitorPlay, Sparkles, StretchHorizontal } from "lucide-react";
+
+const TOUCH_LAYOUT_QUERY =
+	"(max-width: 1199px), (pointer: coarse) and (max-width: 1366px)";
+
+function getTouchLayoutSnapshot() {
+	if (typeof window === "undefined") return false;
+	return window.matchMedia(TOUCH_LAYOUT_QUERY).matches;
+}
+
+function subscribeTouchLayout(onStoreChange: () => void) {
+	if (typeof window === "undefined") return () => {};
+	const mediaQuery = window.matchMedia(TOUCH_LAYOUT_QUERY);
+	mediaQuery.addEventListener("change", onStoreChange);
+	return () => mediaQuery.removeEventListener("change", onStoreChange);
+}
+
+function useTouchEditorLayout() {
+	return useSyncExternalStore(
+		subscribeTouchLayout,
+		getTouchLayoutSnapshot,
+		() => false,
+	);
+}
 
 export default function Editor() {
 	const params = useParams();
-	const projectId = params.project_id as string;
+	const projectParam = params.project_id;
+	const projectId = Array.isArray(projectParam) ? projectParam[0] : projectParam;
+
+	if (!projectId) return null;
 
 	return (
 		<MobileGate>
@@ -63,14 +93,14 @@ function DegradedRendererBanner() {
 	if (!isDegraded || dismissed) return null;
 
 	return (
-		<div className="bg-accent border-b h-9 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+		<div className="flex h-9 items-center justify-center gap-2 border-b bg-accent text-xs text-muted-foreground">
 			<span>为获得完整的视频预览性能，建议使用 Chrome 打开 FlowCut。</span>
 			<Button
 				variant="text"
 				size="icon"
-				className="p-0 w-auto [&_svg]:size-3.5"
+				className="w-auto p-0 [&_svg]:size-3.5"
 				onClick={() => setDismissed(true)}
-				aria-label="Dismiss"
+				aria-label="关闭提示"
 			>
 				<HugeiconsIcon icon={Cancel01Icon} />
 			</Button>
@@ -80,6 +110,7 @@ function DegradedRendererBanner() {
 
 function EditorLayout() {
 	usePasteMedia();
+	const isTouchLayout = useTouchEditorLayout();
 	const { panels, setPanel } = usePanelStore();
 	const activeScene = useEditor((editor) =>
 		editor.scenes.getActiveSceneOrNull(),
@@ -125,6 +156,16 @@ function EditorLayout() {
 		[overlaySource.definitions, overlays],
 	);
 
+	if (isTouchLayout) {
+		return (
+			<TouchEditorLayout
+				overlayControls={overlayControls}
+				overlayInstances={overlaySource.instances}
+				onOverlayVisibilityChange={setOverlayVisibility}
+			/>
+		);
+	}
+
 	return (
 		<ResizablePanelGroup
 			direction="vertical"
@@ -159,12 +200,12 @@ function EditorLayout() {
 					}}
 				>
 					<ResizablePanel
-						defaultSize={panels.tools}
-						minSize={15}
-						maxSize={40}
+						defaultSize={30}
+						minSize={22}
+						maxSize={45}
 						className="min-w-0"
 					>
-						<AssetsPanel />
+						<InspectorPanel />
 					</ResizablePanel>
 
 					<ResizableHandle withHandle />
@@ -184,12 +225,12 @@ function EditorLayout() {
 					<ResizableHandle withHandle />
 
 					<ResizablePanel
-						defaultSize={panels.properties}
-						minSize={15}
-						maxSize={40}
+						defaultSize={22}
+						minSize={16}
+						maxSize={35}
 						className="min-w-0"
 					>
-						<InspectorPanel />
+						<AssetsPanel />
 					</ResizablePanel>
 				</ResizablePanelGroup>
 			</ResizablePanel>
@@ -205,5 +246,66 @@ function EditorLayout() {
 				<Timeline />
 			</ResizablePanel>
 		</ResizablePanelGroup>
+	);
+}
+
+function TouchEditorLayout({
+	overlayControls,
+	overlayInstances,
+	onOverlayVisibilityChange,
+}: {
+	overlayControls: PreviewOverlayControl[];
+	overlayInstances: PreviewOverlayInstance[];
+	onOverlayVisibilityChange: (params: {
+		overlayId: string;
+		isVisible: boolean;
+	}) => void;
+}) {
+	const tabs = [
+		{ id: "ai", label: "AI", icon: Sparkles },
+		{ id: "assets", label: "素材", icon: FolderOpen },
+		{ id: "preview", label: "预览", icon: MonitorPlay },
+		{ id: "timeline", label: "时间线", icon: StretchHorizontal },
+	] as const;
+
+	return (
+		<Tabs
+			defaultValue="ai"
+			className="flex size-full min-h-0 flex-col overflow-hidden px-2 pb-2"
+		>
+			<div className="min-h-0 flex-1 overflow-hidden">
+				<TabsContent value="assets" className="m-0 size-full p-0">
+					<AssetsPanel />
+				</TabsContent>
+				<TabsContent value="preview" className="m-0 size-full p-0">
+					<PreviewPanel
+						overlayControls={overlayControls}
+						overlayInstances={overlayInstances}
+						onOverlayVisibilityChange={onOverlayVisibilityChange}
+					/>
+				</TabsContent>
+				<TabsContent value="ai" className="m-0 size-full p-0">
+					<InspectorPanel />
+				</TabsContent>
+				<TabsContent value="timeline" className="m-0 size-full p-0">
+					<Timeline />
+				</TabsContent>
+			</div>
+			<TabsList className="mt-2 grid h-14 shrink-0 grid-cols-4 rounded-md border bg-background p-1 shadow-sm">
+				{tabs.map((tab) => {
+					const Icon = tab.icon;
+					return (
+						<TabsTrigger
+							key={tab.id}
+							value={tab.id}
+							className="h-full flex-col gap-0.5 rounded-sm px-1 py-1 text-[11px]"
+						>
+							<Icon className="size-4" />
+							{tab.label}
+						</TabsTrigger>
+					);
+				})}
+			</TabsList>
+		</Tabs>
 	);
 }

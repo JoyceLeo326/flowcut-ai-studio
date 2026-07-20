@@ -1,71 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { X } from "lucide-react";
+import { useState } from "react";
 import { Button } from "../ui/button";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ArrowLeft01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
-import { useRouter } from "next/navigation";
-
-const STORAGE_KEY = "mobile-acknowledged";
 
 interface MobileGateProps {
 	children: React.ReactNode;
 }
 
 export function MobileGate({ children }: MobileGateProps) {
-	const router = useRouter();
-	const [show, setShow] = useState<boolean | null>(null);
-
-	useEffect(() => {
-		const isMobile = window.innerWidth < 1024;
-		const acknowledged = localStorage.getItem(STORAGE_KEY) === "true";
-		setShow(isMobile && !acknowledged);
-	}, []);
-
-	if (show === null) return null;
-	if (!show) return <>{children}</>;
-
-	const handleContinue = () => {
-		localStorage.setItem(STORAGE_KEY, "true");
-		setShow(false);
-	};
-
-	const handleGoBack = () => {
-		router.back();
-	};
+	const [showHint, setShowHint] = useState(true);
 
 	return (
-		<div className="bg-background relative flex h-screen w-screen flex-col overflow-hidden">
-			<Button
-				variant="text"
-				className="absolute top-6 left-6 flex items-center gap-1 text-muted-foreground"
-				onClick={handleGoBack}
-			>
-				<HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" />
-				<span className=" text-sm">Go back</span>
-			</Button>
-
-			<div className="flex flex-1 flex-col justify-center gap-5 px-7">
-				<div className="flex flex-col gap-3">
-					<h1 className="text-foreground text-3xl font-bold tracking-tight">
-						请使用桌面浏览器
-					</h1>
-					<p className="text-muted-foreground text-sm leading-relaxed">
-						FlowCut 的多轨时间线目前针对桌面操作设计。手机和平板可以预览，
-						但剪辑布局与拖拽操作可能不完整。
-					</p>
+		<>
+			{children}
+			{showHint ? (
+				<div className="fixed right-3 bottom-20 left-3 z-50 rounded-md border bg-background/95 p-3 shadow-lg backdrop-blur lg:hidden">
+					<div className="flex items-start gap-3">
+						<p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">
+							移动端和平板端已启用分屏 Tab 工作流。建议横屏处理长时间线，导出大视频时保持浏览器前台打开。
+						</p>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="size-7 shrink-0"
+							onClick={() => setShowHint(false)}
+							aria-label="关闭移动端提示"
+						>
+							<X className="size-4" />
+						</Button>
+					</div>
 				</div>
-				<div className="flex items-center gap-3">
-					<Button onClick={handleContinue}>仍然进入</Button>
-					<Button variant="ghost" asChild>
-						<Link href="/projects" className="flex items-center gap-1">
-							返回项目
-							<HugeiconsIcon icon={ArrowRight01Icon} size={14} />
-						</Link>
-					</Button>
-				</div>
-			</div>
-		</div>
+			) : null}
+		</>
 	);
 }

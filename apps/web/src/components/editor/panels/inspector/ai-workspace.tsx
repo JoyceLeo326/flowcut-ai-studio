@@ -2,21 +2,22 @@
 
 import { useMemo, useState } from "react";
 import {
+	Brain,
 	CheckCircle2,
 	ClipboardCheck,
 	Cloud,
 	Copy,
 	Download,
-	ExternalLink,
 	FileJson,
 	Film,
 	HardDrive,
 	Info,
 	ListChecks,
 	RotateCcw,
-	ShieldCheck,
 	Sparkles,
 	Timer,
+	UploadCloud,
+	Wand2,
 	Workflow,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -46,35 +47,35 @@ const MODES: Array<{
 	description: string;
 }> = [
 	{
-		id: "local",
-		label: "本地",
-		icon: HardDrive,
-		description: "只执行浏览器内可撤销步骤",
+		id: "hybrid",
+		label: "智能混剪",
+		icon: Workflow,
+		description: "本地排布和画幅先执行，字幕、停顿和语义精选交给 ChatCut。",
 	},
 	{
-		id: "hybrid",
-		label: "混合",
-		icon: Workflow,
-		description: "本地整理 + ChatCut 语义任务",
+		id: "local",
+		label: "本地粗剪",
+		icon: HardDrive,
+		description: "只做浏览器内可撤销的顺排、收紧和画幅调整。",
 	},
 	{
 		id: "chatcut",
-		label: "ChatCut",
+		label: "云端精剪",
 		icon: Cloud,
-		description: "优先生成云端交接方案",
+		description: "优先生成 ChatCut 交接任务，适合长视频语义识别。",
 	},
 ];
 
 const QUICK_PROMPTS = [
-	"剪成 60 秒抖音竖屏高光，删除停顿，生成字幕",
-	"整理成 B 站横屏比赛集锦，保留关键进球和反应镜头",
-	"做成小红书 1:1 精华版，节奏紧凑，字幕清楚",
-	"先把所有素材顺排成粗剪，收紧片头片尾",
+	"识别所有视频，剪成 60 秒竖屏高光，删除停顿并生成字幕",
+	"根据比赛内容自动挑精彩瞬间，做成横屏集锦",
+	"把口播素材剪成小红书 1:1 精华版，保留重点，字幕清楚",
+	"先把所有素材顺排成粗剪，收紧片头片尾，方便我再微调",
 ];
 
 const AVAILABILITY_LABELS = {
 	ready: "本地可执行",
-	handoff: "需 ChatCut 交接",
+	handoff: "需 ChatCut 识别",
 	blocked: "等待素材",
 } as const;
 
@@ -84,6 +85,10 @@ function formatDuration(seconds: number): string {
 	const remaining = Math.round(seconds % 60);
 	if (minutes === 0) return `${remaining} 秒`;
 	return `${minutes}:${remaining.toString().padStart(2, "0")}`;
+}
+
+function pluralLabel({ count, label }: { count: number; label: string }) {
+	return `${count} ${label}`;
 }
 
 export function AIWorkspacePanel() {
@@ -108,6 +113,7 @@ export function AIWorkspacePanel() {
 		}
 		return elements;
 	}, [scene]);
+
 	const usedMediaIds = useMemo(
 		() =>
 			new Set(
@@ -123,7 +129,48 @@ export function AIWorkspacePanel() {
 	});
 	const unusedAssetCount = assets.filter((asset) => !usedMediaIds.has(asset.id))
 		.length;
-	const selectedMode = MODES.find((item) => item.id === mode) ?? MODES[1];
+	const videoAssetCount = assets.filter((asset) => asset.type === "video").length;
+	const audioAssetCount = assets.filter((asset) => asset.type === "audio").length;
+	const imageAssetCount = assets.filter((asset) => asset.type === "image").length;
+	const selectedMode = MODES.find((item) => item.id === mode) ?? MODES[0];
+	const hasAssets = assets.length > 0;
+
+	const recommendedPrompt = useMemo(() => {
+		if (!hasAssets) return "先导入视频片段，再让 AI 识别并设计剪辑。";
+		const mediaShape = [
+			videoAssetCount > 0
+				? pluralLabel({ count: videoAssetCount, label: "段视频" })
+				: null,
+			audioAssetCount > 0
+				? pluralLabel({ count: audioAssetCount, label: "段音频" })
+				: null,
+			imageAssetCount > 0
+				? pluralLabel({ count: imageAssetCount, label: "张图片" })
+				: null,
+		]
+			.filter(Boolean)
+			.join("、");
+		const base = `识别 ${mediaShape}，自动设计一版节奏清楚的剪辑`;
+		if (durationSeconds > 180) {
+			return `${base}，剪成 60 秒精华，删除停顿，生成字幕`;
+		}
+		return `${base}，先顺排素材，收紧片头片尾，设置适合发布的画幅`;
+	}, [audioAssetCount, durationSeconds, hasAssets, imageAssetCount, videoAssetCount]);
+
+	const createPlanFromPrompt = ({ nextPrompt }: { nextPrompt: string }) => {
+		const nextPlan = createEditPlan({
+			prompt: nextPrompt,
+			mode,
+			assetCount: assets.length,
+			unusedAssetCount,
+			timelineElementCount: timelineElements.length,
+			videoClipCount,
+			durationSeconds,
+		});
+		setPrompt(nextPrompt);
+		setPlan(nextPlan);
+		setCanUndoPlan(false);
+	};
 
 	const handleModeChange = (nextMode: EditMode) => {
 		setMode(nextMode);
@@ -138,17 +185,9 @@ export function AIWorkspacePanel() {
 	};
 
 	const handleCreatePlan = () => {
-		const nextPlan = createEditPlan({
-			prompt: prompt || "整理现有素材并生成一版可审阅的粗剪",
-			mode,
-			assetCount: assets.length,
-			unusedAssetCount,
-			timelineElementCount: timelineElements.length,
-			videoClipCount,
-			durationSeconds,
+		createPlanFromPrompt({
+			nextPrompt: prompt || recommendedPrompt,
 		});
-		setPlan(nextPlan);
-		setCanUndoPlan(false);
 	};
 
 	const toggleStep = ({ id, enabled }: { id: string; enabled: boolean }) => {
@@ -205,7 +244,7 @@ export function AIWorkspacePanel() {
 		try {
 			await navigator.clipboard.writeText(formatChatCutTask(handoff));
 			toast.success("ChatCut 任务已复制", {
-				description: "可以粘贴到已启用 ChatCut 插件的 Codex 任务中。",
+				description: "粘贴到启用 ChatCut 插件的任务中即可继续云端识别。",
 			});
 		} catch {
 			toast.error("浏览器不允许写入剪贴板，请下载交接包");
@@ -251,9 +290,40 @@ export function AIWorkspacePanel() {
 	const hasChatCutSteps = chatCutSteps.length > 0;
 
 	return (
-		<div className="flex h-full min-h-0 flex-col">
+		<div className="flex h-full min-h-0 flex-col bg-background">
 			<ScrollArea className="min-h-0 flex-1">
 				<div className="space-y-4 p-3">
+					<div className="rounded-md border bg-muted/30 p-3">
+						<div className="flex items-start gap-3">
+							<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+								<Brain className="size-5" />
+							</div>
+							<div className="min-w-0 flex-1">
+								<h2 className="text-sm font-semibold">AI 剪辑导演</h2>
+								<p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+									把视频片段导入素材区，AI 会先读素材结构，再设计剪辑方案。你确认后再执行本地步骤或交给 ChatCut 做语义识别。
+								</p>
+							</div>
+						</div>
+					</div>
+
+					<div className="grid grid-cols-3 gap-2 text-[11px]">
+						<div className="rounded-md border p-2">
+							<p className="text-muted-foreground">视频</p>
+							<p className="mt-1 text-base font-semibold">{videoAssetCount}</p>
+						</div>
+						<div className="rounded-md border p-2">
+							<p className="text-muted-foreground">音频</p>
+							<p className="mt-1 text-base font-semibold">{audioAssetCount}</p>
+						</div>
+						<div className="rounded-md border p-2">
+							<p className="text-muted-foreground">时间线</p>
+							<p className="mt-1 text-base font-semibold">
+								{formatDuration(durationSeconds)}
+							</p>
+						</div>
+					</div>
+
 					<div className="grid grid-cols-3 gap-1 rounded-md border bg-muted/40 p-1">
 						{MODES.map((item) => {
 							const Icon = item.icon;
@@ -274,38 +344,26 @@ export function AIWorkspacePanel() {
 					</div>
 
 					<div className="rounded-md border bg-muted/20 p-2.5">
-						<div className="flex items-center justify-between gap-2">
-							<div className="flex min-w-0 items-center gap-2">
-								<ShieldCheck className="size-4 shrink-0 text-emerald-600" />
-								<div className="min-w-0">
-									<p className="truncate text-xs font-medium">
-										{selectedMode.description}
-									</p>
-									<p className="text-[11px] text-muted-foreground">
-										{assets.length} 素材 / {timelineElements.length} 片段 /{" "}
-										{formatDuration(durationSeconds)}
-									</p>
-								</div>
+						<div className="flex min-w-0 items-center gap-2">
+							<Sparkles className="size-4 shrink-0 text-primary" />
+							<div className="min-w-0">
+								<p className="truncate text-xs font-medium">
+									{selectedMode.description}
+								</p>
+								<p className="text-[11px] text-muted-foreground">
+									{assets.length} 个素材 / {unusedAssetCount} 个待上时间线
+								</p>
 							</div>
-							<a
-								href="https://github.com/ChatCut-Inc/agent-plugin"
-								target="_blank"
-								rel="noreferrer"
-								className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
-							>
-								插件
-								<ExternalLink className="size-3" />
-							</a>
 						</div>
 					</div>
 
 					<div className="space-y-2">
 						<div className="flex items-center justify-between">
 							<label htmlFor="ai-edit-prompt" className="text-xs font-medium">
-								剪辑目标
+								AI 要剪成什么样
 							</label>
 							<span className="text-[11px] text-muted-foreground">
-								{unusedAssetCount} 个素材未上时间线
+								可直接用推荐目标
 							</span>
 						</div>
 						<Textarea
@@ -315,9 +373,27 @@ export function AIWorkspacePanel() {
 								setPrompt(event.target.value);
 								setPlan(null);
 							}}
-							placeholder="例如：删除停顿，剪成 60 秒竖屏精华并生成字幕"
+							placeholder={recommendedPrompt}
 							className="min-h-24 resize-none text-sm"
 						/>
+						<Button
+							className="w-full"
+							onClick={() =>
+								createPlanFromPrompt({ nextPrompt: prompt || recommendedPrompt })
+							}
+						>
+							<Wand2 className="size-4" />
+							AI 识别素材并设计剪辑
+						</Button>
+						{!hasAssets ? (
+							<div className="rounded-md border border-dashed p-3 text-xs leading-relaxed text-muted-foreground">
+								<div className="mb-1 flex items-center gap-1.5 font-medium text-foreground">
+									<UploadCloud className="size-4" />
+									先导入视频片段
+								</div>
+								切到“素材”页，把多个视频、音频或图片丢进去；回到 AI 页后点击上面的按钮。
+							</div>
+						) : null}
 						<div className="grid gap-1.5">
 							{QUICK_PROMPTS.map((item) => (
 								<Button
@@ -331,9 +407,9 @@ export function AIWorkspacePanel() {
 								</Button>
 							))}
 						</div>
-						<Button className="w-full" onClick={handleCreatePlan}>
+						<Button variant="outline" className="w-full" onClick={handleCreatePlan}>
 							<Sparkles className="size-4" />
-							生成剪辑方案
+							只生成方案，不执行
 						</Button>
 					</div>
 
@@ -342,7 +418,7 @@ export function AIWorkspacePanel() {
 							<div className="rounded-md border p-3">
 								<div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
 									<Film className="size-3.5" />
-									成片目标
+									AI 设计结果
 								</div>
 								<p className="text-xs leading-relaxed text-muted-foreground">
 									{plan.summary}
@@ -378,7 +454,7 @@ export function AIWorkspacePanel() {
 								<div className="rounded-md border p-2">
 									<div className="flex items-center gap-1 text-sky-600">
 										<Cloud className="size-3.5" />
-										云端
+										识别
 									</div>
 									<p className="mt-1 text-base font-semibold">{chatCutSteps.length}</p>
 								</div>
@@ -485,7 +561,7 @@ export function AIWorkspacePanel() {
 							onClick={handleApplyLocal}
 						>
 							<HardDrive className="size-4" />
-							应用本地步骤
+							执行本地剪辑
 						</Button>
 						<Button
 							variant="outline"
@@ -506,7 +582,7 @@ export function AIWorkspacePanel() {
 							onClick={handleCopyHandoff}
 						>
 							<Copy className="size-4" />
-							复制 ChatCut 任务
+							交给 ChatCut 识别
 						</Button>
 						<Button
 							variant="outline"
