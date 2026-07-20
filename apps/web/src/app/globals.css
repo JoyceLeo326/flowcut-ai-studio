@@ -287,6 +287,34 @@
     animation: flowcut-pulse 2.8s ease-in-out infinite;
   }
 
+  .flowcut-ai-launchpad {
+    position: relative;
+    overflow: hidden;
+    border-color: hsl(160 70% 45% / 0.34);
+    background:
+      radial-gradient(circle at 12% 8%, hsl(160 70% 45% / 0.18), transparent 28%),
+      linear-gradient(135deg, hsl(0 0% 100% / 0.02), hsl(200 90% 52% / 0.08)),
+      var(--background);
+    box-shadow: 0 16px 42px hsl(160 70% 24% / 0.12);
+  }
+
+  .flowcut-ai-launchpad::before {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 0.25rem;
+    background: linear-gradient(90deg, hsl(160 70% 45%), hsl(200 90% 52%), hsl(38 92% 50%));
+    opacity: 0.72;
+  }
+
+  .flowcut-ai-start-option {
+    transform: translateZ(0);
+  }
+
+  .flowcut-ai-start-option:hover {
+    transform: translateY(-1px);
+  }
+
   .flowcut-ai-motion-card {
     position: relative;
     overflow: hidden;
@@ -304,12 +332,52 @@
     animation: flowcut-timing-bar 3.6s ease-in-out infinite;
   }
 
+  .flowcut-ai-director-board {
+    position: relative;
+    overflow: hidden;
+    background:
+      linear-gradient(135deg, hsl(200 90% 52% / 0.12), transparent 34%),
+      linear-gradient(225deg, hsl(38 92% 50% / 0.12), transparent 32%),
+      var(--background);
+  }
+
+  .flowcut-ai-director-board::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(hsl(200 90% 52% / 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(200 90% 52% / 0.08) 1px, transparent 1px);
+    background-size: 18px 18px;
+    mask-image: linear-gradient(180deg, hsl(0 0% 0% / 0.8), transparent);
+    pointer-events: none;
+  }
+
+  .flowcut-ai-choice {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .flowcut-ai-choice::before {
+    content: "";
+    position: absolute;
+    top: 0.625rem;
+    right: 0.625rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: hsl(160 70% 45% / 0.72);
+    box-shadow: 0 0 0 5px hsl(160 70% 45% / 0.12);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .flowcut-ai-hero::after,
     .flowcut-ai-card,
     .flowcut-ai-pulse,
+    .flowcut-ai-start-option,
     .flowcut-ai-motion-card::before {
       animation: none;
+      transition: none;
     }
   }
 }

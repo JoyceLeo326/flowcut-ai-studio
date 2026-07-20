@@ -167,6 +167,199 @@ const MOTION_STYLE_NOTES = [
 	"移动端优先竖屏安全区，字幕和主体不要贴边。",
 ] as const;
 
+const PLATFORM_BLUEPRINTS = [
+	{
+		name: "抖音 / Reels / Shorts",
+		meta: "9:16 · 25-60 秒 · 强开场",
+		prompt:
+			"平台目标：竖屏短视频，前 3 秒给结果和冲突，保留高能画面，字幕大而清晰，节奏紧凑。",
+	},
+	{
+		name: "小红书 / 朋友圈",
+		meta: "1:1 或 4:5 · 30-90 秒 · 精致说明",
+		prompt:
+			"平台目标：小红书风格，画面干净，重点信息分段出现，保留细节镜头和可截图的字幕排版。",
+	},
+	{
+		name: "B 站 / YouTube",
+		meta: "16:9 · 2-6 分钟 · 叙事完整",
+		prompt:
+			"平台目标：横屏长一点的成片，按事件顺序讲清楚，加入铺垫、关键过程、高潮和结尾总结。",
+	},
+	{
+		name: "活动 / 比赛复盘",
+		meta: "16:9 + 9:16 双版本 · 高光集锦",
+		prompt:
+			"平台目标：活动复盘，先给最终亮点，再按时间线展示关键节点，穿插反应镜头和慢动作重点。",
+	},
+] as const;
+
+const STYLE_SYSTEMS = [
+	{
+		name: "高级纪录片",
+		meta: "克制调色 · 慢切 · 环境声保留",
+		prompt:
+			"视觉风格：高级纪录片，转场克制，保留环境声和自然停顿，用少量字幕强调关键信息。",
+		accent: "bg-zinc-500",
+	},
+	{
+		name: "热血燃剪",
+		meta: "快节奏 · 鼓点切点 · 高对比",
+		prompt:
+			"视觉风格：热血燃剪，按鼓点切镜头，高潮处加速度变化和短促转场，开场直接给最强画面。",
+		accent: "bg-red-500",
+	},
+	{
+		name: "清爽知识口播",
+		meta: "停顿压缩 · 条理字幕 · B-roll 遮挡跳切",
+		prompt:
+			"视觉风格：清爽知识口播，压缩停顿，按观点分段，字幕突出关键词，用 B-roll 遮挡跳切。",
+		accent: "bg-emerald-500",
+	},
+	{
+		name: "社媒精致感",
+		meta: "封面感画面 · 轻动效 · 信息卡片",
+		prompt:
+			"视觉风格：社媒精致感，保留可截图画面，字幕排版轻盈，适合小红书和朋友圈传播。",
+		accent: "bg-pink-500",
+	},
+	{
+		name: "科技发布感",
+		meta: "干净界面 · 扫描线 · 数据标签",
+		prompt:
+			"视觉风格：科技发布感，节奏清晰，使用数据标签、扫描感动效和简洁转场突出专业度。",
+		accent: "bg-cyan-500",
+	},
+	{
+		name: "赛事高光",
+		meta: "慢动作 · 反应镜头 · 关键回放",
+		prompt:
+			"视觉风格：赛事高光，关键动作做慢动作和回放，穿插观众或队友反应，结尾保留记忆点。",
+		accent: "bg-amber-500",
+	},
+] as const;
+
+const CAPTION_PACKS = [
+	{
+		name: "大字高能字幕",
+		meta: "适合竖屏短视频",
+		prompt:
+			"字幕包装：使用大字高能字幕，关键词放大，短句分行，字幕不遮挡主体。",
+	},
+	{
+		name: "双语精致字幕",
+		meta: "适合课程/访谈/海外平台",
+		prompt:
+			"字幕包装：保留中文主字幕，并预留英文副字幕位置，重点术语保持一致。",
+	},
+	{
+		name: "信息卡片字幕",
+		meta: "适合复盘和知识类",
+		prompt:
+			"字幕包装：关键观点用信息卡片呈现，每段开头给小标题，结尾给一句总结。",
+	},
+	{
+		name: "极简电影字幕",
+		meta: "适合纪录片和情绪片",
+		prompt:
+			"字幕包装：极简电影字幕，只在必要处出现，保留画面呼吸感和环境氛围。",
+	},
+] as const;
+
+const MOTION_PACKS = [
+	{
+		name: "干净硬切",
+		meta: "少转场 · 更专业",
+		prompt:
+			"转场动效：以干净硬切为主，只在段落切换处使用轻微淡入淡出。",
+	},
+	{
+		name: "鼓点快切",
+		meta: "适合燃剪和集锦",
+		prompt:
+			"转场动效：按音乐鼓点做快切，高潮处使用短促推拉和速度变化。",
+	},
+	{
+		name: "轻滑动效",
+		meta: "适合社媒和产品展示",
+		prompt:
+			"转场动效：使用轻滑、缩放和信息卡片入场，整体保持精致但不花哨。",
+	},
+	{
+		name: "慢动作回放",
+		meta: "适合赛事关键时刻",
+		prompt:
+			"转场动效：关键动作做慢动作、回放和短暂停顿，让观众看清精彩点。",
+	},
+] as const;
+
+const DELIVERY_CHECKLIST = [
+	{
+		title: "成片结构",
+		body: "开场钩子、主体段落、高潮、结尾记忆点都要有，不只是把素材顺排。",
+	},
+	{
+		title: "画面安全",
+		body: "竖屏检查人物脸、字幕、LOGO 不贴边；横屏检查主体是否居中。",
+	},
+	{
+		title: "声音处理",
+		body: "口播保留清晰度，背景音乐不压人声，停顿和无效空白要压缩。",
+	},
+	{
+		title: "发布版本",
+		body: "需要时同时规划 9:16、1:1、16:9 三种版本，避免只适配一个平台。",
+	},
+] as const;
+
+const CREATIVE_RECIPES = [
+	{
+		name: "一键短视频爆点版",
+		meta: "适合抖音 / Reels / Shorts",
+		prompt:
+			"请做一版竖屏短视频：前 3 秒直接给最精彩结果，自动筛掉无效片段，节奏紧凑，字幕大而清楚，高潮处按鼓点快切，控制在 60 秒以内。",
+	},
+	{
+		name: "活动复盘高级版",
+		meta: "适合比赛、活动、项目汇报",
+		prompt:
+			"请做一版活动复盘：开头先给最终亮点，中间按时间线讲清关键过程，穿插反应镜头和慢动作回放，整体像高级纪录片，结尾留下记忆点。",
+	},
+	{
+		name: "口播知识清爽版",
+		meta: "适合讲解、课程、访谈",
+		prompt:
+			"请做一版清爽口播视频：压缩停顿，按观点分段，使用信息卡片字幕突出关键词，用 B-roll 遮挡跳切，背景音乐不能压过人声。",
+	},
+	{
+		name: "社媒精致种草版",
+		meta: "适合小红书、朋友圈、品牌内容",
+		prompt:
+			"请做一版社媒精致感视频：保留可截图画面，字幕排版轻盈，节奏舒适，使用轻滑动效和信息卡片，优先适配 1:1 或 4:5。",
+	},
+] as const;
+
+const STARTER_CHOICES = [
+	{
+		title: "我只想快速出片",
+		body: "自动选精彩片段、压缩停顿、套用合适画幅。",
+		prompt:
+			"请直接帮我做一版好看的成片：自动找精彩片段，删掉无效开头结尾，压缩停顿，选择最适合发布的画幅和节奏。",
+	},
+	{
+		title: "我想先要一个方案",
+		body: "先生成剪辑设计，不立即改时间线。",
+		prompt:
+			"请先给我一版剪辑方案：说明成片方向、节奏、画幅、字幕、动效和需要我检查的地方，先不要执行。",
+	},
+	{
+		title: "我要做得有风格",
+		body: "从素材里做出更明确的视觉性格。",
+		prompt:
+			"请大胆设计一版有辨识度的成片：先判断素材最适合的视觉风格，再安排字幕包装、转场动效、节奏和导出版本。",
+	},
+] as const;
+
 function formatDuration(seconds: number): string {
 	if (!Number.isFinite(seconds) || seconds <= 0) return "0 秒";
 	const minutes = Math.floor(seconds / 60);
@@ -327,6 +520,15 @@ export function AIWorkspacePanel() {
 		setCanUndoPlan(false);
 	};
 
+	const appendPromptPreset = (value: string) => {
+		setPrompt((current) => {
+			const base = current.trim() || recommendedPrompt;
+			return `${base}\n${value}`;
+		});
+		setPlan(null);
+		setCanUndoPlan(false);
+	};
+
 	const handleCreatePlan = () => {
 		createPlanFromPrompt({
 			nextPrompt: prompt || recommendedPrompt,
@@ -459,6 +661,101 @@ export function AIWorkspacePanel() {
 									把视频片段导入素材区，AI 会先读素材结构，再设计剪辑方案。你确认后再执行本地步骤或交给 ChatCut 做语义识别。
 								</p>
 							</div>
+						</div>
+					</div>
+
+					<div className="flowcut-ai-launchpad rounded-md border p-3">
+						<div className="mb-3 flex items-start justify-between gap-3">
+							<div className="min-w-0">
+								<p className="text-sm font-semibold">把素材甩进来，然后选一个结果</p>
+								<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+									不用先想剪辑术语。选一个最接近的意图，AI 会自动补齐方案。
+								</p>
+							</div>
+							<span className="shrink-0 rounded-full bg-primary px-2 py-1 text-[10px] font-medium text-primary-foreground">
+								推荐
+							</span>
+						</div>
+						<div className="grid gap-2">
+							{STARTER_CHOICES.map((item, index) => (
+								<button
+									key={item.title}
+									type="button"
+									className={cn(
+										"flowcut-ai-start-option rounded-md border p-2 text-left transition",
+										index === 0
+											? "border-primary/45 bg-primary/10"
+											: "bg-background/70 hover:border-primary/45 hover:bg-secondary/70",
+									)}
+									onClick={() => {
+										const nextPrompt =
+											index === 0
+												? `${item.prompt}\n${CREATIVE_RECIPES[0].prompt}`
+												: item.prompt;
+										handlePromptPreset(nextPrompt);
+									}}
+								>
+									<span className="block text-xs font-medium">{item.title}</span>
+									<span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
+										{item.body}
+									</span>
+								</button>
+							))}
+						</div>
+						<Button
+							className="mt-3 w-full"
+							onClick={() =>
+								createPlanFromPrompt({
+									nextPrompt:
+										prompt ||
+										`${recommendedPrompt}\n${CREATIVE_RECIPES[0].prompt}`,
+								})
+							}
+						>
+							<Wand2 className="size-4" />
+							直接帮我设计一版
+						</Button>
+					</div>
+
+					<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
+						<div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
+							<Workflow className="size-3.5 text-primary" />
+							先选成片感觉
+						</div>
+						<p className="text-[11px] leading-relaxed text-muted-foreground">
+							选一个发布场景和画面风格，AI 会自动补齐画幅、节奏、字幕、动效和导出版本。
+						</p>
+						<div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+							<div className="rounded-md border bg-muted/25 p-2">
+								<p className="font-medium">我要发到哪里</p>
+								<p className="mt-1 text-muted-foreground">短视频、复盘、横屏长片</p>
+							</div>
+							<div className="rounded-md border bg-muted/25 p-2">
+								<p className="font-medium">画面要像什么</p>
+								<p className="mt-1 text-muted-foreground">燃剪、纪录片、社媒精致感</p>
+							</div>
+						</div>
+					</div>
+
+					<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
+						<div className="mb-3 flex items-center gap-1.5 text-xs font-semibold">
+							<Sparkles className="size-3.5 text-primary" />
+							推荐组合
+						</div>
+						<div className="grid gap-2">
+							{CREATIVE_RECIPES.map((item) => (
+								<button
+									key={item.name}
+									type="button"
+									className="rounded-md border bg-muted/20 p-2 text-left transition hover:border-primary/50 hover:bg-secondary/70"
+									onClick={() => handlePromptPreset(item.prompt)}
+								>
+									<span className="block text-xs font-medium">{item.name}</span>
+									<span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
+										{item.meta}
+									</span>
+								</button>
+							))}
 						</div>
 					</div>
 
@@ -618,6 +915,134 @@ export function AIWorkspacePanel() {
 								</li>
 							))}
 						</ul>
+					</div>
+
+					<div className="flowcut-ai-card flowcut-ai-director-board rounded-md border bg-background/75 p-3">
+						<div className="mb-3 flex items-center gap-1.5 text-xs font-semibold">
+							<Wand2 className="size-3.5 text-primary" />
+							成片方向
+						</div>
+						<p className="mb-3 text-[11px] leading-relaxed text-muted-foreground">
+							选最接近的发布场景，会自动写入 AI 目标。
+						</p>
+						<div className="grid gap-2">
+							{PLATFORM_BLUEPRINTS.map((item) => (
+								<button
+									key={item.name}
+									type="button"
+									className="flowcut-ai-choice rounded-md border bg-background/70 p-2 text-left transition hover:border-primary/50 hover:bg-secondary/70"
+									onClick={() => appendPromptPreset(item.prompt)}
+								>
+									<span className="block text-xs font-medium">{item.name}</span>
+									<span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
+										{item.meta}
+									</span>
+								</button>
+							))}
+						</div>
+					</div>
+
+					<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
+						<div className="mb-3 flex items-center gap-1.5 text-xs font-semibold">
+							<Sparkles className="size-3.5 text-primary" />
+							画面风格
+						</div>
+						<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+							{STYLE_SYSTEMS.map((item) => (
+								<button
+									key={item.name}
+									type="button"
+									className="group rounded-md border bg-muted/20 p-2 text-left transition hover:border-primary/50 hover:bg-secondary/70"
+									onClick={() => appendPromptPreset(item.prompt)}
+								>
+									<span className="flex items-center gap-2">
+										<span
+											className={cn(
+												"size-2.5 shrink-0 rounded-full ring-4 ring-background",
+												item.accent,
+											)}
+										/>
+										<span className="text-xs font-medium">{item.name}</span>
+									</span>
+									<span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
+										{item.meta}
+									</span>
+								</button>
+							))}
+						</div>
+					</div>
+
+					<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
+						<div className="mb-3 flex items-center gap-1.5 text-xs font-semibold">
+							<ClipboardCheck className="size-3.5" />
+							字幕和动效
+						</div>
+						<div className="grid gap-3">
+							<div>
+								<p className="mb-2 text-[11px] font-medium text-muted-foreground">
+									字幕包装
+								</p>
+								<div className="grid gap-2">
+									{CAPTION_PACKS.map((item) => (
+										<button
+											key={item.name}
+											type="button"
+											className="rounded-md border bg-muted/20 p-2 text-left transition hover:border-primary/50 hover:bg-secondary/70"
+											onClick={() => appendPromptPreset(item.prompt)}
+										>
+											<span className="block text-xs font-medium">{item.name}</span>
+											<span className="mt-1 block text-[11px] text-muted-foreground">
+												{item.meta}
+											</span>
+										</button>
+									))}
+								</div>
+							</div>
+							<div>
+								<p className="mb-2 text-[11px] font-medium text-muted-foreground">
+									转场动效
+								</p>
+								<div className="grid gap-2">
+									{MOTION_PACKS.map((item) => (
+										<button
+											key={item.name}
+											type="button"
+											className="rounded-md border bg-muted/20 p-2 text-left transition hover:border-primary/50 hover:bg-secondary/70"
+											onClick={() => appendPromptPreset(item.prompt)}
+										>
+											<span className="block text-xs font-medium">{item.name}</span>
+											<span className="mt-1 block text-[11px] text-muted-foreground">
+												{item.meta}
+											</span>
+										</button>
+									))}
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
+						<div className="mb-3 flex items-center gap-1.5 text-xs font-semibold">
+							<ListChecks className="size-3.5" />
+							导出前检查
+						</div>
+						<div className="grid gap-2">
+							{DELIVERY_CHECKLIST.map((item) => (
+								<button
+									key={item.title}
+									type="button"
+									className="rounded-md border bg-muted/20 p-2 text-left transition hover:border-primary/50 hover:bg-secondary/70"
+									onClick={() =>
+										appendPromptPreset(`交付要求：${item.title}，${item.body}`)
+									}
+								>
+									<span className="block text-xs font-medium">{item.title}</span>
+									<span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
+										{item.body}
+									</span>
+								</button>
+							))}
+						</div>
 					</div>
 
 					<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
