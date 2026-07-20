@@ -16,7 +16,6 @@ import { Onboarding } from "@/components/editor/onboarding";
 import { MigrationDialog } from "@/project/components/migration-dialog";
 import { usePanelStore } from "@/editor/panel-store";
 import { usePasteMedia } from "@/media/use-paste-media";
-import { MobileGate } from "@/components/editor/mobile-gate";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useEditor } from "@/editor/use-editor";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
@@ -93,20 +92,18 @@ export default function Editor() {
 	if (!projectId) return null;
 
 	return (
-		<MobileGate>
-			<EditorProvider projectId={projectId}>
-				<div className="bg-background flex h-screen w-screen flex-col overflow-hidden">
-					<DegradedRendererBanner />
-					<EditorHeader />
-					<div className="min-h-0 min-w-0 flex-1">
-						<EditorLayout />
-					</div>
-					<Onboarding />
-					<MigrationDialog />
-					<ChangelogNotification />
+		<EditorProvider projectId={projectId}>
+			<div className="bg-background flex h-screen w-screen flex-col overflow-hidden">
+				<DegradedRendererBanner />
+				<EditorHeader />
+				<div className="min-h-0 min-w-0 flex-1">
+					<EditorLayout />
 				</div>
-			</EditorProvider>
-		</MobileGate>
+				<Onboarding />
+				<MigrationDialog />
+				<ChangelogNotification />
+			</div>
+		</EditorProvider>
 	);
 }
 
@@ -178,6 +175,15 @@ function EditorLayout() {
 			),
 		[overlaySource.definitions, overlays],
 	);
+	const horizontalPanelSizes = useMemo(() => {
+		const total = panels.tools + panels.preview + panels.properties;
+		if (total <= 0) return { tools: 25, preview: 50, properties: 25 };
+		return {
+			tools: (panels.tools / total) * 100,
+			preview: (panels.preview / total) * 100,
+			properties: (panels.properties / total) * 100,
+		};
+	}, [panels.preview, panels.properties, panels.tools]);
 
 	if (isTouchLayout) {
 		return (
@@ -223,7 +229,7 @@ function EditorLayout() {
 					}}
 				>
 					<ResizablePanel
-						defaultSize={30}
+						defaultSize={horizontalPanelSizes.tools}
 						minSize={22}
 						maxSize={45}
 						className="min-w-0"
@@ -234,7 +240,7 @@ function EditorLayout() {
 					<ResizableHandle withHandle />
 
 					<ResizablePanel
-						defaultSize={panels.preview}
+						defaultSize={horizontalPanelSizes.preview}
 						minSize={30}
 						className="min-h-0 min-w-0 flex-1"
 					>
@@ -248,7 +254,7 @@ function EditorLayout() {
 					<ResizableHandle withHandle />
 
 					<ResizablePanel
-						defaultSize={22}
+						defaultSize={horizontalPanelSizes.properties}
 						minSize={16}
 						maxSize={35}
 						className="min-w-0"
@@ -311,34 +317,50 @@ function TouchEditorLayout({
 			onValueChange={(value) => {
 				if (isTouchEditorTab(value)) setActiveTab(value);
 			}}
-			className="flex size-full min-h-0 flex-col overflow-hidden px-2 pb-2"
+			className="flowcut-touch-shell flex size-full min-h-0 flex-col overflow-hidden px-2 pb-2"
 		>
 			<div className="min-h-0 flex-1 overflow-hidden">
-				<TabsContent value="assets" forceMount className="m-0 size-full p-0">
+				<TabsContent
+					value="assets"
+					forceMount
+					className="m-0 size-full p-0 data-[state=inactive]:hidden"
+				>
 					<AssetsPanel />
 				</TabsContent>
-				<TabsContent value="preview" forceMount className="m-0 size-full p-0">
+				<TabsContent
+					value="preview"
+					forceMount
+					className="m-0 size-full p-0 data-[state=inactive]:hidden"
+				>
 					<PreviewPanel
 						overlayControls={overlayControls}
 						overlayInstances={overlayInstances}
 						onOverlayVisibilityChange={onOverlayVisibilityChange}
 					/>
 				</TabsContent>
-				<TabsContent value="ai" forceMount className="m-0 size-full p-0">
+				<TabsContent
+					value="ai"
+					forceMount
+					className="m-0 size-full p-0 data-[state=inactive]:hidden"
+				>
 					<InspectorPanel />
 				</TabsContent>
-				<TabsContent value="timeline" forceMount className="m-0 size-full p-0">
+				<TabsContent
+					value="timeline"
+					forceMount
+					className="m-0 size-full p-0 data-[state=inactive]:hidden"
+				>
 					<Timeline />
 				</TabsContent>
 			</div>
-			<TabsList className="mt-2 grid h-14 shrink-0 grid-cols-4 rounded-md border bg-background p-1 shadow-sm">
+			<TabsList className="flowcut-touch-tabs mt-2 grid h-14 shrink-0 grid-cols-4 rounded-[8px] border p-1">
 				{tabs.map((tab) => {
 					const Icon = tab.icon;
 					return (
 						<TabsTrigger
 							key={tab.id}
 							value={tab.id}
-							className="h-full flex-col gap-0.5 rounded-sm px-1 py-1 text-[11px] transition data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground data-[state=active]:shadow-sm"
+							className="flowcut-touch-tab h-full flex-col gap-0.5 rounded-[6px] px-1 py-1 text-[11px] transition data-[state=active]:border-border data-[state=active]:bg-accent data-[state=active]:text-foreground"
 						>
 							<Icon className="size-4" />
 							{tab.label}

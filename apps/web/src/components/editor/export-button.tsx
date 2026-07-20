@@ -182,7 +182,10 @@ function ExportPopover({
 	};
 
 	return (
-		<PopoverContent className="bg-background mr-0 flex max-h-[min(82vh,42rem)] w-[min(22rem,calc(100vw-1rem))] flex-col overflow-y-auto p-0 sm:mr-2">
+		<PopoverContent
+			collisionPadding={8}
+			className="bg-background mr-0 flex max-h-[min(82vh,42rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-y-auto p-0 sm:mr-2"
+		>
 			{exportResult && !exportResult.success ? (
 				<ExportError
 					error={exportResult.error || "Unknown error occurred"}

@@ -242,14 +242,68 @@
 
 @layer components {
   .flowcut-ai-shell {
-    background: color-mix(in oklab, var(--background) 96%, var(--muted));
+    --flowcut-surface-0: color-mix(
+      in oklab,
+      var(--background) 97%,
+      var(--foreground)
+    );
+    --flowcut-surface-1: color-mix(
+      in oklab,
+      var(--background) 93%,
+      var(--foreground)
+    );
+    --flowcut-surface-2: color-mix(
+      in oklab,
+      var(--background) 88%,
+      var(--foreground)
+    );
+    --flowcut-hairline: color-mix(
+      in oklab,
+      var(--border) 82%,
+      var(--foreground)
+    );
+    background: var(--flowcut-surface-0);
+    font-feature-settings: "calt", "kern", "liga";
+  }
+
+  .flowcut-inspector-shell {
+    border-color: color-mix(in oklab, var(--border) 88%, var(--foreground));
+  }
+
+  .flowcut-inspector-tabs {
+    background: color-mix(in oklab, var(--background) 96%, var(--foreground));
+  }
+
+  .flowcut-touch-tabs {
+    border-color: color-mix(in oklab, var(--border) 82%, var(--foreground));
+    background: color-mix(in oklab, var(--background) 94%, var(--foreground));
+  }
+
+  .flowcut-touch-tab {
+    position: relative;
+    color: var(--muted-foreground);
+  }
+
+  .flowcut-touch-tab[data-state="active"] {
+    background: color-mix(in oklab, var(--background) 86%, var(--foreground));
+    color: var(--foreground);
+  }
+
+  .flowcut-touch-tab[data-state="active"]::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 50%;
+    width: 16px;
+    height: 1px;
+    background: hsl(200 78% 52%);
+    transform: translateX(-50%);
   }
 
   .flowcut-director-console {
     position: relative;
-    border-color: hsl(200 78% 52% / 0.3);
-    background: color-mix(in oklab, var(--background) 94%, hsl(200 78% 52%));
-    box-shadow: inset 3px 0 0 hsl(200 78% 52%);
+    border-color: var(--flowcut-hairline);
+    background: var(--flowcut-surface-1);
   }
 
   .flowcut-director-console::after {
@@ -258,22 +312,22 @@
     right: 0;
     bottom: 0;
     left: 0;
-    height: 2px;
-    background: linear-gradient(
-      90deg,
-      hsl(200 78% 52%),
-      hsl(158 64% 44%),
-      hsl(38 88% 52%)
-    );
-    opacity: 0.72;
+    height: 1px;
+    background: hsl(200 78% 52% / 0.75);
     pointer-events: none;
+  }
+
+  .flowcut-director-mark {
+    border-color: hsl(0 0% 100% / 0.12);
+    background: var(--foreground);
+    color: var(--background);
   }
 
   .flowcut-stage-cell {
     position: relative;
-    padding: 0.55rem 0.45rem;
-    border-right: 1px solid var(--border);
-    background: color-mix(in oklab, var(--background) 96%, var(--muted));
+    padding: 0.7rem 0.55rem 0.8rem;
+    border-right: 1px solid var(--flowcut-hairline);
+    background: transparent;
   }
 
   .flowcut-stage-cell:last-child {
@@ -281,21 +335,24 @@
   }
 
   .flowcut-stage-cell[data-state="done"] {
-    background: hsl(158 64% 44% / 0.08);
+    color: color-mix(in oklab, var(--foreground) 92%, hsl(158 64% 44%));
   }
 
   .flowcut-stage-cell[data-state="current"] {
-    background: hsl(200 78% 52% / 0.1);
+    color: color-mix(in oklab, var(--foreground) 92%, hsl(200 78% 52%));
   }
 
-  .flowcut-stage-cell[data-state="done"]::after,
-  .flowcut-stage-cell[data-state="current"]::after {
+  .flowcut-stage-cell::after {
     content: "";
     position: absolute;
-    right: 0.45rem;
-    bottom: 0.35rem;
-    left: 0.45rem;
-    height: 2px;
+    right: 0.55rem;
+    bottom: 0.45rem;
+    left: 0.55rem;
+    height: 1px;
+    background: var(--flowcut-hairline);
+  }
+
+  .flowcut-stage-cell[data-state="done"]::after {
     background: hsl(158 64% 44%);
   }
 
@@ -304,22 +361,24 @@
   }
 
   .flowcut-empty-import {
-    background: color-mix(in oklab, var(--background) 92%, hsl(158 64% 44%));
+    border-color: hsl(200 78% 52% / 0.34);
+    background: var(--flowcut-surface-1);
   }
 
   .flowcut-material-strip {
-    border-color: hsl(158 64% 44% / 0.28);
+    border-color: var(--flowcut-hairline);
+    background: var(--flowcut-surface-1);
   }
 
   .flowcut-brief-option {
     position: relative;
     overflow: hidden;
-    background: color-mix(in oklab, var(--background) 96%, var(--muted));
+    border-color: var(--flowcut-hairline);
+    background: var(--flowcut-surface-1);
     transition:
       transform 160ms ease,
       border-color 160ms ease,
-      background-color 160ms ease,
-      box-shadow 160ms ease;
+      background-color 160ms ease;
   }
 
   .flowcut-brief-option::before {
@@ -328,20 +387,23 @@
     top: 0;
     bottom: 0;
     left: 0;
-    width: 3px;
+    width: 2px;
     background: transparent;
   }
 
   .flowcut-brief-option:hover {
     transform: translateY(-1px);
-    border-color: hsl(200 78% 52% / 0.42);
-    background: color-mix(in oklab, var(--background) 90%, hsl(200 78% 52%));
+    border-color: color-mix(
+      in oklab,
+      var(--flowcut-hairline) 65%,
+      hsl(200 78% 52%)
+    );
+    background: var(--flowcut-surface-2);
   }
 
   .flowcut-brief-option[data-selected="true"] {
-    border-color: hsl(200 78% 52% / 0.62);
-    background: hsl(200 78% 52% / 0.08);
-    box-shadow: 0 6px 18px hsl(200 55% 20% / 0.08);
+    border-color: hsl(200 78% 52% / 0.58);
+    background: var(--flowcut-surface-2);
   }
 
   .flowcut-brief-option[data-selected="true"]::before {
@@ -349,24 +411,132 @@
   }
 
   .flowcut-brief-chip {
-    background: color-mix(in oklab, var(--background) 92%, var(--muted));
+    border-color: var(--flowcut-hairline);
   }
 
   .flowcut-plan-anchor {
     animation: flowcut-enter 220ms ease-out both;
   }
 
+  .flowcut-brief-summary,
+  .flowcut-note-panel,
+  .flowcut-surface-section,
+  .flowcut-blueprint-panel {
+    border-color: var(--flowcut-hairline);
+    background: var(--flowcut-surface-1);
+  }
+
+  .flowcut-delivery-option,
+  .flowcut-variant-row,
+  .flowcut-step-list {
+    border-color: var(--flowcut-hairline);
+    background: var(--flowcut-surface-0);
+  }
+
+  .flowcut-delivery-option:hover {
+    background: var(--flowcut-surface-2);
+  }
+
+  .flowcut-generate-button {
+    border: 1px solid color-mix(in oklab, var(--foreground) 88%, transparent);
+    transition:
+      transform 160ms ease,
+      opacity 160ms ease;
+  }
+
+  .flowcut-generate-button:hover {
+    transform: translateY(-1px);
+  }
+
   .flowcut-plan-summary {
-    border-color: hsl(200 78% 52% / 0.34);
-    box-shadow: inset 3px 0 0 hsl(200 78% 52%);
+    border-color: hsl(200 78% 52% / 0.38);
+    border-left-width: 2px;
+    background: var(--flowcut-surface-1);
   }
 
   .flowcut-blueprint-item {
-    background: color-mix(in oklab, var(--background) 95%, var(--muted));
+    background: transparent;
+  }
+
+  .flowcut-blueprint-item:not(:first-child) {
+    border-top: 1px solid var(--flowcut-hairline);
+  }
+
+  .flowcut-plan-stat {
+    border-color: var(--flowcut-hairline);
+  }
+
+  .flowcut-aspect-frame {
+    position: relative;
+    display: block;
+    width: 18px;
+    height: 32px;
+    border: 1px solid hsl(200 78% 52% / 0.74);
+    border-radius: 3px;
+    background: hsl(200 78% 52% / 0.07);
+  }
+
+  .flowcut-aspect-frame::after {
+    content: "";
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    left: 3px;
+    height: 1px;
+    background: hsl(200 78% 52% / 0.55);
+  }
+
+  .flowcut-aspect-frame[data-ratio="16:9"] {
+    width: 34px;
+    height: 19px;
+  }
+
+  .flowcut-aspect-frame[data-ratio="4:5"] {
+    width: 24px;
+    height: 30px;
+  }
+
+  .flowcut-aspect-frame[data-ratio="1:1"] {
+    width: 26px;
+    height: 26px;
+  }
+
+  .flowcut-aspect-frame.is-compact {
+    width: 10px;
+    height: 18px;
+    border-radius: 2px;
+  }
+
+  .flowcut-aspect-frame.is-compact::after {
+    right: 2px;
+    bottom: 2px;
+    left: 2px;
+  }
+
+  .flowcut-aspect-frame.is-compact[data-ratio="16:9"] {
+    width: 20px;
+    height: 11px;
+  }
+
+  .flowcut-aspect-frame.is-compact[data-ratio="4:5"] {
+    width: 13px;
+    height: 16px;
+  }
+
+  .flowcut-aspect-frame.is-compact[data-ratio="1:1"] {
+    width: 15px;
+    height: 15px;
+  }
+
+  .flowcut-review-gate {
+    border-color: hsl(200 78% 52% / 0.32);
+    background: hsl(200 78% 52% / 0.05);
   }
 
   .flowcut-action-dock {
-    box-shadow: 0 -10px 28px hsl(0 0% 0% / 0.08);
+    border-color: var(--flowcut-hairline);
+    background: color-mix(in oklab, var(--flowcut-surface-1) 92%, transparent);
+    backdrop-filter: blur(18px);
   }
 
   .flowcut-ai-pulse {
@@ -375,11 +545,36 @@
 
   @media (prefers-reduced-motion: reduce) {
     .flowcut-brief-option,
+    .flowcut-generate-button,
     .flowcut-plan-anchor,
     .flowcut-ai-pulse,
     .flowcut-action-dock {
       animation: none;
       transition: none;
+    }
+  }
+
+  @media (min-width: 420px) {
+    .flowcut-blueprint-item {
+      border-top: 0;
+    }
+
+    .flowcut-blueprint-item:nth-child(n + 3) {
+      border-top: 1px solid var(--flowcut-hairline);
+    }
+
+    .flowcut-blueprint-item:nth-child(even) {
+      border-left: 1px solid var(--flowcut-hairline);
+    }
+  }
+
+  @media (pointer: coarse) {
+    .flowcut-brief-option {
+      min-height: 68px;
+    }
+
+    .flowcut-generate-button {
+      min-height: 48px;
     }
   }
 }

@@ -146,7 +146,7 @@ function BriefChoiceGrid({
 	onSelect: (id: string) => void;
 }) {
 	return (
-		<div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
+		<div className="flowcut-choice-grid grid grid-cols-1 gap-1.5 min-[420px]:grid-cols-2">
 			{options.map((option) => {
 				const isSelected = option.id === selectedId;
 				return (
@@ -155,33 +155,33 @@ function BriefChoiceGrid({
 						type="button"
 						aria-pressed={isSelected}
 						data-selected={isSelected ? "true" : "false"}
-						className="flowcut-brief-option group min-w-0 rounded-md border p-2.5 text-left"
+						className="flowcut-brief-option group min-h-[64px] min-w-0 rounded-[8px] border px-3 py-2.5 text-left"
 						onClick={() => onSelect(option.id)}
 					>
 						<span className="flex min-w-0 items-center gap-2">
 							{option.tone ? (
 								<span
 									className={cn(
-										"size-2 shrink-0 rounded-full",
+										"size-2 shrink-0 rounded-[2px]",
 										TONE_CLASSES[option.tone],
 									)}
 								/>
 							) : null}
-							<span className="min-w-0 flex-1 truncate text-xs font-medium">
+							<span className="min-w-0 flex-1 truncate text-[12px] font-medium">
 								{option.label}
 							</span>
 							<span
 								className={cn(
-									"flex size-4 shrink-0 items-center justify-center rounded-full border transition",
+									"flex size-5 shrink-0 items-center justify-center rounded-[5px] border transition",
 									isSelected
 										? "border-primary bg-primary text-primary-foreground"
 										: "border-border text-transparent",
 								)}
 							>
-								<Check className="size-2.5" />
+								<Check className="size-3" />
 							</span>
 						</span>
-						<span className="mt-1.5 block text-[11px] leading-relaxed text-muted-foreground">
+						<span className="mt-1 block text-[10px] leading-relaxed text-muted-foreground">
 							{option.meta}
 						</span>
 					</button>
@@ -201,12 +201,14 @@ function BlueprintItem({
 	value: string;
 }) {
 	return (
-		<div className="flowcut-blueprint-item rounded-md border p-2.5">
+		<div className="flowcut-blueprint-item min-w-0 px-3 py-3">
 			<div className="flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
-				<Icon className="size-3.5 text-primary" />
+				<Icon className="size-3.5 text-primary/90" />
 				{label}
 			</div>
-			<p className="mt-1.5 text-[11px] leading-relaxed">{value}</p>
+			<p className="mt-1.5 text-[11px] leading-relaxed text-foreground/90">
+				{value}
+			</p>
 		</div>
 	);
 }
@@ -225,10 +227,26 @@ function StageCell({
 			<span className="text-[9px] font-medium text-muted-foreground">
 				{label}
 			</span>
-			<span className="mt-0.5 block truncate text-[10px] font-semibold">
+			<span className="mt-1 block truncate text-[10px] font-medium">
 				{value}
 			</span>
 		</div>
+	);
+}
+
+function AspectFrame({
+	ratio,
+	compact = false,
+}: {
+	ratio: string;
+	compact?: boolean;
+}) {
+	return (
+		<span
+			aria-hidden="true"
+			data-ratio={ratio}
+			className={cn("flowcut-aspect-frame", compact && "is-compact")}
+		/>
 	);
 }
 
@@ -471,20 +489,21 @@ export function AIWorkspacePanel() {
 	return (
 		<div className="flowcut-ai-shell flex h-full min-h-0 flex-col">
 			<ScrollArea className="min-h-0 flex-1">
-				<div className="space-y-3 p-3">
-					<section className="flowcut-director-console overflow-hidden rounded-md border">
-						<div className="flex items-start gap-3 p-3">
-							<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-foreground text-background">
+				<div className="space-y-4 p-3">
+					<section className="flowcut-director-console overflow-hidden rounded-[8px] border">
+						<div className="flex items-start gap-3.5 p-3.5">
+							<div className="flowcut-director-mark flex size-10 shrink-0 items-center justify-center rounded-[8px] border">
 								<Brain className="size-5" />
 							</div>
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center justify-between gap-2">
-									<h2 className="text-sm font-semibold">AI 剪辑导演</h2>
-									<span className="rounded-sm border px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">
+									<h2 className="text-[15px] font-semibold">AI 剪辑导演</h2>
+									<span className="inline-flex items-center gap-1.5 text-[9px] font-medium text-muted-foreground">
+										<span className="size-1.5 rounded-full bg-emerald-500" />
 										本地优先
 									</span>
 								</div>
-								<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+								<p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
 									选成片类型，确认风格，生成一版可以直接审阅的剪辑蓝图。
 								</p>
 							</div>
@@ -515,8 +534,8 @@ export function AIWorkspacePanel() {
 					</section>
 
 					{!hasMedia ? (
-						<section className="flowcut-empty-import rounded-md border border-dashed p-4 text-center">
-							<div className="mx-auto flex size-10 items-center justify-center rounded-md border bg-background">
+						<section className="flowcut-empty-import rounded-[8px] border border-dashed p-5 text-center">
+							<div className="mx-auto flex size-11 items-center justify-center rounded-[8px] border bg-background">
 								<UploadCloud className="size-5 text-primary" />
 							</div>
 							<h3 className="mt-3 text-sm font-semibold">先把原片放进来</h3>
@@ -529,7 +548,7 @@ export function AIWorkspacePanel() {
 							</Button>
 						</section>
 					) : (
-						<section className="flowcut-material-strip grid grid-cols-4 divide-x rounded-md border bg-background">
+						<section className="flowcut-material-strip grid grid-cols-4 divide-x overflow-hidden rounded-[8px] border">
 							{[
 								["视频", videoAssetCount],
 								["音频", audioAssetCount],
@@ -546,15 +565,16 @@ export function AIWorkspacePanel() {
 						</section>
 					)}
 
-					<section className="rounded-md border bg-background p-3">
+					<section className="flowcut-recipe-section py-1">
 						<div className="mb-3 flex items-center justify-between gap-2">
 							<div>
-								<h3 className="text-xs font-semibold">想先做成哪一种片</h3>
-								<p className="mt-1 text-[10px] text-muted-foreground">
+								<h3 className="text-[13px] font-semibold">想先做成哪一种片</h3>
+								<p className="mt-1 text-[11px] text-muted-foreground">
 									选一个最接近的，细节可以继续调。
 								</p>
 							</div>
-							<span className="rounded-sm bg-emerald-500/10 px-1.5 py-1 text-[9px] font-medium text-emerald-700 dark:text-emerald-300">
+							<span className="inline-flex items-center gap-1.5 text-[9px] font-medium text-emerald-700 dark:text-emerald-300">
+								<span className="size-1.5 rounded-full bg-emerald-500" />
 								推荐已填好
 							</span>
 						</div>
@@ -567,177 +587,176 @@ export function AIWorkspacePanel() {
 						/>
 					</section>
 
-					<section className="flowcut-brief-summary rounded-md border bg-background p-3">
-						<div className="flex items-center justify-between gap-2">
-							<div className="flex items-center gap-1.5 text-xs font-semibold">
-								<ClipboardCheck className="size-3.5 text-primary" />
-								当前创作简报
-							</div>
-							<span className="text-[10px] text-muted-foreground">
-								{briefProgress.completed}/{briefProgress.total}
-							</span>
-						</div>
-						<Progress value={briefProgressPercent} className="mt-2 h-1" />
-						<div className="mt-2.5 flex flex-wrap gap-1.5">
-							{selectedBriefOptions.map((option) => (
-								<span
-									key={option.id}
-									className="flowcut-brief-chip inline-flex max-w-full items-center gap-1 rounded-sm border px-1.5 py-1 text-[9px]"
-								>
-									{option.tone ? (
-										<span
-											className={cn(
-												"size-1.5 shrink-0 rounded-full",
-												TONE_CLASSES[option.tone],
-											)}
-										/>
-									) : null}
-									<span className="truncate">{option.label}</span>
+					<section className="flowcut-brief-summary overflow-hidden rounded-[8px] border">
+						<div className="p-3">
+							<div className="flex items-center justify-between gap-2">
+								<div className="flex items-center gap-1.5 text-xs font-semibold">
+									<ClipboardCheck className="size-3.5 text-primary" />
+									当前创作简报
+								</div>
+								<span className="text-[10px] text-muted-foreground">
+									{briefProgress.completed}/{briefProgress.total}
 								</span>
-							))}
+							</div>
+							<Progress value={briefProgressPercent} className="mt-2.5 h-1" />
+							<div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
+								{selectedBriefOptions.map((option) => (
+									<span
+										key={`${option.id}-${option.label}`}
+										className="flowcut-brief-chip inline-flex min-w-0 items-center gap-1.5 border-t py-2 text-[10px]"
+									>
+										{option.tone ? (
+											<span
+												className={cn(
+													"size-1.5 shrink-0 rounded-[2px]",
+													TONE_CLASSES[option.tone],
+												)}
+											/>
+										) : null}
+										<span className="truncate">{option.label}</span>
+									</span>
+								))}
+							</div>
 						</div>
+
+						<Accordion type="multiple" className="border-t px-3">
+							<AccordionItem value="platform">
+								<AccordionTrigger className="py-3 text-xs hover:no-underline">
+									<span className="flex items-center gap-2">
+										<MonitorUp className="size-3.5 text-primary" />
+										发布方向
+										<span className="font-normal text-muted-foreground">
+											{selectedBriefOptions[1]?.label}
+										</span>
+									</span>
+								</AccordionTrigger>
+								<AccordionContent>
+									<BriefChoiceGrid
+										options={CREATIVE_BRIEF_CATALOG.platforms}
+										selectedId={brief.platformId}
+										onSelect={(value) =>
+											handleSingleChoice({ field: "platformId", value })
+										}
+									/>
+								</AccordionContent>
+							</AccordionItem>
+
+							<AccordionItem value="style">
+								<AccordionTrigger className="py-3 text-xs hover:no-underline">
+									<span className="flex items-center gap-2">
+										<Palette className="size-3.5 text-primary" />
+										视觉风格
+										<span className="font-normal text-muted-foreground">
+											{selectedBriefOptions[2]?.label}
+										</span>
+									</span>
+								</AccordionTrigger>
+								<AccordionContent>
+									<BriefChoiceGrid
+										options={CREATIVE_BRIEF_CATALOG.styles}
+										selectedId={brief.styleId}
+										onSelect={(value) =>
+											handleSingleChoice({ field: "styleId", value })
+										}
+									/>
+								</AccordionContent>
+							</AccordionItem>
+
+							<AccordionItem value="captions-motion">
+								<AccordionTrigger className="py-3 text-xs hover:no-underline">
+									<span className="flex items-center gap-2">
+										<Subtitles className="size-3.5 text-primary" />
+										字幕与动效
+									</span>
+								</AccordionTrigger>
+								<AccordionContent className="space-y-4">
+									<div>
+										<p className="mb-2 text-[10px] font-medium text-muted-foreground">
+											字幕包装
+										</p>
+										<BriefChoiceGrid
+											options={CREATIVE_BRIEF_CATALOG.captions}
+											selectedId={brief.captionId}
+											onSelect={(value) =>
+												handleSingleChoice({ field: "captionId", value })
+											}
+										/>
+									</div>
+									<div>
+										<p className="mb-2 text-[10px] font-medium text-muted-foreground">
+											镜头动效
+										</p>
+										<BriefChoiceGrid
+											options={CREATIVE_BRIEF_CATALOG.motions}
+											selectedId={brief.motionId}
+											onSelect={(value) =>
+												handleSingleChoice({ field: "motionId", value })
+											}
+										/>
+									</div>
+								</AccordionContent>
+							</AccordionItem>
+
+							<AccordionItem value="audio-delivery" className="border-b-0">
+								<AccordionTrigger className="py-3 text-xs hover:no-underline">
+									<span className="flex items-center gap-2">
+										<Headphones className="size-3.5 text-primary" />
+										声音与交付
+									</span>
+								</AccordionTrigger>
+								<AccordionContent className="space-y-4">
+									<div>
+										<p className="mb-2 text-[10px] font-medium text-muted-foreground">
+											声音设计
+										</p>
+										<BriefChoiceGrid
+											options={CREATIVE_BRIEF_CATALOG.audio}
+											selectedId={brief.audioId}
+											onSelect={(value) =>
+												handleSingleChoice({ field: "audioId", value })
+											}
+										/>
+									</div>
+									<div>
+										<p className="mb-2 text-[10px] font-medium text-muted-foreground">
+											交付检查
+										</p>
+										<div className="grid gap-2">
+											{CREATIVE_BRIEF_CATALOG.delivery.map((option) => {
+												const checked = brief.deliveryIds.includes(option.id);
+												return (
+													<label
+														key={option.id}
+														htmlFor={`delivery-${option.id}`}
+														className="flowcut-delivery-option flex cursor-pointer items-start gap-2 rounded-[8px] border p-2.5 transition"
+													>
+														<Checkbox
+															id={`delivery-${option.id}`}
+															checked={checked}
+															onCheckedChange={() =>
+																handleDeliveryChoice(option.id)
+															}
+															className="mt-0.5"
+														/>
+														<span className="min-w-0">
+															<span className="block text-xs font-medium">
+																{option.label}
+															</span>
+															<span className="mt-1 block text-[10px] leading-relaxed text-muted-foreground">
+																{option.meta}
+															</span>
+														</span>
+													</label>
+												);
+											})}
+										</div>
+									</div>
+								</AccordionContent>
+							</AccordionItem>
+						</Accordion>
 					</section>
 
-					<Accordion
-						type="multiple"
-						className="rounded-md border bg-background px-3"
-					>
-						<AccordionItem value="platform">
-							<AccordionTrigger className="py-3 text-xs hover:no-underline">
-								<span className="flex items-center gap-2">
-									<MonitorUp className="size-3.5 text-primary" />
-									发布方向
-									<span className="font-normal text-muted-foreground">
-										{selectedBriefOptions[1]?.label}
-									</span>
-								</span>
-							</AccordionTrigger>
-							<AccordionContent>
-								<BriefChoiceGrid
-									options={CREATIVE_BRIEF_CATALOG.platforms}
-									selectedId={brief.platformId}
-									onSelect={(value) =>
-										handleSingleChoice({ field: "platformId", value })
-									}
-								/>
-							</AccordionContent>
-						</AccordionItem>
-
-						<AccordionItem value="style">
-							<AccordionTrigger className="py-3 text-xs hover:no-underline">
-								<span className="flex items-center gap-2">
-									<Palette className="size-3.5 text-primary" />
-									视觉风格
-									<span className="font-normal text-muted-foreground">
-										{selectedBriefOptions[2]?.label}
-									</span>
-								</span>
-							</AccordionTrigger>
-							<AccordionContent>
-								<BriefChoiceGrid
-									options={CREATIVE_BRIEF_CATALOG.styles}
-									selectedId={brief.styleId}
-									onSelect={(value) =>
-										handleSingleChoice({ field: "styleId", value })
-									}
-								/>
-							</AccordionContent>
-						</AccordionItem>
-
-						<AccordionItem value="captions-motion">
-							<AccordionTrigger className="py-3 text-xs hover:no-underline">
-								<span className="flex items-center gap-2">
-									<Subtitles className="size-3.5 text-primary" />
-									字幕与动效
-								</span>
-							</AccordionTrigger>
-							<AccordionContent className="space-y-4">
-								<div>
-									<p className="mb-2 text-[10px] font-medium text-muted-foreground">
-										字幕包装
-									</p>
-									<BriefChoiceGrid
-										options={CREATIVE_BRIEF_CATALOG.captions}
-										selectedId={brief.captionId}
-										onSelect={(value) =>
-											handleSingleChoice({ field: "captionId", value })
-										}
-									/>
-								</div>
-								<div>
-									<p className="mb-2 text-[10px] font-medium text-muted-foreground">
-										镜头动效
-									</p>
-									<BriefChoiceGrid
-										options={CREATIVE_BRIEF_CATALOG.motions}
-										selectedId={brief.motionId}
-										onSelect={(value) =>
-											handleSingleChoice({ field: "motionId", value })
-										}
-									/>
-								</div>
-							</AccordionContent>
-						</AccordionItem>
-
-						<AccordionItem value="audio-delivery" className="border-b-0">
-							<AccordionTrigger className="py-3 text-xs hover:no-underline">
-								<span className="flex items-center gap-2">
-									<Headphones className="size-3.5 text-primary" />
-									声音与交付
-								</span>
-							</AccordionTrigger>
-							<AccordionContent className="space-y-4">
-								<div>
-									<p className="mb-2 text-[10px] font-medium text-muted-foreground">
-										声音设计
-									</p>
-									<BriefChoiceGrid
-										options={CREATIVE_BRIEF_CATALOG.audio}
-										selectedId={brief.audioId}
-										onSelect={(value) =>
-											handleSingleChoice({ field: "audioId", value })
-										}
-									/>
-								</div>
-								<div>
-									<p className="mb-2 text-[10px] font-medium text-muted-foreground">
-										交付检查
-									</p>
-									<div className="grid gap-2">
-										{CREATIVE_BRIEF_CATALOG.delivery.map((option) => {
-											const checked = brief.deliveryIds.includes(option.id);
-											return (
-												<label
-													key={option.id}
-													htmlFor={`delivery-${option.id}`}
-													className="flex cursor-pointer items-start gap-2 rounded-md border p-2.5 transition hover:bg-muted/40"
-												>
-													<Checkbox
-														id={`delivery-${option.id}`}
-														checked={checked}
-														onCheckedChange={() =>
-															handleDeliveryChoice(option.id)
-														}
-														className="mt-0.5"
-													/>
-													<span className="min-w-0">
-														<span className="block text-xs font-medium">
-															{option.label}
-														</span>
-														<span className="mt-1 block text-[10px] leading-relaxed text-muted-foreground">
-															{option.meta}
-														</span>
-													</span>
-												</label>
-											);
-										})}
-									</div>
-								</div>
-							</AccordionContent>
-						</AccordionItem>
-					</Accordion>
-
-					<section className="rounded-md border bg-background p-3">
+					<section className="flowcut-note-panel rounded-[8px] border p-3">
 						<div className="flex items-center justify-between gap-2">
 							<label
 								htmlFor="ai-extra-request"
@@ -755,44 +774,47 @@ export function AIWorkspacePanel() {
 								invalidatePlan();
 							}}
 							placeholder="例如：保留颁奖、观众反应和品牌 LOGO"
-							className="mt-2 min-h-16 resize-none text-xs"
+							className="mt-2 min-h-20 resize-none rounded-[8px] border-0 bg-background/70 text-xs shadow-none focus-visible:ring-1"
 						/>
-					</section>
 
-					<section className="rounded-md border bg-background p-3">
-						<p className="mb-2 text-[10px] font-medium text-muted-foreground">
-							处理方式
-						</p>
-						<div className="grid grid-cols-3 gap-1 rounded-md bg-muted/50 p-1">
-							{MODES.map((item) => {
-								const Icon = item.icon;
-								const selected = mode === item.id;
-								return (
-									<button
-										key={item.id}
-										type="button"
-										aria-pressed={selected}
-										className={cn(
-											"flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-sm px-1 py-1.5 text-[9px] font-medium transition",
-											selected
-												? "border bg-background text-foreground shadow-sm"
-												: "text-muted-foreground hover:bg-background/60",
-										)}
-										onClick={() => handleModeChange(item.id)}
-										title={item.description}
-									>
-										<Icon className="size-3.5" />
-										<span className="max-w-full truncate">{item.label}</span>
-									</button>
-								);
-							})}
+						<div className="mt-3 border-t pt-3">
+							<p className="mb-2 text-[10px] font-medium text-muted-foreground">
+								处理方式
+							</p>
+							<div className="grid grid-cols-3 gap-1 rounded-md bg-muted/50 p-1">
+								{MODES.map((item) => {
+									const Icon = item.icon;
+									const selected = mode === item.id;
+									return (
+										<button
+											key={item.id}
+											type="button"
+											aria-pressed={selected}
+											className={cn(
+												"flex min-h-11 min-w-0 flex-col items-center justify-center gap-1 rounded-[6px] px-1 py-1.5 text-[9px] font-medium transition",
+												selected
+													? "border bg-background text-foreground"
+													: "text-muted-foreground hover:bg-background/60",
+											)}
+											onClick={() => handleModeChange(item.id)}
+											title={item.description}
+										>
+											<Icon className="size-3.5" />
+											<span className="max-w-full truncate">{item.label}</span>
+										</button>
+									);
+								})}
+							</div>
+							<p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+								{selectedMode.description}
+							</p>
 						</div>
-						<p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-							{selectedMode.description}
-						</p>
 					</section>
 
-					<Button className="h-11 w-full" onClick={handleCreatePlan}>
+					<Button
+						className="flowcut-generate-button h-12 w-full rounded-[8px] text-[12px]"
+						onClick={handleCreatePlan}
+					>
 						{hasMedia ? (
 							<Wand2 className="size-4" />
 						) : (
@@ -801,7 +823,7 @@ export function AIWorkspacePanel() {
 						{hasMedia ? "生成成片蓝图" : "导入素材开始"}
 					</Button>
 
-					<div className="flex gap-2 rounded-md border bg-muted/25 p-2.5 text-[10px] leading-relaxed text-muted-foreground">
+					<div className="flowcut-capability-row flex gap-2 px-1 text-[10px] leading-relaxed text-muted-foreground">
 						<Info className="mt-0.5 size-3.5 shrink-0 text-primary" />
 						<span>
 							当前先读取素材类型、数量和时长；对白、停顿、语义高光与逐镜头内容会在
@@ -815,7 +837,7 @@ export function AIWorkspacePanel() {
 							className="flowcut-plan-anchor space-y-3 scroll-mt-3"
 							aria-live="polite"
 						>
-							<section className="flowcut-plan-summary rounded-md border bg-background p-3">
+							<section className="flowcut-plan-summary rounded-[8px] border p-3.5">
 								<div className="flex items-start justify-between gap-3">
 									<div className="min-w-0">
 										<div className="flex items-center gap-1.5 text-xs font-semibold">
@@ -826,9 +848,12 @@ export function AIWorkspacePanel() {
 											{plan.summary}
 										</p>
 									</div>
-									<span className="shrink-0 rounded-sm bg-cyan-500/10 px-1.5 py-1 text-[9px] font-medium text-cyan-700 dark:text-cyan-300">
-										待确认
-									</span>
+									<div className="flowcut-output-signal flex shrink-0 flex-col items-center gap-1.5">
+										<AspectFrame ratio={plan.target.aspectRatio} />
+										<span className="text-[9px] font-medium text-cyan-700 dark:text-cyan-300">
+											待确认
+										</span>
+									</div>
 								</div>
 								<div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
 									{[
@@ -844,7 +869,7 @@ export function AIWorkspacePanel() {
 									].map(([label, value]) => (
 										<div
 											key={label}
-											className="rounded-md border bg-muted/30 p-2"
+											className="flowcut-plan-stat border-t py-2"
 										>
 											<p className="text-muted-foreground">{label}</p>
 											<p className="mt-1 font-medium">{value}</p>
@@ -853,8 +878,8 @@ export function AIWorkspacePanel() {
 								</div>
 							</section>
 
-							<section className="rounded-md border bg-background p-3">
-								<div className="mb-2 flex items-center justify-between gap-2">
+							<section className="flowcut-blueprint-panel overflow-hidden rounded-[8px] border">
+								<div className="flex items-center justify-between gap-2 border-b px-3 py-3">
 									<h3 className="flex items-center gap-1.5 text-xs font-semibold">
 										<Layers3 className="size-3.5 text-primary" />
 										镜头设计
@@ -863,7 +888,7 @@ export function AIWorkspacePanel() {
 										6 个维度
 									</span>
 								</div>
-								<div className="grid grid-cols-1 gap-2 min-[420px]:grid-cols-2">
+								<div className="flowcut-blueprint-grid grid grid-cols-1 min-[420px]:grid-cols-2">
 									<BlueprintItem
 										icon={PlayCircle}
 										label="开场钩子"
@@ -897,7 +922,7 @@ export function AIWorkspacePanel() {
 								</div>
 							</section>
 
-							<section className="rounded-md border bg-background p-3">
+							<section className="flowcut-surface-section rounded-[8px] border p-3">
 								<div className="flex items-center justify-between gap-2">
 									<h3 className="flex items-center gap-1.5 text-xs font-semibold">
 										<MonitorUp className="size-3.5" />
@@ -911,9 +936,12 @@ export function AIWorkspacePanel() {
 									{plan.creativeDirection.outputVariants.map((variant) => (
 										<div
 											key={`${variant.label}-${variant.aspectRatio}`}
-											className="flex items-center justify-between gap-2 rounded-md border bg-muted/25 px-2.5 py-2 text-[10px]"
+											className="flowcut-variant-row flex items-center justify-between gap-2 rounded-[8px] border px-2.5 py-2 text-[10px]"
 										>
-											<span className="font-medium">{variant.label}</span>
+											<span className="flex min-w-0 items-center gap-2 font-medium">
+												<AspectFrame ratio={variant.aspectRatio} compact />
+												<span className="truncate">{variant.label}</span>
+											</span>
 											<span className="text-muted-foreground">
 												{variant.aspectRatio}
 												{variant.targetDurationSeconds
@@ -925,7 +953,7 @@ export function AIWorkspacePanel() {
 								</div>
 							</section>
 
-							<section className="rounded-md border bg-background p-3">
+							<section className="flowcut-surface-section rounded-[8px] border p-3">
 								<div className="flex items-center justify-between gap-2">
 									<h3 className="flex items-center gap-1.5 text-xs font-semibold">
 										<ListChecks className="size-3.5" />
@@ -945,7 +973,7 @@ export function AIWorkspacePanel() {
 										) : null}
 									</div>
 								</div>
-								<div className="mt-2 divide-y rounded-md border">
+								<div className="flowcut-step-list mt-2 divide-y overflow-hidden rounded-[8px] border">
 									{plan.steps.map((step) => {
 										const isBlocked = step.availability === "blocked";
 										return (
@@ -991,12 +1019,12 @@ export function AIWorkspacePanel() {
 							</section>
 
 							{hasChatCutSteps ? (
-								<section className="rounded-md border bg-background p-3">
+								<section className="flowcut-surface-section rounded-[8px] border p-3">
 									<div className="flex items-center gap-1.5 text-xs font-semibold">
 										<Cloud className="size-3.5 text-sky-600" />
 										交给 ChatCut 时需要附上
 									</div>
-									<div className="mt-2 max-h-28 space-y-1 overflow-y-auto rounded-md border bg-muted/20 p-2">
+									<div className="mt-2 max-h-28 space-y-1 overflow-y-auto rounded-[8px] border bg-background/45 p-2">
 										{assets.map((asset) => (
 											<div
 												key={asset.id}
@@ -1015,7 +1043,7 @@ export function AIWorkspacePanel() {
 
 							<Accordion
 								type="multiple"
-								className="rounded-md border bg-background px-3"
+								className="flowcut-surface-section rounded-[8px] border px-3"
 							>
 								<AccordionItem value="review">
 									<AccordionTrigger className="py-3 text-xs hover:no-underline">
@@ -1055,7 +1083,7 @@ export function AIWorkspacePanel() {
 
 							<label
 								htmlFor="ai-plan-reviewed"
-								className="flex cursor-pointer items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3"
+								className="flowcut-review-gate flex cursor-pointer items-start gap-2 rounded-[8px] border p-3"
 							>
 								<Checkbox
 									id="ai-plan-reviewed"
@@ -1080,15 +1108,10 @@ export function AIWorkspacePanel() {
 			</ScrollArea>
 
 			{plan ? (
-				<div className="flowcut-action-dock shrink-0 border-t bg-background/95 p-3 backdrop-blur">
-					{!isPlanReviewed ? (
-						<p className="mb-2 text-center text-[10px] text-muted-foreground">
-							确认上方蓝图后即可执行
-						</p>
-					) : null}
-					<div className="flex gap-2">
+				<div className="flowcut-action-dock shrink-0 border-t p-2.5">
+					<div className="flex gap-1.5">
 						<Button
-							className="min-w-0 flex-1"
+							className="h-10 min-w-0 flex-1"
 							disabled={!hasLocalSteps || !isPlanReviewed || hasAppliedLocal}
 							onClick={handleApplyLocal}
 						>
@@ -1102,6 +1125,7 @@ export function AIWorkspacePanel() {
 						<Button
 							variant="outline"
 							size="icon"
+							className="size-10"
 							disabled={!canUndoPlan}
 							onClick={handleUndo}
 							title="撤销本次本机整理"
@@ -1110,10 +1134,10 @@ export function AIWorkspacePanel() {
 							<RotateCcw className="size-4" />
 						</Button>
 					</div>
-					<div className="mt-2 flex gap-2">
+					<div className="mt-1.5 flex gap-1.5">
 						<Button
-							variant="secondary"
-							className="min-w-0 flex-1"
+							variant="outline"
+							className="h-10 min-w-0 flex-1"
 							disabled={!hasChatCutSteps || !isPlanReviewed}
 							onClick={handleCopyHandoff}
 						>
@@ -1123,6 +1147,7 @@ export function AIWorkspacePanel() {
 						<Button
 							variant="outline"
 							size="icon"
+							className="size-10"
 							disabled={!hasChatCutSteps}
 							onClick={handleDownloadHandoff}
 							title="下载 ChatCut 交接包"
@@ -1133,6 +1158,7 @@ export function AIWorkspacePanel() {
 						<Button
 							variant="outline"
 							size="icon"
+							className="size-10"
 							onClick={handleDownloadPlan}
 							title="下载完整蓝图"
 							aria-label="下载完整蓝图"
