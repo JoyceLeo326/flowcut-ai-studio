@@ -287,10 +287,28 @@
     animation: flowcut-pulse 2.8s ease-in-out infinite;
   }
 
+  .flowcut-ai-motion-card {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .flowcut-ai-motion-card::before {
+    content: "";
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    width: 4.5rem;
+    height: 0.375rem;
+    border-radius: 999px;
+    background: linear-gradient(90deg, hsl(200 90% 52% / 0.24), hsl(38 92% 50% / 0.45), hsl(160 70% 45% / 0.24));
+    animation: flowcut-timing-bar 3.6s ease-in-out infinite;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .flowcut-ai-hero::after,
     .flowcut-ai-card,
-    .flowcut-ai-pulse {
+    .flowcut-ai-pulse,
+    .flowcut-ai-motion-card::before {
       animation: none;
     }
   }
@@ -322,6 +340,19 @@
   }
   50% {
     box-shadow: 0 0 0 8px hsl(200 90% 52% / 0);
+  }
+}
+
+@keyframes flowcut-timing-bar {
+  0%, 100% {
+    transform: scaleX(0.36);
+    transform-origin: left;
+    opacity: 0.45;
+  }
+  48% {
+    transform: scaleX(1);
+    transform-origin: left;
+    opacity: 0.9;
   }
 }
 

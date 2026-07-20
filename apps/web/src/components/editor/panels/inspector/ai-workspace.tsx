@@ -122,6 +122,51 @@ const AVAILABILITY_LABELS = {
 	blocked: "等待素材",
 } as const;
 
+const BEGINNER_STEPS = [
+	{
+		title: "1. 先把素材丢进来",
+		body: "切到素材页，拖入几个大视频片段、解说音频或封面图。没有素材时 AI 只会给导入建议。",
+	},
+	{
+		title: "2. 不会描述就用推荐目标",
+		body: "点击“套用推荐目标”，AI 会按素材数量、时长和当前时间线自动生成一版剪辑意图。",
+	},
+	{
+		title: "3. 先看方案再执行",
+		body: "AI 会列出本地可做的步骤和需要 ChatCut 识别的步骤，你确认后才会改时间线。",
+	},
+	{
+		title: "4. 预览满意再导出",
+		body: "先执行本地剪辑，再去预览检查画面、节奏、字幕需求，最后导出成片。",
+	},
+] as const;
+
+const BEGINNER_GLOSSARY = [
+	"本地剪辑：只在当前浏览器处理，不会自动上传。",
+	"ChatCut 识别：用于字幕、停顿、语义高光，需要你确认后再交接。",
+	"时间线：视频片段最终排列的位置，可以继续手动微调。",
+	"画幅：横屏、竖屏或方形，决定发到哪个平台更合适。",
+] as const;
+
+const SAFETY_PROMISES = [
+	"本地步骤会作为一次操作执行，可以撤销。",
+	"云端识别前会生成交接包，不会静默上传素材。",
+	"导出前建议先预览完整片段，确认没有裁切错误。",
+] as const;
+
+const BEGINNER_PROMPTS = [
+	"我不知道怎么剪，请帮我从这些视频里找出最精彩的片段，做成一版 60 秒以内的竖屏短视频。",
+	"请先帮我整理素材顺序，删掉明显无效的开头结尾，保留自然节奏，方便我继续微调。",
+	"请按比赛/活动复盘的逻辑剪：开场给结果，中间放关键过程，结尾保留最有记忆点的画面。",
+] as const;
+
+const MOTION_STYLE_NOTES = [
+	"开场 3 秒用更快切换和字幕重点，先告诉观众结果。",
+	"高潮片段前后留 0.3-0.8 秒呼吸，不让转场显得突兀。",
+	"口播内容优先做停顿压缩，B-roll 或反应镜头用于遮挡跳切。",
+	"移动端优先竖屏安全区，字幕和主体不要贴边。",
+] as const;
+
 function formatDuration(seconds: number): string {
 	if (!Number.isFinite(seconds) || seconds <= 0) return "0 秒";
 	const minutes = Math.floor(seconds / 60);
@@ -419,6 +464,34 @@ export function AIWorkspacePanel() {
 
 					<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
 						<div className="mb-3 flex items-center gap-1.5 text-xs font-semibold">
+							<Sparkles className="size-3.5 text-primary" />
+							新手模式：不用懂剪辑术语
+						</div>
+						<div className="grid gap-2">
+							{BEGINNER_STEPS.map((step) => (
+								<div
+									key={step.title}
+									className="rounded-md border bg-muted/20 p-2"
+								>
+									<p className="text-xs font-medium">{step.title}</p>
+									<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+										{step.body}
+									</p>
+								</div>
+							))}
+						</div>
+						<div className="mt-3 grid gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
+							{SAFETY_PROMISES.map((item) => (
+								<div key={item} className="flex gap-1.5">
+									<CheckCircle2 className="mt-0.5 size-3 shrink-0 text-emerald-600" />
+									<span>{item}</span>
+								</div>
+							))}
+						</div>
+					</div>
+
+					<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
+						<div className="mb-3 flex items-center gap-1.5 text-xs font-semibold">
 							<MousePointerClick className="size-3.5" />
 							操作流程
 						</div>
@@ -519,6 +592,35 @@ export function AIWorkspacePanel() {
 					</div>
 
 					<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
+						<div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
+							<Info className="size-3.5" />
+							小白术语翻译
+						</div>
+						<div className="grid gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
+							{BEGINNER_GLOSSARY.map((item) => (
+								<div key={item} className="rounded-md bg-muted/30 px-2 py-1.5">
+									{item}
+								</div>
+							))}
+						</div>
+					</div>
+
+					<div className="flowcut-ai-card flowcut-ai-motion-card rounded-md border bg-background/75 p-3">
+						<div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
+							<Timer className="size-3.5 text-primary" />
+							风格和动效设计规则
+						</div>
+						<ul className="space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+							{MOTION_STYLE_NOTES.map((item) => (
+								<li key={item} className="flex gap-1.5">
+									<span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
+									<span>{item}</span>
+								</li>
+							))}
+						</ul>
+					</div>
+
+					<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
 						<div className="mb-3 flex items-center gap-1.5 text-xs font-semibold">
 							<Film className="size-3.5" />
 							可选剪辑风格
@@ -562,6 +664,26 @@ export function AIWorkspacePanel() {
 							placeholder={recommendedPrompt}
 							className="min-h-24 resize-none text-sm"
 						/>
+						<div className="grid grid-cols-2 gap-2">
+							<Button
+								variant="secondary"
+								size="sm"
+								className="h-auto min-h-9 whitespace-normal text-xs"
+								onClick={() => handlePromptPreset(recommendedPrompt)}
+							>
+								<Sparkles className="size-3.5" />
+								套用推荐目标
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								className="h-auto min-h-9 whitespace-normal text-xs"
+								onClick={() => handlePromptPreset(BEGINNER_PROMPTS[0])}
+							>
+								<Wand2 className="size-3.5" />
+								我不知道怎么剪
+							</Button>
+						</div>
 						<Button
 							className="w-full"
 							onClick={() =>
@@ -581,6 +703,17 @@ export function AIWorkspacePanel() {
 							</div>
 						) : null}
 						<div className="grid gap-1.5">
+							{BEGINNER_PROMPTS.map((item) => (
+								<Button
+									key={item}
+									variant="secondary"
+									size="sm"
+									className="h-auto justify-start whitespace-normal px-2 py-1.5 text-left text-[11px] leading-snug"
+									onClick={() => handlePromptPreset(item)}
+								>
+									{item}
+								</Button>
+							))}
 							{QUICK_PROMPTS.map((item) => (
 								<Button
 									key={item}

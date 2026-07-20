@@ -18,7 +18,7 @@ export function MobileGate({ children }: MobileGateProps) {
 				<div className="fixed right-3 bottom-20 left-3 z-50 rounded-md border bg-background/95 p-3 shadow-lg backdrop-blur lg:hidden">
 					<div className="flex items-start gap-3">
 						<p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">
-							移动端和平板端已启用分屏 Tab 工作流。建议横屏处理长时间线，导出大视频时保持浏览器前台打开。
+							手机和平板会用底部 Tab：先在“素材”导入视频，再回到“AI”生成方案，最后去“预览”和“时间线”检查。长时间线建议横屏，导出大视频时保持浏览器在前台。
 						</p>
 						<Button
 							variant="ghost"
