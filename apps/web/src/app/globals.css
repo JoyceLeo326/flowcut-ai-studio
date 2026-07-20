@@ -240,6 +240,91 @@
   }
 }
 
+@layer components {
+  .flowcut-ai-shell {
+    background:
+      linear-gradient(180deg, hsl(200 90% 52% / 0.08), transparent 22rem),
+      linear-gradient(135deg, hsl(160 70% 45% / 0.08), transparent 18rem),
+      var(--background);
+  }
+
+  .flowcut-ai-hero {
+    position: relative;
+    overflow: hidden;
+    border-color: hsl(200 90% 52% / 0.28);
+    background:
+      linear-gradient(135deg, hsl(200 90% 52% / 0.16), hsl(160 70% 45% / 0.1) 48%, hsl(38 92% 50% / 0.08)),
+      var(--background);
+    box-shadow: 0 12px 36px hsl(200 90% 30% / 0.12);
+  }
+
+  .flowcut-ai-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-120%);
+    background: linear-gradient(110deg, transparent, hsl(0 0% 100% / 0.34), transparent);
+    animation: flowcut-scan 5.5s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .flowcut-ai-card {
+    animation: flowcut-rise 360ms ease-out both;
+    transition:
+      transform 180ms ease,
+      border-color 180ms ease,
+      background-color 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .flowcut-ai-card:hover {
+    transform: translateY(-1px);
+    border-color: hsl(200 90% 52% / 0.32);
+    box-shadow: 0 10px 24px hsl(0 0% 0% / 0.07);
+  }
+
+  .flowcut-ai-pulse {
+    animation: flowcut-pulse 2.8s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flowcut-ai-hero::after,
+    .flowcut-ai-card,
+    .flowcut-ai-pulse {
+      animation: none;
+    }
+  }
+}
+
+@keyframes flowcut-scan {
+  0%, 56% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes flowcut-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes flowcut-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 hsl(200 90% 52% / 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 8px hsl(200 90% 52% / 0);
+  }
+}
+
 @utility scrollbar-hidden {
   -ms-overflow-style: none;
   scrollbar-width: none;

@@ -298,7 +298,7 @@ function TouchEditorLayout({
 						<TabsTrigger
 							key={tab.id}
 							value={tab.id}
-							className="h-full flex-col gap-0.5 rounded-sm px-1 py-1 text-[11px]"
+							className="h-full flex-col gap-0.5 rounded-sm px-1 py-1 text-[11px] transition data-[state=active]:bg-secondary data-[state=active]:text-secondary-foreground data-[state=active]:shadow-sm"
 						>
 							<Icon className="size-4" />
 							{tab.label}

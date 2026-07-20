@@ -74,6 +74,29 @@ const QUICK_PROMPTS = [
 	"先把所有素材顺排成粗剪，收紧片头片尾，方便我再微调",
 ];
 
+const STYLE_PRESETS = [
+	{
+		name: "快节奏高光",
+		tone: "强开头、短镜头、保留欢呼和反应",
+		accent: "bg-sky-500",
+	},
+	{
+		name: "清晰口播",
+		tone: "删停顿、保逻辑、字幕优先",
+		accent: "bg-emerald-500",
+	},
+	{
+		name: "比赛复盘",
+		tone: "按时间线叙事，穿插关键慢镜和说明",
+		accent: "bg-amber-500",
+	},
+	{
+		name: "社媒种草",
+		tone: "第一秒给结果，画幅适配移动端",
+		accent: "bg-rose-500",
+	},
+];
+
 const WORKFLOW_STEPS = [
 	{
 		title: "甩入素材",
@@ -377,12 +400,12 @@ export function AIWorkspacePanel() {
 		: [];
 
 	return (
-		<div className="flex h-full min-h-0 flex-col bg-background">
+		<div className="flowcut-ai-shell flex h-full min-h-0 flex-col">
 			<ScrollArea className="min-h-0 flex-1">
 				<div className="space-y-4 p-3">
-					<div className="rounded-md border bg-muted/30 p-3">
+					<div className="flowcut-ai-hero rounded-md border p-3">
 						<div className="flex items-start gap-3">
-							<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+							<div className="flowcut-ai-pulse flex size-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
 								<Brain className="size-5" />
 							</div>
 							<div className="min-w-0 flex-1">
@@ -394,7 +417,7 @@ export function AIWorkspacePanel() {
 						</div>
 					</div>
 
-					<div className="rounded-md border p-3">
+					<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
 						<div className="mb-3 flex items-center gap-1.5 text-xs font-semibold">
 							<MousePointerClick className="size-3.5" />
 							操作流程
@@ -417,15 +440,15 @@ export function AIWorkspacePanel() {
 					</div>
 
 					<div className="grid grid-cols-3 gap-2 text-[11px]">
-						<div className="rounded-md border p-2">
+						<div className="flowcut-ai-card rounded-md border bg-background/75 p-2">
 							<p className="text-muted-foreground">视频</p>
 							<p className="mt-1 text-base font-semibold">{videoAssetCount}</p>
 						</div>
-						<div className="rounded-md border p-2">
+						<div className="flowcut-ai-card rounded-md border bg-background/75 p-2">
 							<p className="text-muted-foreground">音频</p>
 							<p className="mt-1 text-base font-semibold">{audioAssetCount}</p>
 						</div>
-						<div className="rounded-md border p-2">
+						<div className="flowcut-ai-card rounded-md border bg-background/75 p-2">
 							<p className="text-muted-foreground">时间线</p>
 							<p className="mt-1 text-base font-semibold">
 								{formatDuration(durationSeconds)}
@@ -452,7 +475,7 @@ export function AIWorkspacePanel() {
 						})}
 					</div>
 
-					<div className="rounded-md border bg-muted/20 p-2.5">
+					<div className="flowcut-ai-card rounded-md border bg-background/75 p-2.5">
 						<div className="flex min-w-0 items-center gap-2">
 							<Sparkles className="size-4 shrink-0 text-primary" />
 							<div className="min-w-0">
@@ -466,7 +489,7 @@ export function AIWorkspacePanel() {
 						</div>
 					</div>
 
-					<div className="rounded-md border p-3">
+					<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
 						<div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
 							<Brain className="size-3.5" />
 							AI 已读到的信息
@@ -483,13 +506,41 @@ export function AIWorkspacePanel() {
 
 					<div className="grid gap-2">
 						{strategyCards.map((item) => (
-							<div key={item.title} className="rounded-md border p-3">
+							<div
+								key={item.title}
+								className="flowcut-ai-card rounded-md border bg-background/75 p-3"
+							>
 								<p className="text-xs font-semibold">{item.title}</p>
 								<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
 									{item.body}
 								</p>
 							</div>
 						))}
+					</div>
+
+					<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
+						<div className="mb-3 flex items-center gap-1.5 text-xs font-semibold">
+							<Film className="size-3.5" />
+							可选剪辑风格
+						</div>
+						<div className="grid gap-2">
+							{STYLE_PRESETS.map((item) => (
+								<button
+									key={item.name}
+									type="button"
+									className="flex items-center gap-2 rounded-md border bg-muted/20 p-2 text-left transition hover:border-primary/40 hover:bg-secondary/70"
+									onClick={() => handlePromptPreset(`${recommendedPrompt}，风格：${item.name}，${item.tone}`)}
+								>
+									<span className={cn("size-2.5 shrink-0 rounded-full", item.accent)} />
+									<span className="min-w-0">
+										<span className="block text-xs font-medium">{item.name}</span>
+										<span className="block text-[11px] leading-relaxed text-muted-foreground">
+											{item.tone}
+										</span>
+									</span>
+								</button>
+							))}
+						</div>
 					</div>
 
 					<div className="space-y-2">
@@ -550,7 +601,7 @@ export function AIWorkspacePanel() {
 
 					{plan ? (
 						<div className="space-y-3">
-							<div className="rounded-md border p-3">
+							<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
 								<div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
 									<Film className="size-3.5" />
 									AI 设计结果
@@ -559,15 +610,15 @@ export function AIWorkspacePanel() {
 									{plan.summary}
 								</p>
 								<div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-									<div className="rounded-md bg-muted/50 p-2">
+									<div className="rounded-md border bg-muted/35 p-2">
 										<p className="text-muted-foreground">平台</p>
 										<p className="truncate font-medium">{plan.target.label}</p>
 									</div>
-									<div className="rounded-md bg-muted/50 p-2">
+									<div className="rounded-md border bg-muted/35 p-2">
 										<p className="text-muted-foreground">画幅</p>
 										<p className="font-medium">{plan.target.aspectRatio}</p>
 									</div>
-									<div className="rounded-md bg-muted/50 p-2">
+									<div className="rounded-md border bg-muted/35 p-2">
 										<p className="text-muted-foreground">时长</p>
 										<p className="font-medium">
 											{plan.target.targetDurationSeconds
@@ -579,21 +630,21 @@ export function AIWorkspacePanel() {
 							</div>
 
 							<div className="grid grid-cols-3 gap-2 text-[11px]">
-								<div className="rounded-md border p-2">
+								<div className="flowcut-ai-card rounded-md border bg-background/75 p-2">
 									<div className="flex items-center gap-1 text-emerald-600">
 										<HardDrive className="size-3.5" />
 										本地
 									</div>
 									<p className="mt-1 text-base font-semibold">{readySteps.length}</p>
 								</div>
-								<div className="rounded-md border p-2">
+								<div className="flowcut-ai-card rounded-md border bg-background/75 p-2">
 									<div className="flex items-center gap-1 text-sky-600">
 										<Cloud className="size-3.5" />
 										识别
 									</div>
 									<p className="mt-1 text-base font-semibold">{chatCutSteps.length}</p>
 								</div>
-								<div className="rounded-md border p-2">
+								<div className="flowcut-ai-card rounded-md border bg-background/75 p-2">
 									<div className="flex items-center gap-1 text-amber-600">
 										<Info className="size-3.5" />
 										阻塞
@@ -660,7 +711,7 @@ export function AIWorkspacePanel() {
 								</div>
 							</div>
 
-							<div className="rounded-md border p-3">
+							<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
 								<div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
 									<ClipboardCheck className="size-3.5" />
 									交付检查
@@ -675,7 +726,7 @@ export function AIWorkspacePanel() {
 								</ul>
 							</div>
 
-							<div className="rounded-md border p-3">
+							<div className="flowcut-ai-card rounded-md border bg-background/75 p-3">
 								<div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
 									<MousePointerClick className="size-3.5" />
 									下一步怎么做
