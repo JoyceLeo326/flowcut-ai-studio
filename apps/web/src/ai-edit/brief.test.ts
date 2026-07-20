@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
 	composeCreativeBriefPrompt,
+	createDefaultCreativeBrief,
 	getCreativeBriefProgress,
+	toggleCreativeBriefDelivery,
+	updateCreativeBriefSelection,
 	type CreativeBriefSelection,
 } from "./brief";
 
@@ -44,5 +47,28 @@ describe("creative brief", () => {
 		};
 
 		expect(getCreativeBriefProgress(brief)).toEqual({ completed: 6, total: 6 });
+	});
+
+	test("updates single choices and toggles optional delivery requirements immutably", () => {
+		const original = createDefaultCreativeBrief();
+		const styled = updateCreativeBriefSelection({
+			brief: original,
+			field: "styleId",
+			value: "documentary",
+		});
+		const withCover = toggleCreativeBriefDelivery({
+			brief: styled,
+			id: "cover-frame",
+		});
+		const withoutSafeZone = toggleCreativeBriefDelivery({
+			brief: withCover,
+			id: "safe-zone",
+		});
+
+		expect(original.styleId).toBe("auto");
+		expect(styled.styleId).toBe("documentary");
+		expect(withCover.deliveryIds).toContain("cover-frame");
+		expect(withoutSafeZone.deliveryIds).not.toContain("safe-zone");
+		expect(original.deliveryIds).toEqual(["safe-zone", "export-check"]);
 	});
 });

@@ -17,7 +17,7 @@ import { MigrationDialog } from "@/project/components/migration-dialog";
 import { usePanelStore } from "@/editor/panel-store";
 import { usePasteMedia } from "@/media/use-paste-media";
 import { MobileGate } from "@/components/editor/mobile-gate";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useEditor } from "@/editor/use-editor";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -37,7 +37,16 @@ import {
 	bookmarkNotesPreviewOverlay,
 	getBookmarkPreviewOverlaySource,
 } from "@/timeline/bookmarks/index";
-import { FolderOpen, MonitorPlay, Sparkles, StretchHorizontal } from "lucide-react";
+import {
+	FolderOpen,
+	MonitorPlay,
+	Sparkles,
+	StretchHorizontal,
+} from "lucide-react";
+import {
+	OPEN_TOUCH_EDITOR_TAB_EVENT,
+	type TouchEditorTab,
+} from "@/editor/navigation-events";
 
 const TOUCH_LAYOUT_QUERY =
 	"(max-width: 1199px), (pointer: coarse) and (max-width: 1366px)";
@@ -62,10 +71,24 @@ function useTouchEditorLayout() {
 	);
 }
 
+function isTouchEditorTab(value: unknown): value is TouchEditorTab {
+	switch (value) {
+		case "ai":
+		case "assets":
+		case "preview":
+		case "timeline":
+			return true;
+		default:
+			return false;
+	}
+}
+
 export default function Editor() {
 	const params = useParams();
 	const projectParam = params.project_id;
-	const projectId = Array.isArray(projectParam) ? projectParam[0] : projectParam;
+	const projectId = Array.isArray(projectParam)
+		? projectParam[0]
+		: projectParam;
 
 	if (!projectId) return null;
 
@@ -261,6 +284,20 @@ function TouchEditorLayout({
 		isVisible: boolean;
 	}) => void;
 }) {
+	const [activeTab, setActiveTab] = useState<TouchEditorTab>("ai");
+
+	useEffect(() => {
+		const handleOpenTab = (event: Event) => {
+			const nextTab: unknown = Reflect.get(event, "detail");
+			if (isTouchEditorTab(nextTab)) {
+				setActiveTab(nextTab);
+			}
+		};
+		window.addEventListener(OPEN_TOUCH_EDITOR_TAB_EVENT, handleOpenTab);
+		return () =>
+			window.removeEventListener(OPEN_TOUCH_EDITOR_TAB_EVENT, handleOpenTab);
+	}, []);
+
 	const tabs = [
 		{ id: "ai", label: "AI", icon: Sparkles },
 		{ id: "assets", label: "素材", icon: FolderOpen },
@@ -270,24 +307,27 @@ function TouchEditorLayout({
 
 	return (
 		<Tabs
-			defaultValue="ai"
+			value={activeTab}
+			onValueChange={(value) => {
+				if (isTouchEditorTab(value)) setActiveTab(value);
+			}}
 			className="flex size-full min-h-0 flex-col overflow-hidden px-2 pb-2"
 		>
 			<div className="min-h-0 flex-1 overflow-hidden">
-				<TabsContent value="assets" className="m-0 size-full p-0">
+				<TabsContent value="assets" forceMount className="m-0 size-full p-0">
 					<AssetsPanel />
 				</TabsContent>
-				<TabsContent value="preview" className="m-0 size-full p-0">
+				<TabsContent value="preview" forceMount className="m-0 size-full p-0">
 					<PreviewPanel
 						overlayControls={overlayControls}
 						overlayInstances={overlayInstances}
 						onOverlayVisibilityChange={onOverlayVisibilityChange}
 					/>
 				</TabsContent>
-				<TabsContent value="ai" className="m-0 size-full p-0">
+				<TabsContent value="ai" forceMount className="m-0 size-full p-0">
 					<InspectorPanel />
 				</TabsContent>
-				<TabsContent value="timeline" className="m-0 size-full p-0">
+				<TabsContent value="timeline" forceMount className="m-0 size-full p-0">
 					<Timeline />
 				</TabsContent>
 			</div>

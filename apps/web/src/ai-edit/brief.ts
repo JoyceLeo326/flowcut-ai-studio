@@ -407,3 +407,36 @@ export function getSelectedCreativeBriefOptions(
 		findOption({ options: CREATIVE_BRIEF_CATALOG.audio, id: brief.audioId }),
 	].filter((option): option is CreativeBriefOption => option != null);
 }
+
+export type CreativeBriefSingleField =
+	| "recipeId"
+	| "platformId"
+	| "styleId"
+	| "captionId"
+	| "motionId"
+	| "audioId";
+
+export function updateCreativeBriefSelection({
+	brief,
+	field,
+	value,
+}: {
+	brief: CreativeBriefSelection;
+	field: CreativeBriefSingleField;
+	value: string;
+}): CreativeBriefSelection {
+	return { ...brief, [field]: value };
+}
+
+export function toggleCreativeBriefDelivery({
+	brief,
+	id,
+}: {
+	brief: CreativeBriefSelection;
+	id: string;
+}): CreativeBriefSelection {
+	const deliveryIds = brief.deliveryIds.includes(id)
+		? brief.deliveryIds.filter((item) => item !== id)
+		: [...brief.deliveryIds, id];
+	return { ...brief, deliveryIds };
+}

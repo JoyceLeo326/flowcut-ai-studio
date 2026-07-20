@@ -24,12 +24,14 @@ export function InspectorPanel() {
 			</TabsList>
 			<TabsContent
 				value="ai"
+				forceMount
 				className="mt-0 min-h-0 flex-1 overflow-hidden p-0"
 			>
 				<AIWorkspacePanel />
 			</TabsContent>
 			<TabsContent
 				value="properties"
+				forceMount
 				className="mt-0 min-h-0 flex-1 overflow-hidden p-0"
 			>
 				<PropertiesPanel embedded />

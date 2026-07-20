@@ -27,5 +27,7 @@ target/
 .cargo-tools/
 .tools/
 .test-assets/
+.bun-cache/
+.tmp/
 
 rust-migration-notes.md

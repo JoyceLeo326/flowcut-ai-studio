@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PanelView } from "@/components/editor/panels/assets/views/base-panel";
 import { MediaDragOverlay } from "@/components/editor/panels/assets/drag-overlay";
 import { DraggableItem } from "@/components/editor/panels/assets/draggable-item";
@@ -48,6 +48,7 @@ import {
 import { MASKABLE_ELEMENT_TYPES } from "@/timeline";
 import type { MediaAsset } from "@/media/types";
 import { cn } from "@/utils/ui";
+import { OPEN_MEDIA_IMPORT_EVENT } from "@/editor/navigation-events";
 import {
 	CloudUploadIcon,
 	GridViewIcon,
@@ -121,6 +122,16 @@ export function MediaView() {
 			multiple: true,
 			onFilesSelected: (files) => processFiles({ files }),
 		});
+
+	useEffect(() => {
+		const handleOpenMediaImport = () => openFilePicker();
+		window.addEventListener(OPEN_MEDIA_IMPORT_EVENT, handleOpenMediaImport);
+		return () =>
+			window.removeEventListener(
+				OPEN_MEDIA_IMPORT_EVENT,
+				handleOpenMediaImport,
+			);
+	}, [openFilePicker]);
 
 	const handleRemove = ({
 		event,
