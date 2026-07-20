@@ -13,6 +13,7 @@ import {
 	HardDrive,
 	Info,
 	ListChecks,
+	MousePointerClick,
 	RotateCcw,
 	Sparkles,
 	Timer,
@@ -71,6 +72,25 @@ const QUICK_PROMPTS = [
 	"根据比赛内容自动挑精彩瞬间，做成横屏集锦",
 	"把口播素材剪成小红书 1:1 精华版，保留重点，字幕清楚",
 	"先把所有素材顺排成粗剪，收紧片头片尾，方便我再微调",
+];
+
+const WORKFLOW_STEPS = [
+	{
+		title: "甩入素材",
+		description: "把大段视频、补充音频、封面图放到素材页。",
+	},
+	{
+		title: "AI 识别",
+		description: "读取素材数量、类型、总时长和时间线状态。",
+	},
+	{
+		title: "设计剪法",
+		description: "确定平台画幅、目标时长、节奏策略和执行步骤。",
+	},
+	{
+		title: "确认执行",
+		description: "本地步骤可撤销；字幕、停顿和语义精选交给 ChatCut。",
+	},
 ];
 
 const AVAILABILITY_LABELS = {
@@ -134,6 +154,10 @@ export function AIWorkspacePanel() {
 	const imageAssetCount = assets.filter((asset) => asset.type === "image").length;
 	const selectedMode = MODES.find((item) => item.id === mode) ?? MODES[0];
 	const hasAssets = assets.length > 0;
+	const estimatedTotalAssetDuration = assets.reduce(
+		(total, asset) => total + (asset.duration ?? 0),
+		0,
+	);
 
 	const recommendedPrompt = useMemo(() => {
 		if (!hasAssets) return "先导入视频片段，再让 AI 识别并设计剪辑。";
@@ -157,6 +181,57 @@ export function AIWorkspacePanel() {
 		return `${base}，先顺排素材，收紧片头片尾，设置适合发布的画幅`;
 	}, [audioAssetCount, durationSeconds, hasAssets, imageAssetCount, videoAssetCount]);
 
+	const aiInsights = useMemo(() => {
+		if (!hasAssets) {
+			return [
+				"当前还没有素材，AI 只能生成导入提示。",
+				"建议先放入 2-10 段视频，包含主镜头、反应镜头和补充素材。",
+				"如果需要自动字幕或按内容挑片段，需要准备带人声的视频或音频。",
+			];
+		}
+
+		const insights = [
+			`已识别 ${videoAssetCount} 段视频、${audioAssetCount} 段音频、${imageAssetCount} 张图片。`,
+			unusedAssetCount > 0
+				? `${unusedAssetCount} 个素材还没进入时间线，AI 会优先安排它们。`
+				: "素材已经在时间线上，AI 会优先做画幅、节奏和交接规划。",
+		];
+
+		if (estimatedTotalAssetDuration > 0) {
+			insights.push(
+				`素材总时长约 ${formatDuration(estimatedTotalAssetDuration)}，适合先做粗剪再精修。`,
+			);
+		}
+		if (videoAssetCount >= 3) {
+			insights.push("多段视频适合做自动顺排、精彩片段筛选和平台化成片。");
+		}
+		if (audioAssetCount > 0 || estimatedTotalAssetDuration > 120) {
+			insights.push("检测停顿、转录字幕和语义精选建议交给 ChatCut 处理。");
+		}
+		return insights;
+	}, [
+		audioAssetCount,
+		estimatedTotalAssetDuration,
+		hasAssets,
+		imageAssetCount,
+		unusedAssetCount,
+		videoAssetCount,
+	]);
+
+	const strategyCards = [
+		{
+			title: "短视频精华",
+			body: "适合抖音、小红书、Shorts。优先竖屏/方形画幅、强节奏、字幕和停顿处理。",
+		},
+		{
+			title: "横屏集锦",
+			body: "适合 B 站、YouTube、比赛复盘。优先主线叙事、精彩片段和反应镜头。",
+		},
+		{
+			title: "本地粗剪",
+			body: "适合先整理素材。顺排、收紧片头片尾、设置画幅，所有本地步骤可撤销。",
+		},
+	];
 	const createPlanFromPrompt = ({ nextPrompt }: { nextPrompt: string }) => {
 		const nextPlan = createEditPlan({
 			prompt: nextPrompt,
@@ -288,6 +363,18 @@ export function AIWorkspacePanel() {
 	const blockedSteps = enabledSteps.filter((step) => step.availability === "blocked");
 	const hasLocalSteps = readySteps.length > 0;
 	const hasChatCutSteps = chatCutSteps.length > 0;
+	const nextActions = plan
+		? [
+				hasLocalSteps
+					? "先点“执行本地剪辑”，让素材自动顺排、收紧并套用画幅。"
+					: null,
+				hasChatCutSteps
+					? "再点“交给 ChatCut 识别”，把字幕、停顿、语义精选交给云端。"
+					: null,
+				"切到“预览”检查画面是否裁切正确，再切到“时间线”微调片段。",
+				"确认后点右上角 Export 导出 MP4/WebM。",
+			].filter(Boolean)
+		: [];
 
 	return (
 		<div className="flex h-full min-h-0 flex-col bg-background">
@@ -304,6 +391,28 @@ export function AIWorkspacePanel() {
 									把视频片段导入素材区，AI 会先读素材结构，再设计剪辑方案。你确认后再执行本地步骤或交给 ChatCut 做语义识别。
 								</p>
 							</div>
+						</div>
+					</div>
+
+					<div className="rounded-md border p-3">
+						<div className="mb-3 flex items-center gap-1.5 text-xs font-semibold">
+							<MousePointerClick className="size-3.5" />
+							操作流程
+						</div>
+						<div className="grid gap-2">
+							{WORKFLOW_STEPS.map((step, index) => (
+								<div key={step.title} className="flex gap-2">
+									<div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold">
+										{index + 1}
+									</div>
+									<div className="min-w-0">
+										<p className="text-xs font-medium">{step.title}</p>
+										<p className="text-[11px] leading-relaxed text-muted-foreground">
+											{step.description}
+										</p>
+									</div>
+								</div>
+							))}
 						</div>
 					</div>
 
@@ -355,6 +464,32 @@ export function AIWorkspacePanel() {
 								</p>
 							</div>
 						</div>
+					</div>
+
+					<div className="rounded-md border p-3">
+						<div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
+							<Brain className="size-3.5" />
+							AI 已读到的信息
+						</div>
+						<ul className="space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+							{aiInsights.map((item) => (
+								<li key={item} className="flex gap-1.5">
+									<CheckCircle2 className="mt-0.5 size-3 shrink-0 text-emerald-600" />
+									<span>{item}</span>
+								</li>
+							))}
+						</ul>
+					</div>
+
+					<div className="grid gap-2">
+						{strategyCards.map((item) => (
+							<div key={item.title} className="rounded-md border p-3">
+								<p className="text-xs font-semibold">{item.title}</p>
+								<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+									{item.body}
+								</p>
+							</div>
+						))}
 					</div>
 
 					<div className="space-y-2">
@@ -538,6 +673,23 @@ export function AIWorkspacePanel() {
 										</li>
 									))}
 								</ul>
+							</div>
+
+							<div className="rounded-md border p-3">
+								<div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
+									<MousePointerClick className="size-3.5" />
+									下一步怎么做
+								</div>
+								<ol className="space-y-1.5 text-[11px] leading-relaxed text-muted-foreground">
+									{nextActions.map((item, index) => (
+										<li key={item} className="flex gap-1.5">
+											<span className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-foreground">
+												{index + 1}
+											</span>
+											<span>{item}</span>
+										</li>
+									))}
+								</ol>
 							</div>
 
 							<div className="rounded-md border border-amber-200 bg-amber-50/60 p-3 text-[11px] leading-relaxed text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
