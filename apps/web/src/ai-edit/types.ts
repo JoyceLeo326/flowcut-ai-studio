@@ -1,5 +1,7 @@
 export type EditMode = "local" | "hybrid" | "chatcut";
 
+export type AspectRatio = "16:9" | "9:16" | "4:5" | "1:1";
+
 export type EditStepKind =
 	| "import-media"
 	| "arrange-media"
@@ -7,7 +9,10 @@ export type EditStepKind =
 	| "set-aspect-ratio"
 	| "remove-silence"
 	| "transcribe-captions"
-	| "semantic-highlights";
+	| "semantic-highlights"
+	| "creative-polish"
+	| "audio-design"
+	| "create-versions";
 
 export type EditStepExecutor = "local" | "chatcut";
 export type EditStepAvailability = "ready" | "handoff" | "blocked";
@@ -23,9 +28,25 @@ export type DeliveryPlatform =
 export interface EditTarget {
 	platform: DeliveryPlatform;
 	label: string;
-	aspectRatio: "16:9" | "9:16" | "1:1";
+	aspectRatio: AspectRatio;
 	targetDurationSeconds?: number;
 	style: string;
+}
+
+export interface EditOutputVariant {
+	label: string;
+	aspectRatio: AspectRatio;
+	targetDurationSeconds?: number;
+}
+
+export interface CreativeDirection {
+	hook: string;
+	narrative: string;
+	captionStyle: string;
+	motionStyle: string;
+	audioStrategy: string;
+	colorMood: string;
+	outputVariants: EditOutputVariant[];
 }
 
 export interface EditPlanStep {
@@ -37,7 +58,7 @@ export interface EditPlanStep {
 	availability: EditStepAvailability;
 	enabled: boolean;
 	params?: {
-		aspectRatio?: "16:9" | "9:16" | "1:1";
+		aspectRatio?: AspectRatio;
 	};
 }
 
@@ -57,6 +78,7 @@ export interface EditPlan {
 	createdAt: string;
 	source: EditPlanSource;
 	target: EditTarget;
+	creativeDirection: CreativeDirection;
 	summary: string;
 	reviewChecklist: string[];
 	riskNotes: string[];

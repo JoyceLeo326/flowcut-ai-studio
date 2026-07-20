@@ -41,6 +41,15 @@ export function formatChatCutTask(handoff: ChatCutHandoff): string {
 			? `- 目标时长：${handoff.target.targetDurationSeconds} 秒`
 			: "- 目标时长：按素材内容决定",
 		`- 风格：${handoff.target.style}`,
+		`- 开场：${handoff.plan.creativeDirection.hook}`,
+		`- 叙事：${handoff.plan.creativeDirection.narrative}`,
+		`- 字幕：${handoff.plan.creativeDirection.captionStyle}`,
+		`- 动效：${handoff.plan.creativeDirection.motionStyle}`,
+		`- 声音：${handoff.plan.creativeDirection.audioStrategy}`,
+		`- 调色：${handoff.plan.creativeDirection.colorMood}`,
+		`- 输出版本：${handoff.plan.creativeDirection.outputVariants
+			.map((variant) => `${variant.label} ${variant.aspectRatio}`)
+			.join("、")}`,
 		"",
 		"```json",
 		JSON.stringify(handoff, null, 2),
