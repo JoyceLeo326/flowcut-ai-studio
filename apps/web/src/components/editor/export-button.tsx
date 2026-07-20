@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { TransitionTopIcon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import {
 	Popover,
 	PopoverContent,
@@ -18,8 +16,20 @@ import {
 	getExportMimeType,
 	getExportFileExtension,
 	downloadBuffer,
+	createExportPreflight,
 } from "@/export";
-import { Check, Copy, Download, RotateCcw } from "lucide-react";
+import {
+	AlertTriangle,
+	Check,
+	Clock3,
+	Copy,
+	Download,
+	Monitor,
+	RotateCcw,
+	Volume2,
+	VolumeX,
+	type LucideIcon,
+} from "lucide-react";
 import {
 	EXPORT_FORMAT_VALUES,
 	EXPORT_QUALITY_VALUES,
@@ -34,6 +44,7 @@ import {
 } from "@/components/section";
 import { useEditor } from "@/editor/use-editor";
 import { DEFAULT_EXPORT_OPTIONS } from "@/export/defaults";
+import { mediaTimeToSeconds } from "@/wasm";
 
 function isExportFormat(value: string): value is ExportFormat {
 	return EXPORT_FORMAT_VALUES.some((formatValue) => formatValue === value);
@@ -47,7 +58,20 @@ export function ExportButton() {
 	const [isExportPopoverOpen, setIsExportPopoverOpen] = useState(false);
 	const editor = useEditor();
 	const activeProject = useEditor((e) => e.project.getActiveOrNull());
+	const activeScene = useEditor((e) => e.scenes.getActiveSceneOrNull());
 	const hasProject = !!activeProject;
+	const durationSeconds = mediaTimeToSeconds({
+		time: editor.timeline.getTotalDuration(),
+	});
+	const visualElementCount = activeScene
+		? activeScene.tracks.main.elements.length +
+			activeScene.tracks.overlay.reduce(
+				(total, track) => total + track.elements.length,
+				0,
+			)
+		: 0;
+	const canOpenExport =
+		hasProject && durationSeconds > 0 && visualElementCount > 0;
 
 	const handlePopoverOpenChange = ({ open }: { open: boolean }) => {
 		if (!open) {
@@ -63,29 +87,15 @@ export function ExportButton() {
 			onOpenChange={(open) => handlePopoverOpenChange({ open })}
 		>
 			<PopoverTrigger asChild>
-				<button
-					type="button"
-					className={cn(
-						"flex items-center gap-1.5 rounded-md bg-[#38BDF8] px-[0.12rem] py-[0.12rem] text-white",
-						hasProject ? "cursor-pointer" : "cursor-not-allowed opacity-50",
-					)}
-					onClick={hasProject ? () => setIsExportPopoverOpen(true) : undefined}
-					disabled={!hasProject}
-					onKeyDown={(event) => {
-						if (hasProject && (event.key === "Enter" || event.key === " ")) {
-							event.preventDefault();
-							setIsExportPopoverOpen(true);
-						}
-					}}
+				<Button
+					size="sm"
+					className="h-8 px-3"
+					disabled={!canOpenExport}
+					title={canOpenExport ? "导出成片" : "先把视频或图片加入时间线"}
 				>
-					<div className="relative flex items-center gap-1.5 rounded-[0.6rem] bg-linear-270 from-[#2567EC] to-[#37B6F7] px-4 py-1 shadow-[0_1px_3px_0px_rgba(0,0,0,0.65)]">
-						<HugeiconsIcon icon={TransitionTopIcon} className="z-50 size-3.5" />
-						<span className="z-50 text-[0.875rem]">Export</span>
-						<div className="absolute top-0 left-0 z-10 flex size-full items-center justify-center rounded-[0.6rem] bg-linear-to-t from-white/0 to-white/50">
-							<div className="absolute top-[0.08rem] z-50 h-[calc(100%-2px)] w-[calc(100%-2px)] rounded-[0.6rem] bg-linear-270 from-[#2567EC] to-[#37B6F7]"></div>
-						</div>
-					</div>
-				</button>
+					<Download className="size-3.5" />
+					导出
+				</Button>
 			</PopoverTrigger>
 			{hasProject && <ExportPopover onOpenChange={setIsExportPopoverOpen} />}
 		</Popover>
@@ -99,6 +109,7 @@ function ExportPopover({
 }) {
 	const editor = useEditor();
 	const activeProject = useEditor((e) => e.project.getActive());
+	const activeScene = useEditor((e) => e.scenes.getActiveSceneOrNull());
 	const exportState = useEditor((e) => e.project.getExportState());
 	const { isExporting, progress, result: exportResult } = exportState;
 	const [format, setFormat] = useState<ExportFormat>(
@@ -110,9 +121,35 @@ function ExportPopover({
 	const [shouldIncludeAudio, setShouldIncludeAudio] = useState<boolean>(
 		DEFAULT_EXPORT_OPTIONS.includeAudio ?? true,
 	);
+	const durationSeconds = mediaTimeToSeconds({
+		time: editor.timeline.getTotalDuration(),
+	});
+	const hasAudioSource = activeScene
+		? activeScene.tracks.audio.some((track) => track.elements.length > 0) ||
+			activeScene.tracks.main.elements.some(
+				(element) => element.type === "video",
+			)
+		: false;
+	const preflight = createExportPreflight({
+		durationSeconds,
+		canvasSize: activeProject.settings.canvasSize,
+		format,
+		includeAudio: shouldIncludeAudio,
+		hasAudioSource,
+	});
+	const preflightSummaryItems: Array<{
+		label: string;
+		value: string;
+		icon: LucideIcon;
+	}> = [
+		{ label: "时长", value: preflight.summary.duration, icon: Clock3 },
+		{ label: "分辨率", value: preflight.summary.resolution, icon: Monitor },
+		{ label: "画幅", value: preflight.summary.aspectRatio, icon: Monitor },
+		{ label: "格式", value: preflight.summary.format, icon: Download },
+	];
 
 	const handleExport = async () => {
-		if (!activeProject) return;
+		if (!activeProject || !preflight.canExport) return;
 
 		const result = await editor.project.export({
 			options: {
@@ -145,7 +182,7 @@ function ExportPopover({
 	};
 
 	return (
-		<PopoverContent className="bg-background mr-4 flex w-80 flex-col p-0">
+		<PopoverContent className="bg-background mr-0 flex max-h-[min(82vh,42rem)] w-[min(22rem,calc(100vw-1rem))] flex-col overflow-y-auto p-0 sm:mr-2">
 			{exportResult && !exportResult.success ? (
 				<ExportError
 					error={exportResult.error || "Unknown error occurred"}
@@ -153,15 +190,66 @@ function ExportPopover({
 				/>
 			) : (
 				<>
-					<div className="flex items-center justify-between p-3 border-b">
+					<div className="flex items-center justify-between border-b p-3">
 						<h3 className="font-medium text-sm">
-							{isExporting ? "Exporting project" : "Export project"}
+							{isExporting ? "正在导出" : "导出成片"}
 						</h3>
 					</div>
 
 					<div className="flex flex-col gap-4">
 						{!isExporting && (
 							<>
+								<div className="space-y-2 border-b p-3">
+									<div className="flex items-center justify-between gap-2">
+										<p className="text-xs font-medium">导出预检</p>
+										<span
+											className={cn(
+												"rounded-sm px-1.5 py-0.5 text-[10px] font-medium",
+												preflight.canExport
+													? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+													: "bg-destructive/10 text-destructive",
+											)}
+										>
+											{preflight.canExport ? "可以导出" : "需要处理"}
+										</span>
+									</div>
+									<div className="grid grid-cols-2 gap-2 text-[11px]">
+										{preflightSummaryItems.map((item) => {
+											const Icon = item.icon;
+											return (
+												<div
+													key={item.label}
+													className="rounded-md border bg-muted/25 p-2"
+												>
+													<div className="flex items-center gap-1 text-[9px] text-muted-foreground">
+														<Icon className="size-3" />
+														{item.label}
+													</div>
+													<p className="mt-1 font-medium">{item.value}</p>
+												</div>
+											);
+										})}
+									</div>
+									<div className="flex items-center gap-2 rounded-md border bg-muted/25 p-2 text-[11px]">
+										{shouldIncludeAudio && hasAudioSource ? (
+											<Volume2 className="size-3.5 text-emerald-600" />
+										) : (
+											<VolumeX className="size-3.5 text-muted-foreground" />
+										)}
+										<span>{preflight.summary.audio}</span>
+									</div>
+									{[...preflight.blockers, ...preflight.warnings].map(
+										(message) => (
+											<div
+												key={message}
+												className="flex gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-[10px] leading-relaxed"
+											>
+												<AlertTriangle className="mt-0.5 size-3 shrink-0 text-amber-600" />
+												<span>{message}</span>
+											</div>
+										),
+									)}
+								</div>
 								<div className="flex flex-col">
 									<Section
 										collapsible
@@ -169,7 +257,7 @@ function ExportPopover({
 										showTopBorder={false}
 									>
 										<SectionHeader>
-											<SectionTitle>Format</SectionTitle>
+											<SectionTitle>文件格式</SectionTitle>
 										</SectionHeader>
 										<SectionContent>
 											<RadioGroup
@@ -182,14 +270,12 @@ function ExportPopover({
 											>
 												<div className="flex items-center space-x-2">
 													<RadioGroupItem value="mp4" id="mp4" />
-													<Label htmlFor="mp4">
-														MP4 (H.264) - Better compatibility
-													</Label>
+													<Label htmlFor="mp4">MP4 (H.264) · 兼容性更好</Label>
 												</div>
 												<div className="flex items-center space-x-2">
 													<RadioGroupItem value="webm" id="webm" />
 													<Label htmlFor="webm">
-														WebM (VP9) - Smaller file size
+														WebM (VP9) · 文件通常更小
 													</Label>
 												</div>
 											</RadioGroup>
@@ -198,7 +284,7 @@ function ExportPopover({
 
 									<Section collapsible defaultOpen={false}>
 										<SectionHeader>
-											<SectionTitle>Quality</SectionTitle>
+											<SectionTitle>画质</SectionTitle>
 										</SectionHeader>
 										<SectionContent>
 											<RadioGroup
@@ -211,21 +297,19 @@ function ExportPopover({
 											>
 												<div className="flex items-center space-x-2">
 													<RadioGroupItem value="low" id="low" />
-													<Label htmlFor="low">Low - Smallest file size</Label>
+													<Label htmlFor="low">低 · 文件最小</Label>
 												</div>
 												<div className="flex items-center space-x-2">
 													<RadioGroupItem value="medium" id="medium" />
-													<Label htmlFor="medium">Medium - Balanced</Label>
+													<Label htmlFor="medium">中 · 体积与画质平衡</Label>
 												</div>
 												<div className="flex items-center space-x-2">
 													<RadioGroupItem value="high" id="high" />
-													<Label htmlFor="high">High - Recommended</Label>
+													<Label htmlFor="high">高 · 推荐</Label>
 												</div>
 												<div className="flex items-center space-x-2">
 													<RadioGroupItem value="very_high" id="very_high" />
-													<Label htmlFor="very_high">
-														Very high - Largest file size
-													</Label>
+													<Label htmlFor="very_high">极高 · 文件最大</Label>
 												</div>
 											</RadioGroup>
 										</SectionContent>
@@ -233,7 +317,7 @@ function ExportPopover({
 
 									<Section collapsible defaultOpen={false}>
 										<SectionHeader>
-											<SectionTitle>Audio</SectionTitle>
+											<SectionTitle>声音</SectionTitle>
 										</SectionHeader>
 										<SectionContent>
 											<div className="flex items-center space-x-2">
@@ -244,18 +328,20 @@ function ExportPopover({
 														setShouldIncludeAudio(!!checked)
 													}
 												/>
-												<Label htmlFor="include-audio">
-													Include audio in export
-												</Label>
+												<Label htmlFor="include-audio">导出声音</Label>
 											</div>
 										</SectionContent>
 									</Section>
 								</div>
 
 								<div className="p-3 pt-0">
-									<Button onClick={handleExport} className="w-full gap-2">
+									<Button
+										onClick={handleExport}
+										className="w-full gap-2"
+										disabled={!preflight.canExport}
+									>
 										<Download className="size-4" />
-										Export
+										开始导出
 									</Button>
 								</div>
 							</>
@@ -278,7 +364,7 @@ function ExportPopover({
 									className="w-full rounded-md"
 									onClick={handleCancel}
 								>
-									Cancel
+									取消
 								</Button>
 							</div>
 						)}
@@ -307,7 +393,7 @@ function ExportError({
 	return (
 		<div className="space-y-4 p-3">
 			<div className="flex flex-col gap-1.5">
-				<p className="text-destructive text-sm font-medium">Export failed</p>
+				<p className="text-destructive text-sm font-medium">导出失败</p>
 				<p className="text-muted-foreground text-xs">{error}</p>
 			</div>
 
@@ -319,7 +405,7 @@ function ExportError({
 					onClick={handleCopy}
 				>
 					{copied ? <Check className="text-constructive" /> : <Copy />}
-					Copy
+					复制错误
 				</Button>
 				<Button
 					variant="outline"
@@ -328,7 +414,7 @@ function ExportError({
 					onClick={onRetry}
 				>
 					<RotateCcw />
-					Retry
+					重试
 				</Button>
 			</div>
 		</div>
