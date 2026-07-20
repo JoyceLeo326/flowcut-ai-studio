@@ -12,6 +12,22 @@ export type EditStepKind =
 export type EditStepExecutor = "local" | "chatcut";
 export type EditStepAvailability = "ready" | "handoff" | "blocked";
 
+export type DeliveryPlatform =
+	| "generic"
+	| "douyin"
+	| "xiaohongshu"
+	| "bilibili"
+	| "youtube"
+	| "podcast";
+
+export interface EditTarget {
+	platform: DeliveryPlatform;
+	label: string;
+	aspectRatio: "16:9" | "9:16" | "1:1";
+	targetDurationSeconds?: number;
+	style: string;
+}
+
 export interface EditPlanStep {
 	id: string;
 	kind: EditStepKind;
@@ -40,6 +56,10 @@ export interface EditPlan {
 	mode: EditMode;
 	createdAt: string;
 	source: EditPlanSource;
+	target: EditTarget;
+	summary: string;
+	reviewChecklist: string[];
+	riskNotes: string[];
 	steps: EditPlanStep[];
 }
 
@@ -62,9 +82,12 @@ export interface ChatCutHandoff {
 	};
 	media: HandoffMediaItem[];
 	plan: EditPlan;
+	target: EditTarget;
 	requestedSteps: EditPlanStep[];
+	reviewChecklist: string[];
 	privacy: {
 		requiresExplicitUpload: true;
 		provider: "ChatCut";
+		consent: string;
 	};
 }

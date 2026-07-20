@@ -19,6 +19,7 @@ describe("createEditPlan", () => {
 			"set-aspect-ratio",
 		]);
 		expect(plan.steps.every((step) => step.executor === "local")).toBe(true);
+		expect(plan.target.aspectRatio).toBe("9:16");
 	});
 
 	test("routes semantic work to ChatCut", () => {
@@ -33,11 +34,15 @@ describe("createEditPlan", () => {
 		});
 
 		expect(plan.steps.map((step) => step.kind)).toEqual([
+			"set-aspect-ratio",
 			"remove-silence",
 			"transcribe-captions",
 			"semantic-highlights",
 		]);
-		expect(plan.steps.every((step) => step.executor === "chatcut")).toBe(true);
+		expect(plan.steps.filter((step) => step.executor === "chatcut")).toHaveLength(
+			3,
+		);
+		expect(plan.target.targetDurationSeconds).toBe(60);
 	});
 
 	test("blocks an empty project", () => {

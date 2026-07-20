@@ -16,12 +16,13 @@ const STEPS = [
 	{
 		title: "先审阅，再执行",
 		description:
-			"AI 会先生成逐项剪辑方案。本地步骤作为一次操作执行，可直接撤销。",
+			"AI 会先生成逐项剪辑方案。本地步骤作为一次操作执行，可以直接撤销。",
 		icon: WandSparkles,
 	},
 	{
 		title: "按需交给 ChatCut",
-		description: "字幕、语义精选等云端步骤会生成交接包，只有你确认后才继续。",
+		description:
+			"字幕、静音检测和语义精选会生成交接包，只有你确认后才继续云端处理。",
 		icon: Shuffle,
 	},
 ] as const;
