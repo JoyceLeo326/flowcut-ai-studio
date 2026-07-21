@@ -114,7 +114,7 @@ function DegradedRendererBanner() {
 
 	return (
 		<div className="flex h-9 items-center justify-center gap-2 border-b bg-accent text-xs text-muted-foreground">
-			<span>为获得完整的视频预览性能，建议使用 Chrome 打开 FlowCut。</span>
+			<span>为获得完整的视频预览性能，建议使用 Chrome 打开 VisionCut。</span>
 			<Button
 				variant="text"
 				size="icon"
@@ -291,12 +291,18 @@ function TouchEditorLayout({
 	}) => void;
 }) {
 	const [activeTab, setActiveTab] = useState<TouchEditorTab>("ai");
+	const [mountedTabs, setMountedTabs] = useState<ReadonlySet<TouchEditorTab>>(
+		() => new Set(["ai"]),
+	);
 
 	useEffect(() => {
 		const handleOpenTab = (event: Event) => {
 			const nextTab: unknown = Reflect.get(event, "detail");
 			if (isTouchEditorTab(nextTab)) {
 				setActiveTab(nextTab);
+				setMountedTabs((current) =>
+					current.has(nextTab) ? current : new Set(current).add(nextTab),
+				);
 			}
 		};
 		window.addEventListener(OPEN_TOUCH_EDITOR_TAB_EVENT, handleOpenTab);
@@ -315,43 +321,56 @@ function TouchEditorLayout({
 		<Tabs
 			value={activeTab}
 			onValueChange={(value) => {
-				if (isTouchEditorTab(value)) setActiveTab(value);
+				if (isTouchEditorTab(value)) {
+					setActiveTab(value);
+					setMountedTabs((current) =>
+						current.has(value) ? current : new Set(current).add(value),
+					);
+				}
 			}}
 			className="flowcut-touch-shell flex size-full min-h-0 flex-col overflow-hidden px-2 pb-2"
 		>
 			<div className="min-h-0 flex-1 overflow-hidden">
-				<TabsContent
-					value="assets"
-					forceMount
-					className="m-0 size-full p-0 data-[state=inactive]:hidden"
-				>
-					<AssetsPanel />
-				</TabsContent>
-				<TabsContent
-					value="preview"
-					forceMount
-					className="m-0 size-full p-0 data-[state=inactive]:hidden"
-				>
-					<PreviewPanel
-						overlayControls={overlayControls}
-						overlayInstances={overlayInstances}
-						onOverlayVisibilityChange={onOverlayVisibilityChange}
-					/>
-				</TabsContent>
-				<TabsContent
-					value="ai"
-					forceMount
-					className="m-0 size-full p-0 data-[state=inactive]:hidden"
-				>
-					<InspectorPanel />
-				</TabsContent>
-				<TabsContent
-					value="timeline"
-					forceMount
-					className="m-0 size-full p-0 data-[state=inactive]:hidden"
-				>
-					<Timeline />
-				</TabsContent>
+				{mountedTabs.has("assets") ? (
+					<TabsContent
+						value="assets"
+						forceMount
+						className="m-0 size-full p-0 data-[state=inactive]:hidden"
+					>
+						<AssetsPanel />
+					</TabsContent>
+				) : null}
+				{mountedTabs.has("preview") ? (
+					<TabsContent
+						value="preview"
+						forceMount
+						className="m-0 size-full p-0 data-[state=inactive]:hidden"
+					>
+						<PreviewPanel
+							overlayControls={overlayControls}
+							overlayInstances={overlayInstances}
+							onOverlayVisibilityChange={onOverlayVisibilityChange}
+						/>
+					</TabsContent>
+				) : null}
+				{mountedTabs.has("ai") ? (
+					<TabsContent
+						value="ai"
+						forceMount
+						className="m-0 size-full p-0 data-[state=inactive]:hidden"
+					>
+						<InspectorPanel />
+					</TabsContent>
+				) : null}
+				{mountedTabs.has("timeline") ? (
+					<TabsContent
+						value="timeline"
+						forceMount
+						className="m-0 size-full p-0 data-[state=inactive]:hidden"
+					>
+						<Timeline />
+					</TabsContent>
+				) : null}
 			</div>
 			<TabsList className="flowcut-touch-tabs mt-2 grid h-14 shrink-0 grid-cols-4 rounded-[8px] border p-1">
 				{tabs.map((tab) => {

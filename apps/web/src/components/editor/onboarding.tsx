@@ -11,7 +11,13 @@ import {
 import { useState } from "react";
 import { useLocalStorage } from "@/services/storage/use-local-storage";
 import { Button } from "../ui/button";
-import { Dialog, DialogBody, DialogContent, DialogTitle } from "../ui/dialog";
+import {
+	Dialog,
+	DialogBody,
+	DialogContent,
+	DialogDescription,
+	DialogTitle,
+} from "../ui/dialog";
 
 const STEPS = [
 	{
@@ -68,9 +74,6 @@ export function Onboarding() {
 			onOpenChange={() => setHasSeenOnboarding({ value: true })}
 		>
 			<DialogContent className="sm:max-w-[460px]">
-				<DialogTitle>
-					<span className="sr-only">{current.title}</span>
-				</DialogTitle>
 				<DialogBody>
 					<div className="space-y-5">
 						<div className="flex items-start gap-3">
@@ -78,10 +81,12 @@ export function Onboarding() {
 								<Icon className="size-5 text-primary" />
 							</div>
 							<div className="min-w-0">
-								<h2 className="text-lg font-semibold">{current.title}</h2>
-								<p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+								<DialogTitle className="text-lg font-semibold">
+									{current.title}
+								</DialogTitle>
+								<DialogDescription className="mt-2 text-sm leading-relaxed text-muted-foreground">
 									{current.description}
-								</p>
+								</DialogDescription>
 							</div>
 						</div>
 						<div className="grid gap-2">

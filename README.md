@@ -1,14 +1,19 @@
-# FlowCut AI Studio
+# VisionCut AI
 
-FlowCut AI Studio is a local-first video editor with reviewable AI edit plans
-and an optional ChatCut cloud handoff. It is a new derivative project based on
-the MIT-licensed OpenCut Classic editor.
+VisionCut AI is an intent-driven, local-first AI video creation system. It turns
+creative goals into reviewable edit plans, local timeline actions, and optional
+ChatCut cloud handoffs. It is a derivative project based on the MIT-licensed
+OpenCut Classic editor.
 
-Public preview: [flowcut-ai-studio-jrleo326-6617s-projects.vercel.app](https://flowcut-ai-studio-jrleo326-6617s-projects.vercel.app)
+Public preview: [flowcut-ai-studio.vercel.app](https://flowcut-ai-studio.vercel.app)
 
 ## Current MVP
 
 - Import video, image, and audio files into browser-local project storage.
+- Start from a natural-language intent and choose from 13 outcome-led workflows.
+- Plan narrative structure in a draggable Story Graph and switch between Guided
+  and Pro controls without leaving the same workspace.
+- Browse 61 completed original visual assets or search attributed Openverse media.
 - Edit with a real preview canvas, multi-track timeline, properties, effects,
   transitions, captions, and MP4/WebM export.
 - Generate a structured `flowcut.edit-plan/v1` before changing the timeline.
@@ -46,16 +51,19 @@ package caches, temporary files, and Next.js output inside the project on `D:`.
 
 ## Basic Workflow
 
-1. Create a project and click **Import** to select one or more media files.
-2. Open **AI 方案**, choose Local, Hybrid, or ChatCut, then describe the target.
-3. Review each generated step and uncheck anything you do not want.
+1. Describe the intended video in Home Studio and click **开始设计**.
+2. Choose an AI workflow, then import one or more media files from **素材**.
+3. Review the Story Graph, execution queue, and optional Pro controls.
 4. Click **应用本地步骤** for local timeline changes. Use the adjacent undo
    button to revert the whole batch.
 5. For cloud steps, click **复制 ChatCut 任务** and paste it into a Codex task
    where the official ChatCut plugin is enabled. Attach the named source files
    only after confirming the upload.
-6. Return the rendered result to FlowCut if manual finishing is needed, then use
+6. Return the rendered result to VisionCut if manual finishing is needed, then use
    **Export** to render MP4 or WebM.
+
+The current MVP and the production target architecture are separated explicitly
+in [docs/architecture/visioncut-system.md](docs/architecture/visioncut-system.md).
 
 More detail is available in [docs/USAGE.zh-CN.md](docs/USAGE.zh-CN.md) and
 [docs/INTEGRATION.md](docs/INTEGRATION.md).
@@ -71,11 +79,11 @@ bun test apps/web/src/ai-edit
 bun run build:web
 ```
 
-The web app is in `apps/web`, shared core work is in `rust`, and the FlowCut
+The web app is in `apps/web`, shared core work is in `rust`, and the VisionCut
 edit-plan adapter is in `apps/web/src/ai-edit`.
 
 ## License And Attribution
 
-FlowCut AI Studio is distributed under the MIT License. See [LICENSE](LICENSE)
+VisionCut AI is distributed under the MIT License. See [LICENSE](LICENSE)
 and [NOTICE](NOTICE). OpenCut attribution is preserved. ChatCut remains an
 external service and trademark of its respective owner.

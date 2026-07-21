@@ -543,12 +543,163 @@
     animation: flowcut-enter 260ms ease-out both;
   }
 
+  .flowcut-studio-shell {
+    --flowcut-surface-0: color-mix(
+      in oklab,
+      var(--background) 97%,
+      var(--foreground)
+    );
+    --flowcut-surface-1: color-mix(
+      in oklab,
+      var(--background) 93%,
+      var(--foreground)
+    );
+    --flowcut-surface-2: color-mix(
+      in oklab,
+      var(--background) 87%,
+      var(--foreground)
+    );
+    --flowcut-hairline: color-mix(
+      in oklab,
+      var(--border) 78%,
+      var(--foreground)
+    );
+    --visioncut-energy: #d7ff3f;
+    --visioncut-signal: hsl(190 88% 49%);
+    background: var(--flowcut-surface-0);
+    font-feature-settings: "calt", "kern", "liga";
+  }
+
+  .flowcut-studio-shell > header {
+    background: color-mix(in oklab, var(--flowcut-surface-0) 96%, transparent);
+  }
+
+  .flowcut-experience-switch,
+  .flowcut-studio-feature,
+  .flowcut-run-panel,
+  .flowcut-pro-panel,
+  .flowcut-visual-hero,
+  .flowcut-generator-panel,
+  .flowcut-source-console {
+    border-color: var(--flowcut-hairline);
+    background: var(--flowcut-surface-1);
+  }
+
+  .flowcut-studio-tab {
+    color: var(--muted-foreground);
+    transition:
+      color 160ms ease,
+      background-color 160ms ease;
+  }
+
+  .flowcut-studio-tab::after {
+    content: "";
+    position: absolute;
+    right: 24%;
+    bottom: -1px;
+    left: 24%;
+    height: 2px;
+    background: transparent;
+  }
+
+  .flowcut-studio-tab:hover {
+    color: var(--foreground);
+    background: var(--flowcut-surface-1);
+  }
+
+  .flowcut-studio-tab[data-active="true"] {
+    color: var(--foreground);
+    background: var(--flowcut-surface-2);
+  }
+
+  .flowcut-studio-tab[data-active="true"]::after {
+    background: var(--visioncut-energy);
+  }
+
+  .flowcut-studio-view {
+    animation: flowcut-enter 220ms ease-out both;
+  }
+
+  .flowcut-workflow-card,
+  .flowcut-world-card,
+  .flowcut-job-card,
+  .flowcut-source-card {
+    border-color: var(--flowcut-hairline);
+    background: var(--flowcut-surface-1);
+    transition:
+      transform 180ms ease,
+      border-color 180ms ease,
+      background-color 180ms ease;
+  }
+
+  .flowcut-workflow-card:hover,
+  .flowcut-world-card:hover,
+  .flowcut-source-card:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(
+      in oklab,
+      var(--flowcut-hairline) 54%,
+      var(--visioncut-signal)
+    );
+    background: var(--flowcut-surface-2);
+  }
+
+  .flowcut-workflow-card[data-selected="true"],
+  .flowcut-world-card[data-selected="true"] {
+    border-color: color-mix(
+      in oklab,
+      var(--visioncut-energy) 72%,
+      var(--foreground)
+    );
+    background: var(--flowcut-surface-2);
+  }
+
+  .flowcut-run-panel > div,
+  .flowcut-pro-control,
+  .flowcut-generator-panel > div,
+  .flowcut-source-console > div {
+    border-color: var(--flowcut-hairline);
+  }
+
+  .flowcut-pro-panel {
+    border-left: 2px solid var(--visioncut-signal);
+  }
+
+  .flowcut-visual-hero {
+    border-bottom-color: var(--visioncut-energy);
+  }
+
+  .flowcut-generator-panel {
+    border-top: 2px solid var(--visioncut-energy);
+  }
+
+  .flowcut-job-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 260px;
+  }
+
+  .flowcut-job-card:hover {
+    border-color: color-mix(
+      in oklab,
+      var(--flowcut-hairline) 58%,
+      var(--visioncut-energy)
+    );
+  }
+
+  .flowcut-source-console {
+    border-left: 2px solid var(--visioncut-signal);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .flowcut-brief-option,
     .flowcut-generate-button,
     .flowcut-plan-anchor,
     .flowcut-ai-pulse,
-    .flowcut-action-dock {
+    .flowcut-action-dock,
+    .flowcut-studio-view,
+    .flowcut-workflow-card,
+    .flowcut-world-card,
+    .flowcut-source-card {
       animation: none;
       transition: none;
     }
@@ -575,6 +726,14 @@
 
     .flowcut-generate-button {
       min-height: 48px;
+    }
+
+    .flowcut-studio-tab,
+    .flowcut-workflow-card,
+    .flowcut-world-card,
+    .flowcut-source-card button,
+    .flowcut-generator-panel button {
+      min-height: 44px;
     }
   }
 }

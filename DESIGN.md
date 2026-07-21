@@ -1,10 +1,12 @@
-# FlowCut AI Studio Design Direction
+# VisionCut AI Design Direction
 
-FlowCut should feel like an AI editing partner, not a traditional timeline-first editor.
+VisionCut should feel like an AI production team, not a traditional timeline-first editor.
 
 ## Product Shape
 
 - Start from user intent: quick output, review cut, styled edit, platform version.
+- Make Story Graph the primary narrative model; keep the timeline as an optional precision surface.
+- Treat original imagery and source media as the interface depth. The chrome stays neutral and quiet.
 - Keep timeline controls available, but do not make users understand them before they can create.
 - Use direct choices over abstract settings. Prefer "I want a short highlight" to "set target aspect ratio".
 - Every advanced option should write into a clear AI goal instead of exposing a dead configuration panel.

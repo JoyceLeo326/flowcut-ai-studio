@@ -8,6 +8,23 @@ const redisUrl = webEnv.UPSTASH_REDIS_REST_URL;
 const redisToken = webEnv.UPSTASH_REDIS_REST_TOKEN;
 const authSecret = webEnv.BETTER_AUTH_SECRET;
 
+function parseRateLimit(value: unknown): RateLimit | undefined {
+	if (typeof value !== "object" || value === null) return undefined;
+
+	const key = Reflect.get(value, "key");
+	const count = Reflect.get(value, "count");
+	const lastRequest = Reflect.get(value, "lastRequest");
+	if (
+		typeof key !== "string" ||
+		typeof count !== "number" ||
+		typeof lastRequest !== "number"
+	) {
+		return undefined;
+	}
+
+	return { key, count, lastRequest };
+}
+
 if (!redisUrl || !redisToken || !authSecret) {
 	throw new Error(
 		"Authentication requires BETTER_AUTH_SECRET and Upstash Redis credentials",
@@ -38,7 +55,7 @@ export const auth = betterAuth({
 		customStorage: {
 			get: async (key) => {
 				const value = await redis.get(key);
-				return value as RateLimit | undefined;
+				return parseRateLimit(value);
 			},
 			set: async (key, value) => {
 				await redis.set(key, value);
@@ -46,7 +63,7 @@ export const auth = betterAuth({
 		},
 	},
 	baseURL: webEnv.NEXT_PUBLIC_SITE_URL,
-	appName: "FlowCut AI Studio",
+	appName: "VisionCut AI",
 	trustedOrigins: [webEnv.NEXT_PUBLIC_SITE_URL],
 });
 

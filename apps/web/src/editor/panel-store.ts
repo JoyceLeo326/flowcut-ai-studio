@@ -19,6 +19,23 @@ interface PanelState {
 	resetPanels: () => void;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+function readPanelSize({
+	fallback,
+	key,
+	source,
+}: {
+	fallback: number;
+	key: string;
+	source: Record<string, unknown>;
+}) {
+	const value = source[key];
+	return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
 export const usePanelStore = create<PanelState>()(
 	persist(
 		(set) => ({
@@ -40,48 +57,89 @@ export const usePanelStore = create<PanelState>()(
 			resetPanels: () => set({ ...PANEL_CONFIG }),
 		}),
 		{
-			name: "panel-sizes",
+			name: "visioncut-panel-sizes",
 			version: 2,
 			migrate: (persistedState) => {
-				const state = persistedState as
-					| {
-							panels?: Partial<PanelSizes> | null;
-							toolsPanel?: number;
-							previewPanel?: number;
-							propertiesPanel?: number;
-							mainContent?: number;
-							timeline?: number;
-							tools?: number;
-							preview?: number;
-							properties?: number;
-					  }
-					| undefined
-					| null;
+				if (!isRecord(persistedState)) {
+					return { panels: { ...PANEL_CONFIG.panels } };
+				}
 
-				if (!state) return { panels: { ...PANEL_CONFIG.panels } };
-
-				if (state.panels && typeof state.panels === "object") {
+				if (isRecord(persistedState.panels)) {
+					const panels = persistedState.panels;
 					return {
 						panels: {
-							...PANEL_CONFIG.panels,
-							...state.panels,
+							tools: readPanelSize({
+								source: panels,
+								key: "tools",
+								fallback: PANEL_CONFIG.panels.tools,
+							}),
+							preview: readPanelSize({
+								source: panels,
+								key: "preview",
+								fallback: PANEL_CONFIG.panels.preview,
+							}),
+							properties: readPanelSize({
+								source: panels,
+								key: "properties",
+								fallback: PANEL_CONFIG.panels.properties,
+							}),
+							mainContent: readPanelSize({
+								source: panels,
+								key: "mainContent",
+								fallback: PANEL_CONFIG.panels.mainContent,
+							}),
+							timeline: readPanelSize({
+								source: panels,
+								key: "timeline",
+								fallback: PANEL_CONFIG.panels.timeline,
+							}),
 						},
 					};
 				}
 
+				const toolsPanel = readPanelSize({
+					source: persistedState,
+					key: "toolsPanel",
+					fallback: PANEL_CONFIG.panels.tools,
+				});
+				const previewPanel = readPanelSize({
+					source: persistedState,
+					key: "previewPanel",
+					fallback: PANEL_CONFIG.panels.preview,
+				});
+				const propertiesPanel = readPanelSize({
+					source: persistedState,
+					key: "propertiesPanel",
+					fallback: PANEL_CONFIG.panels.properties,
+				});
+
 				return {
 					panels: {
-						tools: state.tools ?? state.toolsPanel ?? PANEL_CONFIG.panels.tools,
-						preview:
-							state.preview ??
-							state.previewPanel ??
-							PANEL_CONFIG.panels.preview,
-						properties:
-							state.properties ??
-							state.propertiesPanel ??
-							PANEL_CONFIG.panels.properties,
-						mainContent: state.mainContent ?? PANEL_CONFIG.panels.mainContent,
-						timeline: state.timeline ?? PANEL_CONFIG.panels.timeline,
+						tools: readPanelSize({
+							source: persistedState,
+							key: "tools",
+							fallback: toolsPanel,
+						}),
+						preview: readPanelSize({
+							source: persistedState,
+							key: "preview",
+							fallback: previewPanel,
+						}),
+						properties: readPanelSize({
+							source: persistedState,
+							key: "properties",
+							fallback: propertiesPanel,
+						}),
+						mainContent: readPanelSize({
+							source: persistedState,
+							key: "mainContent",
+							fallback: PANEL_CONFIG.panels.mainContent,
+						}),
+						timeline: readPanelSize({
+							source: persistedState,
+							key: "timeline",
+							fallback: PANEL_CONFIG.panels.timeline,
+						}),
 					},
 				};
 			},
