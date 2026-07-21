@@ -78,17 +78,17 @@ describe("AI product studio catalog", () => {
 		);
 	});
 
-	test("creates a capped multi-purpose, multi-ratio visual generation batch", () => {
+	test("creates a 100-image multi-purpose, multi-ratio visual generation batch", () => {
 		const jobs = createVisualGenerationJobs({
 			prompt: "一位创作者在城市夜色中讲述创业故事",
 			worldId: "electric-noir",
 			useCases: ["broll", "cover"],
 			aspectRatios: ["9:16", "16:9"],
-			count: 20,
+			count: 120,
 		});
 
-		expect(jobs).toHaveLength(12);
-		expect(new Set(jobs.map((job) => job.id)).size).toBe(12);
+		expect(jobs).toHaveLength(100);
+		expect(new Set(jobs.map((job) => job.id)).size).toBe(100);
 		expect(new Set(jobs.map((job) => job.useCase))).toEqual(
 			new Set(["broll", "cover"]),
 		);

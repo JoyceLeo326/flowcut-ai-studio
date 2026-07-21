@@ -1192,7 +1192,7 @@ export function createVisualGenerationJobs({
 	const safeUseCases = useCases.length > 0 ? useCases : (["broll"] as const);
 	const safeRatios =
 		aspectRatios.length > 0 ? aspectRatios : (["9:16"] as const);
-	const safeCount = Math.round(clamp({ value: count, min: 1, max: 12 }));
+	const safeCount = Math.round(clamp({ value: count, min: 1, max: 100 }));
 	const combinations = safeUseCases.flatMap((useCase) =>
 		safeRatios.map((aspectRatio) => ({ useCase, aspectRatio })),
 	);
