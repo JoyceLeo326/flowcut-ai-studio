@@ -3,10 +3,19 @@ import {
 	buildOpenverseUrl,
 	normalizeOpenverseResponse,
 } from "@/ai-studio/openverse";
+import { checkRateLimit } from "@/auth/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest): Promise<Response> {
+	const { limited } = await checkRateLimit({ request });
+	if (limited) {
+		return Response.json(
+			{ error: "请求过于频繁，请稍后重试" },
+			{ headers: { "Retry-After": "60" }, status: 429 },
+		);
+	}
+
 	const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
 	if (query.length < 2) {
 		return Response.json(
@@ -24,7 +33,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 			headers: {
 				Accept: "application/json",
 				"User-Agent":
-					"FlowCut/0.1 (https://github.com/JoyceLeo326/flowcut-ai-studio)",
+					"VisionCut/0.1 (https://github.com/JoyceLeo326/flowcut-ai-studio)",
 			},
 			signal: AbortSignal.timeout(8_000),
 		});

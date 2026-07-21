@@ -1,4 +1,5 @@
 import { webEnv } from "@/env/web";
+import { checkRateLimit } from "@/auth/rate-limit";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -148,6 +149,14 @@ function transformFreesoundResult(
 
 export async function GET(request: NextRequest) {
 	try {
+		const { limited } = await checkRateLimit({ request });
+		if (limited) {
+			return NextResponse.json(
+				{ error: "Too many requests" },
+				{ headers: { "Retry-After": "60" }, status: 429 },
+			);
+		}
+
 		const apiKey = webEnv.FREESOUND_API_KEY;
 		if (!apiKey) {
 			return NextResponse.json(

@@ -67,6 +67,17 @@ import type { TimelineElement } from "@/timeline";
 import { hasMediaId } from "@/timeline/element-utils";
 import { cn } from "@/utils/ui";
 import { mediaTimeToSeconds } from "@/wasm";
+import {
+	getRecipeBriefPatch,
+	type AutomationRecipeId,
+	type StudioProSettings,
+} from "@/ai-studio/catalog";
+import type { OpenverseSearchItem } from "@/ai-studio/openverse";
+import {
+	AIProductStudio,
+	StudioBackButton,
+} from "@/components/editor/panels/inspector/ai-product-studio";
+import { processMediaAssets } from "@/media/processing";
 
 const MODES: Array<{
 	id: EditMode;
@@ -134,6 +145,32 @@ function downloadJson({
 	anchor.download = filename;
 	anchor.click();
 	URL.revokeObjectURL(url);
+}
+
+const OPENVERSE_IMAGE_EXTENSIONS: Record<string, string> = {
+	"image/avif": "avif",
+	"image/gif": "gif",
+	"image/jpeg": "jpg",
+	"image/png": "png",
+	"image/webp": "webp",
+};
+
+function createOpenverseFilename({
+	item,
+	mimeType,
+}: {
+	item: OpenverseSearchItem;
+	mimeType: string;
+}) {
+	const extension = OPENVERSE_IMAGE_EXTENSIONS[mimeType];
+	if (!extension) throw new Error("该开放素材不是受支持的图片格式");
+	const stem = `${item.title}-${item.creator}-${item.license}`
+		.normalize("NFKC")
+		.replace(/[^\p{L}\p{N}._ -]+/gu, "-")
+		.replace(/\s+/g, " ")
+		.trim()
+		.slice(0, 96);
+	return `${stem || `openverse-${item.id}`}.${extension}`;
 }
 
 function BriefChoiceGrid({
@@ -255,6 +292,8 @@ export function AIWorkspacePanel() {
 	const assets = useEditor((value) => value.media.getAssets());
 	const scene = useEditor((value) => value.scenes.getActiveSceneOrNull());
 	const project = useEditor((value) => value.project.getActive());
+	const [surface, setSurface] = useState<"studio" | "director">("studio");
+	const [startingIntent, setStartingIntent] = useState("");
 	const [mode, setMode] = useState<EditMode>("hybrid");
 	const [brief, setBrief] = useState<CreativeBriefSelection>(() =>
 		createDefaultCreativeBrief(),
@@ -319,11 +358,91 @@ export function AIWorkspacePanel() {
 		[brief, extraRequest],
 	);
 
+	useEffect(() => {
+		const projectId = project?.metadata.id;
+		if (!projectId) return;
+		const key = `visioncut:intent:${projectId}`;
+		const intent = window.sessionStorage.getItem(key)?.trim();
+		if (!intent) return;
+		window.sessionStorage.removeItem(key);
+		const frame = window.requestAnimationFrame(() => setStartingIntent(intent));
+		return () => window.cancelAnimationFrame(frame);
+	}, [project?.metadata.id]);
+
 	const invalidatePlan = () => {
 		setPlan(null);
 		setIsPlanReviewed(false);
 		setAppliedPlanId(null);
 		setCanUndoPlan(false);
+	};
+
+	const handleUseRecipe = ({
+		intent,
+		recipeId,
+		settings,
+	}: {
+		intent?: string;
+		recipeId: AutomationRecipeId;
+		settings: StudioProSettings;
+	}) => {
+		const patch = getRecipeBriefPatch(recipeId);
+		setBrief((current) => ({
+			...current,
+			recipeId: patch.recipeId,
+			styleId: patch.styleId,
+			captionId: patch.captionId,
+			motionId: patch.motionId,
+			audioId: patch.audioId,
+		}));
+		setExtraRequest(
+			[
+				intent ? `用户目标：${intent}` : null,
+				patch.extraRequest,
+				`专业控制：最短静音 ${settings.silenceThresholdMs} ms；切口余量 ${settings.cutPaddingMs} ms；场景敏感度 ${settings.sceneSensitivity}%；B-roll 密度 ${settings.brollDensity}%；字幕密度 ${settings.captionDensity}%；推近强度 ${settings.punchInIntensity}%；目标响度 ${settings.targetLufs} LUFS；输出 ${settings.outputCount} 个版本；填充词策略 ${settings.fillerHandling}。`,
+			]
+				.filter((line): line is string => Boolean(line))
+				.join("\n"),
+		);
+		setMode("hybrid");
+		invalidatePlan();
+		setSurface("director");
+	};
+
+	const handleImportOpenverse = async (item: OpenverseSearchItem) => {
+		if (!project) {
+			toast.error("请先打开一个项目");
+			return;
+		}
+
+		try {
+			const response = await fetch(
+				`/api/media/openverse/${encodeURIComponent(item.id)}`,
+			);
+			if (!response.ok) throw new Error("开放素材下载失败");
+			const blob = await response.blob();
+			const file = new File(
+				[blob],
+				createOpenverseFilename({ item, mimeType: blob.type }),
+				{ lastModified: Date.now(), type: blob.type },
+			);
+			const processedAssets = await processMediaAssets({ files: [file] });
+			if (processedAssets.length === 0) {
+				throw new Error("浏览器无法处理这张图片");
+			}
+			for (const asset of processedAssets) {
+				await editor.media.addMediaAsset({
+					projectId: project.metadata.id,
+					asset,
+				});
+			}
+			toast.success("已加入项目素材库", {
+				description: `${item.creator} · ${item.license}，来源链接保留在开放素材卡中。`,
+			});
+		} catch (error) {
+			toast.error("无法加入开放素材", {
+				description: error instanceof Error ? error.message : undefined,
+			});
+		}
 	};
 
 	const handleSingleChoice = ({
@@ -486,8 +605,24 @@ export function AIWorkspacePanel() {
 	const hasChatCutSteps = chatCutSteps.length > 0;
 	const hasAppliedLocal = plan?.id === appliedPlanId;
 
+	if (surface === "studio") {
+		return (
+			<AIProductStudio
+				assetCount={assets.length}
+				initialIntent={startingIntent}
+				onImportMedia={requestMediaImport}
+				onImportOpenverse={handleImportOpenverse}
+				onOpenDirector={() => setSurface("director")}
+				onUseRecipe={handleUseRecipe}
+			/>
+		);
+	}
+
 	return (
 		<div className="flowcut-ai-shell flex h-full min-h-0 flex-col">
+			<div className="shrink-0 border-b px-3 py-1">
+				<StudioBackButton onClick={() => setSurface("studio")} />
+			</div>
 			<ScrollArea className="min-h-0 flex-1">
 				<div className="space-y-4 p-3">
 					<section className="flowcut-director-console overflow-hidden rounded-[8px] border">
@@ -497,7 +632,7 @@ export function AIWorkspacePanel() {
 							</div>
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center justify-between gap-2">
-									<h2 className="text-[15px] font-semibold">AI 剪辑导演</h2>
+									<h2 className="text-[15px] font-semibold">VisionCut AI 导演</h2>
 									<span className="inline-flex items-center gap-1.5 text-[9px] font-medium text-muted-foreground">
 										<span className="size-1.5 rounded-full bg-emerald-500" />
 										本地优先

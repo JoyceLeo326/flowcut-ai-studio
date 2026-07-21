@@ -108,11 +108,11 @@ function ProjectDropdown() {
 					<Button
 						variant="ghost"
 						className="h-8 gap-2 rounded-sm px-2"
-						aria-label="FlowCut project menu"
+						aria-label="VisionCut project menu"
 					>
 						<Clapperboard className="size-4 text-primary" />
 						<span className="hidden text-sm font-semibold sm:inline">
-							FlowCut
+							VisionCut
 						</span>
 					</Button>
 				</DropdownMenuTrigger>

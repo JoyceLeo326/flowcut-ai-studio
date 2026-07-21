@@ -3,7 +3,32 @@ import path from "node:path";
 import { withBotId } from "botid/next/config";
 import { withContentCollections } from "@content-collections/next";
 
+const securityHeaders = [
+	{
+		key: "Content-Security-Policy",
+		value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
+	},
+	{ key: "X-Content-Type-Options", value: "nosniff" },
+	{ key: "X-Frame-Options", value: "DENY" },
+	{ key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+	{
+		key: "Permissions-Policy",
+		value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+	},
+	...(process.env.NODE_ENV === "production"
+		? [
+				{
+					key: "Strict-Transport-Security",
+					value: "max-age=31536000; includeSubDomains",
+				},
+			]
+		: []),
+] as const;
+
 const nextConfig: NextConfig = {
+	async headers() {
+		return [{ source: "/(.*)", headers: [...securityHeaders] }];
+	},
 	async redirects() {
 		return [
 			"/blog/:path*",
@@ -29,6 +54,10 @@ const nextConfig: NextConfig = {
 	},
 	images: {
 		remotePatterns: [
+			{
+				protocol: "https",
+				hostname: "api.openverse.org",
+			},
 			{
 				protocol: "https",
 				hostname: "plus.unsplash.com",

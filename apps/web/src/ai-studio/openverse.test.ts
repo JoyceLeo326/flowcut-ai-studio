@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { buildOpenverseUrl, normalizeOpenverseResponse } from "./openverse";
+import {
+	buildOpenverseUrl,
+	normalizeOpenverseResponse,
+	parseOpenverseSearchResult,
+} from "./openverse";
 
 describe("Openverse media search", () => {
 	test("builds a bounded commercial-use image query", () => {
@@ -54,5 +58,25 @@ describe("Openverse media search", () => {
 			assetUrl: "https://images.example/1.jpg",
 			sourceUrl: "https://source.example/1",
 		});
+	});
+
+	test("parses the normalized API payload without trusting unknown JSON", () => {
+		const parsed = parseOpenverseSearchResult({
+			total: 1,
+			items: [
+				{
+					id: "asset-1",
+					title: "Night road",
+					creator: "Lin",
+					license: "CC BY 4.0",
+					thumbnailUrl: "https://api.openverse.org/thumb/1",
+					assetUrl: "https://images.example/1.jpg",
+					sourceUrl: "https://source.example/1",
+				},
+			],
+		});
+
+		expect(parsed?.items[0]?.creator).toBe("Lin");
+		expect(parseOpenverseSearchResult({ total: "many", items: [] })).toBeNull();
 	});
 });

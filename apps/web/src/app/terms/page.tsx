@@ -3,8 +3,8 @@ import Link from "next/link";
 import { Clapperboard } from "lucide-react";
 
 export const metadata: Metadata = {
-	title: "使用条款 - FlowCut AI Studio",
-	description: "FlowCut AI Studio 的使用、第三方服务和开源许可边界。",
+	title: "使用条款 - VisionCut AI",
+	description: "VisionCut AI 的使用、第三方服务和开源许可边界。",
 };
 
 export default function TermsPage() {
@@ -14,7 +14,7 @@ export default function TermsPage() {
 				<div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-6">
 					<Link href="/projects" className="flex items-center gap-2 font-semibold">
 						<Clapperboard className="size-4 text-primary" />
-						FlowCut AI Studio
+						VisionCut AI
 					</Link>
 					<Link href="/projects" className="text-sm text-muted-foreground hover:text-foreground">
 						返回项目
@@ -25,7 +25,7 @@ export default function TermsPage() {
 				<div className="space-y-3">
 					<h1 className="text-3xl font-semibold">使用条款</h1>
 					<p className="leading-relaxed text-muted-foreground">
-						FlowCut 是实验性的开源视频编辑工具。使用它即表示接受以下边界。
+						VisionCut AI 是实验性的意图驱动视频创造系统。使用它即表示接受以下边界。
 					</p>
 				</div>
 
@@ -39,7 +39,7 @@ export default function TermsPage() {
 					ChatCut 是可选的外部服务，不属于本仓库。使用其转录、生成、云端编辑或导出功能时，用户同时受 ChatCut 的账户、隐私、内容和积分规则约束。
 				</TermsSection>
 				<TermsSection title="开源许可">
-					FlowCut 代码按 MIT License 提供，并保留 OpenCut 的 MIT 许可和署名。第三方依赖继续适用各自许可证；本项目不授予 ChatCut 商标或服务的任何权利。
+					VisionCut AI 代码按 MIT License 提供，并保留 OpenCut 的 MIT 许可和署名。第三方依赖继续适用各自许可证；本项目不授予 ChatCut 商标或服务的任何权利。
 				</TermsSection>
 				<TermsSection title="无担保">
 					软件按“现状”提供，不保证不间断、无错误或适合特定用途。在法律允许的范围内，维护者不对数据丢失、内容问题或第三方服务费用承担责任。

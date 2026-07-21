@@ -301,7 +301,7 @@ export const STUDIO_CAPABILITIES = [
 		id: "export-timeline",
 		title: "时间线交接",
 		beginnerLabel: "保留一份可继续编辑的工程",
-		proDescription: "生成 FlowCut JSON，并预留 OTIO/EDL/FCPXML 交换节点",
+		proDescription: "生成 VisionCut JSON，并预留 OTIO/EDL/FCPXML 交换节点",
 		phase: "deliver",
 		executor: "local",
 		estimatedSeconds: 4,
@@ -1018,8 +1018,9 @@ export function createAutomationRun({
 
 export function recommendAutomationRecipes(
 	intent: string,
-): AutomationRecipe[] {
+): Array<(typeof AUTOMATION_RECIPES)[number]> {
 	const normalized = intent.toLocaleLowerCase();
+	const isFeatured = (recipe: AutomationRecipe) => recipe.featured ?? false;
 	return [...AUTOMATION_RECIPES]
 		.map((recipe, index) => ({
 			recipe,
@@ -1032,8 +1033,8 @@ export function recommendAutomationRecipes(
 		}))
 		.sort((a, b) => {
 			if (a.score !== b.score) return b.score - a.score;
-			if (a.recipe.featured !== b.recipe.featured) {
-				return a.recipe.featured ? -1 : 1;
+			if (isFeatured(a.recipe) !== isFeatured(b.recipe)) {
+				return isFeatured(a.recipe) ? -1 : 1;
 			}
 			return a.index - b.index;
 		})
@@ -1146,7 +1147,7 @@ export const VISUAL_WORLDS = [
 		title: "Documentary Grain",
 		label: "纪实颗粒",
 		description: "现场光、真实空间、克制的纪录片观察",
-		image: "/flowcut/style-worlds/documentary-grain.webp",
+		image: "/visioncut/generated-library/fisherman-dawn-portrait.webp",
 		palette: ["#292d2b", "#9c8f7c", "#dad6cd"],
 		promptSuffix:
 			"observational documentary frame, available light, honest environment, restrained cinematic grain",

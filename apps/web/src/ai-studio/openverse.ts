@@ -13,6 +13,46 @@ export interface OpenverseSearchResult {
 	items: OpenverseSearchItem[];
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+function parseSearchItem(value: unknown): OpenverseSearchItem | null {
+	if (!isRecord(value)) return null;
+	const fields = [
+		"id",
+		"title",
+		"creator",
+		"license",
+		"thumbnailUrl",
+		"assetUrl",
+		"sourceUrl",
+	] as const;
+	if (fields.some((field) => typeof value[field] !== "string")) return null;
+	return {
+		id: String(value.id),
+		title: String(value.title),
+		creator: String(value.creator),
+		license: String(value.license),
+		thumbnailUrl: String(value.thumbnailUrl),
+		assetUrl: String(value.assetUrl),
+		sourceUrl: String(value.sourceUrl),
+	};
+}
+
+export function parseOpenverseSearchResult(
+	value: unknown,
+): OpenverseSearchResult | null {
+	if (!isRecord(value) || typeof value.total !== "number") return null;
+	if (!Array.isArray(value.items)) return null;
+	const items = value.items.flatMap((item) => {
+		const parsed = parseSearchItem(item);
+		return parsed ? [parsed] : [];
+	});
+	if (items.length !== value.items.length) return null;
+	return { total: value.total, items };
+}
+
 interface OpenverseResponseItem {
 	id?: unknown;
 	title?: unknown;
@@ -22,11 +62,6 @@ interface OpenverseResponseItem {
 	thumbnail?: unknown;
 	url?: unknown;
 	foreign_landing_url?: unknown;
-}
-
-interface OpenverseResponse {
-	result_count?: unknown;
-	results?: unknown;
 }
 
 function isOpenverseResponseItem(
@@ -84,10 +119,11 @@ function readableLicense({
 }
 
 export function normalizeOpenverseResponse(
-	value: OpenverseResponse,
+	value: unknown,
 ): OpenverseSearchResult {
-	const sourceItems = Array.isArray(value.results)
-		? value.results.filter(isOpenverseResponseItem)
+	const response = isRecord(value) ? value : {};
+	const sourceItems = Array.isArray(response.results)
+		? response.results.filter(isOpenverseResponseItem)
 		: [];
 	const items = sourceItems.flatMap((item): OpenverseSearchItem[] => {
 		if (
@@ -127,9 +163,9 @@ export function normalizeOpenverseResponse(
 
 	return {
 		total:
-			typeof value.result_count === "number" &&
-			Number.isFinite(value.result_count)
-				? value.result_count
+			typeof response.result_count === "number" &&
+			Number.isFinite(response.result_count)
+				? response.result_count
 				: items.length,
 		items,
 	};

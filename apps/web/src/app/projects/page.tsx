@@ -67,6 +67,7 @@ import { ProjectInfoDialog } from "@/project/components/project-info-dialog";
 import { RenameProjectDialog } from "@/project/components/rename-project-dialog";
 import { cn } from "@/utils/ui";
 import { ChangelogNotification } from "@/changelog/components/changelog-notification";
+import { VisionCutHomeStudio } from "@/components/projects/visioncut-home-studio";
 const formatProjectDuration = ({
 	duration,
 }: {
@@ -89,6 +90,8 @@ const VIEW_MODE_OPTIONS = [
 export default function ProjectsPage() {
 	const { searchQuery, sortKey, sortOrder, viewMode } = useProjectsStore();
 	const editor = useEditor();
+	const router = useRouter();
+	const [isCreatingFromIntent, setIsCreatingFromIntent] = useState(false);
 	const sortOption: TProjectSortOption = `${sortKey}-${sortOrder}`;
 
 	const isLoading = useEditor((e) => e.project.getIsLoading());
@@ -103,12 +106,36 @@ export default function ProjectsPage() {
 		}
 	}, [editor.project]);
 
+	const handleCreateFromIntent = async (intent: string) => {
+		setIsCreatingFromIntent(true);
+		try {
+			const normalizedIntent = intent.replace(/\s+/g, " ").trim();
+			const projectId = await editor.project.createNewProject({
+				name: normalizedIntent.slice(0, 36),
+			});
+			window.sessionStorage.setItem(
+				`visioncut:intent:${projectId}`,
+				normalizedIntent,
+			);
+			router.push(`/editor/${projectId}`);
+		} catch (error) {
+			toast.error("无法创建创作项目", {
+				description: error instanceof Error ? error.message : undefined,
+			});
+			setIsCreatingFromIntent(false);
+		}
+	};
+
 	return (
 		<div className="bg-background min-h-screen">
 			<MigrationDialog />
 			<StoragePersistenceDialog />
 			<ChangelogNotification />
 			<ProjectsHeader />
+			<VisionCutHomeStudio
+				isCreating={isCreatingFromIntent}
+				onCreate={handleCreateFromIntent}
+			/>
 			<ProjectsToolbar projectIds={projectsToDisplay.map((p) => p.id)} />
 			<main className="mx-auto px-4 pt-2 pb-6 flex flex-col gap-4">
 				{isLoading || !isInitialized ? (
@@ -149,7 +176,7 @@ function ProjectsHeader() {
 							<BreadcrumbItem>
 								<BreadcrumbLink asChild>
 									<Link href="/" className="text-sm sm:text-base">
-										FlowCut
+										VisionCut
 									</Link>
 								</BreadcrumbLink>
 							</BreadcrumbItem>
@@ -823,7 +850,7 @@ function ProjectMenu({
 	const handleMenuClick = ({
 		event,
 	}: {
-		event: MouseEvent<HTMLButtonElement>;
+		event: Pick<MouseEvent, "preventDefault" | "stopPropagation">;
 	}) => {
 		event.preventDefault();
 		event.stopPropagation();
@@ -832,7 +859,10 @@ function ProjectMenu({
 	const handleMenuKeyDown = ({
 		event,
 	}: {
-		event: KeyboardEvent<HTMLButtonElement>;
+		event: Pick<
+			KeyboardEvent,
+			"key" | "preventDefault" | "stopPropagation"
+		>;
 	}) => {
 		if (event.key !== "Enter" && event.key !== " ") {
 			return;
@@ -875,17 +905,9 @@ function ProjectMenu({
 					}
 					size="icon"
 					aria-label="Project menu"
-					onClick={(event) =>
-						handleMenuClick({
-							event: event as unknown as MouseEvent<HTMLButtonElement>,
-						})
-					}
+					onClick={(event) => handleMenuClick({ event })}
 					onMouseDown={(event) => event.stopPropagation()}
-					onKeyDown={(event) =>
-						handleMenuKeyDown({
-							event: event as unknown as KeyboardEvent<HTMLButtonElement>,
-						})
-					}
+					onKeyDown={(event) => handleMenuKeyDown({ event })}
 				>
 					<HugeiconsIcon
 						icon={MoreHorizontalIcon}
@@ -978,7 +1000,7 @@ function EmptyState() {
 					<div className="flex flex-col items-center gap-3">
 						<h3 className="text-lg font-medium">No results found</h3>
 						<p className="text-muted-foreground max-w-md">
-							Your search for "{searchQuery}" did not return any results.
+							Your search for &quot;{searchQuery}&quot; did not return any results.
 						</p>
 					</div>
 				</div>

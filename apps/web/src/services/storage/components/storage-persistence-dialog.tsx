@@ -25,7 +25,7 @@ export function StoragePersistenceDialog() {
 						浏览器在磁盘空间不足时可能自动清理项目数据。
 					</p>
 					<p className="text-base text-muted-foreground">
-						是否允许 FlowCut 请求持久化存储？
+						是否允许 VisionCut 请求持久化存储？
 					</p>
 				</DialogBody>
 				<DialogFooter>

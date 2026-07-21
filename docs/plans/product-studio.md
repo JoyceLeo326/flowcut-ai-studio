@@ -1,4 +1,4 @@
-# FlowCut product studio plan
+# VisionCut product studio plan
 
 ## Goal
 
@@ -20,11 +20,12 @@ Turn the editor into a complete AI creation product for both first-time creators
 - Add a typed catalog with capability, executor, and availability metadata.
 - Keep generated tasks deterministic so they can be reviewed and exported.
 
-### 2. Original visual system assets
+### 2. Visual asset reserve (non-critical path)
 
-- Generate a coherent set of original cinematic style-world images.
-- Store optimized WebP derivatives under the web public directory.
-- Use real raster assets in the studio, never decorative placeholder gradients.
+- Keep a small, coherent set of original cinematic style-world images for workflow previews, moodboards, and story references.
+- Treat the 100-image catalog as optional material inventory, not a milestone, release gate, or primary product requirement.
+- Reuse the strongest existing WebP assets first. Expand only after the intent-to-export workflow passes product acceptance and real usage identifies a gap.
+- Use real raster assets in the studio, never decorative placeholder gradients; visual quality and relevance matter more than asset count.
 
 ### 3. Dual-layer creator experience
 
@@ -46,4 +47,4 @@ Turn the editor into a complete AI creation product for both first-time creators
 
 ## Source inspiration and boundary
 
-The product model is informed by OpenCut, Auto-Editor, PySceneDetect, Whisper, Transformers.js, MediaPipe, OpenTimelineIO, Pexels, Unsplash, and Wikimedia/Openverse patterns. FlowCut will not copy third-party UI or bundled assets. External providers remain explicit connectors with attribution and key requirements; generated sample imagery is original.
+The product model is informed by OpenCut, Auto-Editor, PySceneDetect, Whisper, Transformers.js, MediaPipe, OpenTimelineIO, Pexels, Unsplash, and Wikimedia/Openverse patterns. VisionCut will not copy third-party UI or bundled assets. External providers remain explicit connectors with attribution and key requirements; generated sample imagery is original.

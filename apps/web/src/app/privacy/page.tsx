@@ -3,8 +3,8 @@ import Link from "next/link";
 import { Clapperboard, ShieldCheck } from "lucide-react";
 
 export const metadata: Metadata = {
-	title: "隐私说明 - FlowCut AI Studio",
-	description: "FlowCut 本地剪辑与 ChatCut 云端交接的数据边界。",
+	title: "隐私说明 - VisionCut AI",
+	description: "VisionCut AI 本地创作与 ChatCut 云端交接的数据边界。",
 };
 
 export default function PrivacyPage() {
@@ -14,7 +14,7 @@ export default function PrivacyPage() {
 				<div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-6">
 					<Link href="/projects" className="flex items-center gap-2 font-semibold">
 						<Clapperboard className="size-4 text-primary" />
-						FlowCut AI Studio
+						VisionCut AI
 					</Link>
 					<Link href="/projects" className="text-sm text-muted-foreground hover:text-foreground">
 						返回项目
@@ -29,13 +29,13 @@ export default function PrivacyPage() {
 					</div>
 					<h1 className="text-3xl font-semibold">隐私说明</h1>
 					<p className="leading-relaxed text-muted-foreground">
-						本说明区分 FlowCut 本地编辑与用户主动选择的 ChatCut 云端流程。
+						本说明区分 VisionCut AI 本地创作与用户主动选择的 ChatCut 云端流程。
 					</p>
 				</div>
 
 				<LegalSection title="本地项目与素材">
 					<p>项目、时间线和导入素材默认存放在当前浏览器的 IndexedDB/OPFS 中。</p>
-					<p>FlowCut 只能读取用户通过文件选择器主动选择的文件，不能扫描本地磁盘。</p>
+					<p>VisionCut AI 只能读取用户通过文件选择器主动选择的文件，不能扫描本地磁盘。</p>
 					<p>本地顺排、片段收紧、画幅修改、预览和导出不会自动上传媒体。</p>
 				</LegalSection>
 
@@ -53,7 +53,7 @@ export default function PrivacyPage() {
 				<LegalSection title="托管与日志">
 					<p>
 						访问公网部署时，托管平台可能像普通网站一样处理 IP、请求时间和错误日志。
-						FlowCut 不在页面中加载第三方行为分析脚本，也不把媒体内容写入服务端日志。
+						VisionCut AI 不在页面中加载第三方行为分析脚本，也不把媒体内容写入服务端日志。
 					</p>
 				</LegalSection>
 
