@@ -12,6 +12,7 @@ import {
 	Download,
 	FileJson,
 	Film,
+	Fingerprint,
 	FolderOpen,
 	Gauge,
 	HardDrive,
@@ -19,6 +20,7 @@ import {
 	Info,
 	Layers3,
 	ListChecks,
+	Loader2,
 	MonitorUp,
 	Palette,
 	PlayCircle,
@@ -61,9 +63,60 @@ import {
 	type EditPlan,
 	type HandoffMediaItem,
 } from "@/ai-edit";
-import { requestMediaImport } from "@/editor/navigation-events";
+import {
+	hasCreatorDNAPlanEvidence,
+	loadCreatorDNA,
+	rememberConfirmedPlan,
+} from "@/ai-studio/creator-dna";
+import {
+	approveAutomationRun,
+	createAutomationRun as createAutomationRunRecord,
+	startAutomationRun,
+	submitAutomationRunForReview,
+	type AutomationRun as AutomationRunRecord,
+} from "@/ai-studio/automation-run";
+import {
+	completeWithLocalRules,
+	isRemoteModelProvider,
+	loadModelProviderSession,
+} from "@/ai-studio/model-provider";
+import { loadIntentSpec, type IntentSpec } from "@/ai-studio/intent-spec";
+import {
+	createAgentOrchestration,
+	type AgentEvidenceInput,
+	type AgentOrchestration,
+} from "@/ai-studio/agent-orchestrator";
+import {
+	createVersionedEditPlan,
+	getEditPlanOperations,
+	type VersionedEditPlan,
+} from "@/ai-studio/edit-plan";
+import {
+	deriveStoryGraph,
+	type StoryGraph,
+	type StoryGraphTimelineTrackSnapshot,
+} from "@/ai-studio/story-graph-model";
+import {
+	appendStoryGraphVersion,
+	loadStoryGraph,
+} from "@/ai-studio/story-graph-store";
+import {
+	createExportManifest,
+	type ExportAspectRatio,
+	type ExportManifest,
+	type ExportTimelineTrackSnapshot,
+} from "@/ai-studio/export-manifest";
+import {
+	appendProjectVersion,
+	type ProjectVersionReferencePatch,
+	type ProjectVersionSource,
+} from "@/ai-studio/project-version-store";
+import {
+	requestMediaImport,
+	requestNativeExport,
+} from "@/editor/navigation-events";
 import { useEditor } from "@/editor/use-editor";
-import type { TimelineElement } from "@/timeline";
+import type { TimelineElement, TimelineTrack } from "@/timeline";
 import { hasMediaId } from "@/timeline/element-utils";
 import { cn } from "@/utils/ui";
 import { mediaTimeToSeconds } from "@/wasm";
@@ -77,7 +130,13 @@ import {
 	AIProductStudio,
 	StudioBackButton,
 } from "@/components/editor/panels/inspector/ai-product-studio";
+import {
+	VisionCutModelCenter,
+	type ModelSelectionSummary,
+} from "@/components/editor/panels/inspector/visioncut-model-center";
+import { VisionCutOperationReview } from "@/components/editor/panels/inspector/visioncut-operation-review";
 import { processMediaAssets } from "@/media/processing";
+import { frameRateToFloat } from "@/fps/utils";
 
 const MODES: Array<{
 	id: EditMode;
@@ -87,20 +146,21 @@ const MODES: Array<{
 }> = [
 	{
 		id: "hybrid",
-		label: "智能协作",
-		description: "本机先整理，内容识别与创意包装交给 ChatCut。",
+		label: "自带模型增强",
+		description:
+			"本机先整理；只有你主动请求时，才用当前标签页里的自有 Key 完善蓝图。",
 		icon: Workflow,
 	},
 	{
 		id: "local",
-		label: "只在本机",
-		description: "只执行顺排、首尾收紧和画幅调整。",
+		label: "免费本地",
+		description: "不调用任何模型 API，只执行当前浏览器已支持的本机步骤。",
 		icon: HardDrive,
 	},
 	{
 		id: "chatcut",
-		label: "ChatCut 精剪",
-		description: "生成完整云端任务，适合长视频和语义剪辑。",
+		label: "外部 ChatCut",
+		description: "只生成可下载的外部交接任务，不会自动上传原素材。",
 		icon: Cloud,
 	},
 ];
@@ -116,9 +176,156 @@ const TONE_CLASSES: Record<NonNullable<CreativeBriefOption["tone"]>, string> = {
 
 const AVAILABILITY_LABELS = {
 	ready: "本机可执行",
-	handoff: "需要 ChatCut",
+	handoff: "需模型或外部执行",
 	blocked: "等待素材",
 } as const;
+
+interface DirectorAdvice {
+	text: string;
+	provider: string;
+	model: string;
+}
+
+const AUTOMATION_STATUS_LABELS: Record<AutomationRunRecord["status"], string> =
+	{
+		queued: "排队中",
+		running: "生成中",
+		review: "待确认",
+		failed: "失败",
+		done: "已确认",
+		cancelled: "已取消",
+	};
+
+function nextAutomationTimestamp(updatedAt: string): string {
+	return new Date(
+		Math.max(Date.now(), new Date(updatedAt).getTime() + 1),
+	).toISOString();
+}
+
+type DirectorAdviceResponse =
+	| { ok: true; advice: DirectorAdvice }
+	| { ok: false; message: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readDirectorAdviceResponse(
+	payload: unknown,
+): DirectorAdviceResponse | null {
+	if (!isRecord(payload)) return null;
+	if (
+		payload.ok === true &&
+		typeof payload.text === "string" &&
+		typeof payload.provider === "string" &&
+		typeof payload.model === "string"
+	) {
+		return {
+			ok: true,
+			advice: {
+				text: payload.text,
+				provider: payload.provider,
+				model: payload.model,
+			},
+		};
+	}
+	if (
+		payload.ok === false &&
+		isRecord(payload.error) &&
+		typeof payload.error.message === "string"
+	) {
+		return { ok: false, message: payload.error.message };
+	}
+	return null;
+}
+
+function toStoryGraphTrack(
+	track: TimelineTrack,
+): StoryGraphTimelineTrackSnapshot {
+	const elements: StoryGraphTimelineTrackSnapshot["elements"][number][] = [];
+	for (const element of track.elements) {
+		elements.push({
+			id: element.id,
+			name: element.name,
+			type: element.type,
+			...(hasMediaId(element) ? { mediaId: element.mediaId } : {}),
+			startTime: mediaTimeToSeconds({ time: element.startTime }),
+			duration: mediaTimeToSeconds({ time: element.duration }),
+		});
+	}
+	return {
+		id: track.id,
+		name: track.name,
+		type: track.type,
+		elements,
+	};
+}
+
+function toExportTimelineTrack(
+	track: TimelineTrack,
+): ExportTimelineTrackSnapshot {
+	return {
+		id: track.id,
+		name: track.name,
+		type: track.type,
+		...(track.type === "audio" || track.type === "video"
+			? { muted: track.muted }
+			: {}),
+		...(track.type === "audio" ? {} : { hidden: track.hidden }),
+		elements: track.elements.map((element) => ({
+			id: element.id,
+			name: element.name,
+			type: element.type,
+			...(hasMediaId(element) ? { mediaId: element.mediaId } : {}),
+			startTimeSeconds: mediaTimeToSeconds({ time: element.startTime }),
+			durationSeconds: mediaTimeToSeconds({ time: element.duration }),
+			...("hidden" in element ? { hidden: element.hidden ?? false } : {}),
+			...(element.type === "video"
+				? { sourceAudioEnabled: element.isSourceAudioEnabled !== false }
+				: {}),
+		})),
+	};
+}
+
+function nearestExportAspectRatio({
+	width,
+	height,
+}: {
+	width: number;
+	height: number;
+}): ExportAspectRatio {
+	const ratio = width / height;
+	const candidates: Array<[ExportAspectRatio, number]> = [
+		["16:9", 16 / 9],
+		["9:16", 9 / 16],
+		["1:1", 1],
+		["4:5", 4 / 5],
+	];
+	return candidates.reduce((nearest, candidate) =>
+		Math.abs(candidate[1] - ratio) < Math.abs(nearest[1] - ratio)
+			? candidate
+			: nearest,
+	)[0];
+}
+
+function storyGraphEvidenceSignature(graph: StoryGraph): string {
+	return JSON.stringify(
+		graph.nodes.map((node) => [
+			node.id,
+			node.assetId ?? null,
+			node.timelineStart,
+			node.timelineEnd,
+			node.evidenceState,
+		]),
+	);
+}
+
+function canRefreshDerivedStoryGraph(graph: StoryGraph): boolean {
+	return graph.nodes.every(
+		(node) =>
+			node.evidenceState !== "manual" && node.evidenceState !== "merged",
+	);
+}
 
 function formatDuration(seconds: number): string {
 	if (!Number.isFinite(seconds) || seconds <= 0) return "0 秒";
@@ -292,18 +499,41 @@ export function AIWorkspacePanel() {
 	const assets = useEditor((value) => value.media.getAssets());
 	const scene = useEditor((value) => value.scenes.getActiveSceneOrNull());
 	const project = useEditor((value) => value.project.getActive());
-	const [surface, setSurface] = useState<"studio" | "director">("studio");
+	const [surface, setSurface] = useState<"studio" | "director" | "models">(
+		"studio",
+	);
 	const [startingIntent, setStartingIntent] = useState("");
-	const [mode, setMode] = useState<EditMode>("hybrid");
+	const [intentSpec, setIntentSpec] = useState<IntentSpec | null>(null);
+	const [mode, setMode] = useState<EditMode>("local");
 	const [brief, setBrief] = useState<CreativeBriefSelection>(() =>
 		createDefaultCreativeBrief(),
+	);
+	const [selectedRecipeId, setSelectedRecipeId] = useState<AutomationRecipeId>(
+		"talking-head-cleanup",
 	);
 	const [extraRequest, setExtraRequest] = useState("");
 	const [plan, setPlan] = useState<EditPlan | null>(null);
 	const [isPlanReviewed, setIsPlanReviewed] = useState(false);
 	const [appliedPlanId, setAppliedPlanId] = useState<string | null>(null);
 	const [canUndoPlan, setCanUndoPlan] = useState(false);
+	const [rememberedPlanId, setRememberedPlanId] = useState<string | null>(null);
+	const [directorAdvice, setDirectorAdvice] = useState<DirectorAdvice | null>(
+		null,
+	);
+	const [isRequestingAdvice, setIsRequestingAdvice] = useState(false);
+	const [modelSelection, setModelSelection] =
+		useState<ModelSelectionSummary | null>(null);
+	const [blueprintRun, setBlueprintRun] = useState<AutomationRunRecord | null>(
+		null,
+	);
+	const [operationPlan, setOperationPlan] = useState<VersionedEditPlan | null>(
+		null,
+	);
+	const [agentOrchestration, setAgentOrchestration] =
+		useState<AgentOrchestration | null>(null);
 	const planAnchorRef = useRef<HTMLDivElement>(null);
+	const versionWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
+	const storyGraphWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
 
 	const timelineElements = useMemo(() => {
 		if (!scene) return [];
@@ -334,6 +564,7 @@ export function AIWorkspacePanel() {
 	const unusedAssetCount = assets.filter(
 		(asset) => !usedMediaIds.has(asset.id),
 	).length;
+	const usedMediaCount = assets.length - unusedAssetCount;
 	const videoAssetCount = assets.filter(
 		(asset) => asset.type === "video",
 	).length;
@@ -348,6 +579,155 @@ export function AIWorkspacePanel() {
 		0,
 	);
 	const hasMedia = assets.length > 0 || timelineElements.length > 0;
+	const derivedStoryGraph = useMemo(
+		() =>
+			deriveStoryGraph({
+				projectId: project?.metadata.id ?? "local-project",
+				media: assets.map((asset) => ({
+					id: asset.id,
+					name: asset.name,
+					type: asset.type,
+					...(asset.duration === undefined ? {} : { duration: asset.duration }),
+					...(asset.width === undefined ? {} : { width: asset.width }),
+					...(asset.height === undefined ? {} : { height: asset.height }),
+					...(asset.thumbnailUrl === undefined
+						? {}
+						: { thumbnailUrl: asset.thumbnailUrl }),
+				})),
+				scenes: scene
+					? [
+							{
+								id: scene.id,
+								name: scene.name,
+								isMain: scene.isMain,
+								tracks: {
+									main: toStoryGraphTrack(scene.tracks.main),
+									overlay: scene.tracks.overlay.map(toStoryGraphTrack),
+									audio: scene.tracks.audio.map(toStoryGraphTrack),
+								},
+							},
+						]
+					: [],
+			}),
+		[assets, project?.metadata.id, scene],
+	);
+	const [storyGraph, setStoryGraph] = useState<StoryGraph>(derivedStoryGraph);
+	const exportManifest = useMemo<ExportManifest | null>(() => {
+		if (!project || !scene) return null;
+		const shortTargetSeconds = Math.max(
+			1,
+			Math.min(durationSeconds > 0 ? durationSeconds : 60, 60),
+		);
+		const primaryAspectRatio = nearestExportAspectRatio({
+			width: project.settings.canvasSize.width,
+			height: project.settings.canvasSize.height,
+		});
+		return createExportManifest({
+			project: {
+				id: project.metadata.id,
+				name: project.metadata.name,
+				version: project.version,
+				durationSeconds,
+				canvasSize: project.settings.canvasSize,
+				fps: frameRateToFloat(project.settings.fps),
+			},
+			media: assets.map((asset) => ({
+				id: asset.id,
+				name: asset.name,
+				type: asset.type,
+				sizeBytes: asset.file.size,
+				...(asset.duration === undefined
+					? {}
+					: { durationSeconds: asset.duration }),
+				...(asset.width === undefined ? {} : { width: asset.width }),
+				...(asset.height === undefined ? {} : { height: asset.height }),
+				...(asset.fps === undefined ? {} : { fps: asset.fps }),
+				...(asset.hasAudio === undefined ? {} : { hasAudio: asset.hasAudio }),
+			})),
+			timeline: {
+				sceneId: scene.id,
+				sceneName: scene.name,
+				tracks: [
+					toExportTimelineTrack(scene.tracks.main),
+					...scene.tracks.overlay.map(toExportTimelineTrack),
+					...scene.tracks.audio.map(toExportTimelineTrack),
+				],
+			},
+			variants: [
+				{
+					id: "primary",
+					label: "主版本",
+					platform: "generic",
+					aspectRatio: primaryAspectRatio,
+					subtitles: { mode: "none" },
+					audio: { mode: "include", required: false },
+					cover: { source: "none", required: false },
+				},
+				{
+					id: "vertical-short",
+					label: "竖屏短版",
+					platform: "douyin",
+					aspectRatio: "9:16",
+					targetDurationSeconds: shortTargetSeconds,
+					subtitles: { mode: "none" },
+					audio: { mode: "include", required: false },
+					cover: { source: "none", required: false },
+				},
+				{
+					id: "social-feed",
+					label: "图文平台版",
+					platform: "xiaohongshu",
+					aspectRatio: "4:5",
+					targetDurationSeconds: shortTargetSeconds,
+					subtitles: { mode: "none" },
+					audio: { mode: "include", required: false },
+					cover: { source: "none", required: false },
+				},
+			],
+		});
+	}, [assets, durationSeconds, project, scene]);
+	const agentOrchestrationSeed = useMemo<AgentOrchestration | null>(() => {
+		if (!intentSpec) return null;
+		const evidence: AgentEvidenceInput[] = assets.flatMap((asset) => [
+			{
+				evidenceId: `asset-metadata-${asset.id}`,
+				kind: "asset-metadata" as const,
+				label: `${asset.name} metadata`,
+				referenceId: asset.id,
+				origin: "project-metadata" as const,
+			},
+			...(asset.type === "audio" || asset.hasAudio === true
+				? [
+						{
+							evidenceId: `audio-metadata-${asset.id}`,
+							kind: "audio-metadata" as const,
+							label: `${asset.name} audio metadata`,
+							referenceId: asset.id,
+							origin: "project-metadata" as const,
+						},
+					]
+				: []),
+		]);
+		if (intentSpec.target?.platform) {
+			evidence.push({
+				evidenceId: `publication-target-${intentSpec.projectId}`,
+				kind: "publication-target",
+				label: intentSpec.target.platform,
+				referenceId: `intent-revision-${intentSpec.revision}`,
+				origin: "user-provided",
+			});
+		}
+		return createAgentOrchestration({
+			intentSpec,
+			evidence,
+			createdAt: intentSpec.updatedAt,
+		});
+	}, [assets, intentSpec]);
+	const activeAgentOrchestration =
+		agentOrchestration?.orchestrationId ===
+		agentOrchestrationSeed?.orchestrationId
+			? agentOrchestration
+			: agentOrchestrationSeed;
 	const selectedMode = MODES.find((item) => item.id === mode) ?? MODES[0];
 	const selectedBriefOptions = getSelectedCreativeBriefOptions(brief);
 	const briefProgress = getCreativeBriefProgress(brief);
@@ -362,18 +742,72 @@ export function AIWorkspacePanel() {
 		const projectId = project?.metadata.id;
 		if (!projectId) return;
 		const key = `visioncut:intent:${projectId}`;
-		const intent = window.sessionStorage.getItem(key)?.trim();
-		if (!intent) return;
-		window.sessionStorage.removeItem(key);
-		const frame = window.requestAnimationFrame(() => setStartingIntent(intent));
-		return () => window.cancelAnimationFrame(frame);
+		let active = true;
+		void loadIntentSpec({ projectId }).then((spec) => {
+			if (!active) return;
+			setIntentSpec(spec);
+			const fallbackIntent = window.sessionStorage.getItem(key)?.trim();
+			const intent = spec?.userIntent ?? fallbackIntent;
+			if (intent) setStartingIntent(intent);
+			window.sessionStorage.removeItem(key);
+		});
+		return () => {
+			active = false;
+		};
 	}, [project?.metadata.id]);
+
+	useEffect(() => {
+		const projectId = project?.metadata.id;
+		if (!projectId) return;
+		let active = true;
+		storyGraphWriteQueueRef.current = storyGraphWriteQueueRef.current
+			.then(async () => {
+				const stored = await loadStoryGraph({ projectId });
+				let nextGraph = stored;
+				if (!stored) {
+					nextGraph = await appendStoryGraphVersion({
+						projectId,
+						graph: derivedStoryGraph,
+						expectedCurrentVersion: 0,
+					});
+				} else if (
+					canRefreshDerivedStoryGraph(stored) &&
+					storyGraphEvidenceSignature(stored) !==
+						storyGraphEvidenceSignature(derivedStoryGraph)
+				) {
+					nextGraph = await appendStoryGraphVersion({
+						projectId,
+						graph: {
+							...derivedStoryGraph,
+							version: stored.version + 1,
+						},
+						expectedCurrentVersion: stored.version,
+					});
+				}
+				if (active && nextGraph) setStoryGraph(nextGraph);
+			})
+			.catch(async (error: unknown) => {
+				const latest = await loadStoryGraph({ projectId }).catch(() => null);
+				if (!active) return;
+				if (latest) setStoryGraph(latest);
+				toast.error("Story Graph could not be synchronized", {
+					description: error instanceof Error ? error.message : undefined,
+				});
+			});
+		return () => {
+			active = false;
+		};
+	}, [derivedStoryGraph, project?.metadata.id]);
 
 	const invalidatePlan = () => {
 		setPlan(null);
 		setIsPlanReviewed(false);
 		setAppliedPlanId(null);
 		setCanUndoPlan(false);
+		setRememberedPlanId(null);
+		setDirectorAdvice(null);
+		setBlueprintRun(null);
+		setOperationPlan(null);
 	};
 
 	const handleUseRecipe = ({
@@ -386,6 +820,7 @@ export function AIWorkspacePanel() {
 		settings: StudioProSettings;
 	}) => {
 		const patch = getRecipeBriefPatch(recipeId);
+		setSelectedRecipeId(recipeId);
 		setBrief((current) => ({
 			...current,
 			recipeId: patch.recipeId,
@@ -403,7 +838,7 @@ export function AIWorkspacePanel() {
 				.filter((line): line is string => Boolean(line))
 				.join("\n"),
 		);
-		setMode("hybrid");
+		setMode("local");
 		invalidatePlan();
 		setSurface("director");
 	};
@@ -468,6 +903,71 @@ export function AIWorkspacePanel() {
 		invalidatePlan();
 	};
 
+	const recordProjectVersion = ({
+		label,
+		createdAt,
+		source,
+		refs,
+	}: {
+		label: string;
+		createdAt: string;
+		source: ProjectVersionSource;
+		refs: ProjectVersionReferencePatch;
+	}) => {
+		const projectId = project?.metadata.id;
+		if (!projectId) return;
+		versionWriteQueueRef.current = versionWriteQueueRef.current
+			.then(async () => {
+				await appendProjectVersion({
+					projectId,
+					label,
+					createdAt,
+					source,
+					refs,
+				});
+			})
+			.catch((error: unknown) => {
+				toast.error("Version history could not be updated", {
+					description: error instanceof Error ? error.message : undefined,
+				});
+			});
+	};
+
+	const handleStoryGraphChange = (nextGraph: StoryGraph) => {
+		const projectId = project?.metadata.id;
+		if (!projectId) return;
+		const expectedCurrentVersion = storyGraph.version;
+		setStoryGraph(nextGraph);
+		storyGraphWriteQueueRef.current = storyGraphWriteQueueRef.current
+			.then(async () => {
+				const persisted = await appendStoryGraphVersion({
+					projectId,
+					graph: nextGraph,
+					expectedCurrentVersion,
+				});
+				recordProjectVersion({
+					label: "Updated Story Graph",
+					createdAt: new Date().toISOString(),
+					source: "story-graph",
+					refs: {
+						storyGraph: {
+							kind: persisted.kind,
+							projectId,
+							graphId: persisted.graphId,
+							version: persisted.version,
+						},
+					},
+				});
+			})
+			.catch(async (error: unknown) => {
+				const latest = await loadStoryGraph({ projectId }).catch(() => null);
+				if (latest) setStoryGraph(latest);
+				toast.error("Story Graph update conflicted with a newer version", {
+					description: error instanceof Error ? error.message : undefined,
+				});
+			});
+	};
+
 	const handleCreatePlan = () => {
 		if (!hasMedia) {
 			requestMediaImport();
@@ -488,6 +988,65 @@ export function AIWorkspacePanel() {
 		setIsPlanReviewed(false);
 		setAppliedPlanId(null);
 		setCanUndoPlan(false);
+		setRememberedPlanId(null);
+		setDirectorAdvice(null);
+		const nextOperationPlan = createVersionedEditPlan({
+			intent: composedPrompt,
+			workflow: selectedRecipeId,
+		});
+		setOperationPlan(nextOperationPlan);
+		const createdAt = new Date().toISOString();
+		const queuedRun = createAutomationRunRecord({
+			runId: `blueprint-${nextPlan.id}`,
+			projectId: project?.metadata.id ?? "local-project",
+			automationId: "director-blueprint",
+			title: "生成成片蓝图",
+			createdAt,
+		});
+		const runningRun = startAutomationRun({
+			run: queuedRun,
+			at: nextAutomationTimestamp(queuedRun.updatedAt),
+			message: "本地规则正在生成可审阅蓝图",
+		});
+		const reviewRun = submitAutomationRunForReview({
+			run: runningRun,
+			at: nextAutomationTimestamp(runningRun.updatedAt),
+			resultReferences: [
+				{ kind: "edit-plan", id: nextPlan.id, label: "成片蓝图" },
+			],
+			message: "蓝图已生成，等待用户检查",
+		});
+		setBlueprintRun(reviewRun);
+		const projectId = project?.metadata.id;
+		if (projectId) {
+			recordProjectVersion({
+				label: "AI blueprint ready for review",
+				createdAt: reviewRun.updatedAt,
+				source: "edit-plan",
+				refs: {
+					editPlan: {
+						kind: nextOperationPlan.kind,
+						projectId,
+						planId: nextOperationPlan.planId,
+						revision: nextOperationPlan.revision,
+						versionId: nextOperationPlan.versionId,
+					},
+					storyGraph: {
+						kind: storyGraph.kind,
+						projectId,
+						graphId: storyGraph.graphId,
+						version: storyGraph.version,
+					},
+					automationRun: {
+						kind: reviewRun.kind,
+						projectId,
+						runId: reviewRun.runId,
+						status: reviewRun.status,
+						updatedAt: reviewRun.updatedAt,
+					},
+				},
+			});
+		}
 	};
 
 	useEffect(() => {
@@ -519,6 +1078,105 @@ export function AIWorkspacePanel() {
 		setIsPlanReviewed(false);
 	};
 
+	const handleRequestDirectorAdvice = async () => {
+		if (!plan || isRequestingAdvice) return;
+		const session = loadModelProviderSession();
+		const prompt = [
+			`用户意图：${plan.prompt}`,
+			`当前本地蓝图：${plan.summary}`,
+			`素材证据：${plan.source.assetCount} 个素材，时间线 ${plan.source.timelineElementCount} 个元素，总时长 ${formatDuration(plan.source.durationSeconds)}。`,
+			"请指出结构、节奏、声音与交付上的改进建议。不得声称已经分析对白、人物、场景、情绪或画面内容。",
+		].join("\n");
+
+		if (!isRemoteModelProvider(session.selectedProvider)) {
+			const result = completeWithLocalRules({ prompt });
+			setDirectorAdvice({
+				text: result.text,
+				provider: result.provider,
+				model: result.model,
+			});
+			return;
+		}
+
+		const connection = session.connections[session.selectedProvider];
+		if (!connection) {
+			toast.info("请先保存当前模型的 API Key");
+			setSurface("models");
+			return;
+		}
+
+		setIsRequestingAdvice(true);
+		try {
+			const response = await fetch("/api/ai/complete", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				cache: "no-store",
+				body: JSON.stringify({
+					provider: session.selectedProvider,
+					apiKey: connection.apiKey,
+					model: connection.model,
+					prompt,
+					systemPrompt:
+						"你是 VisionCut 的导演顾问。只基于用户意图和明确提供的项目元数据提出可审阅建议，绝不虚构视频理解结果。使用简洁中文。",
+					maxOutputTokens: 900,
+					purpose: "completion",
+				}),
+			});
+			const payload: unknown = await response.json().catch(() => null);
+			const parsed = readDirectorAdviceResponse(payload);
+			if (!parsed) throw new Error("模型返回了无法识别的响应");
+			if (!parsed.ok) throw new Error(parsed.message);
+			setDirectorAdvice(parsed.advice);
+			toast.success("导演建议已生成", {
+				description: "建议不会自动修改时间线。",
+			});
+		} catch (error) {
+			toast.error("无法生成导演建议", {
+				description: error instanceof Error ? error.message : undefined,
+			});
+		} finally {
+			setIsRequestingAdvice(false);
+		}
+	};
+
+	const handleRememberDirection = async () => {
+		if (!plan || !isPlanReviewed) return;
+		try {
+			const current = await loadCreatorDNA();
+			if (!current.enabled) {
+				toast.info("Creator DNA 已暂停", {
+					description: "可以在工作室的 DNA 页面重新开启。",
+				});
+				return;
+			}
+			if (hasCreatorDNAPlanEvidence({ profile: current, planId: plan.id })) {
+				setRememberedPlanId(plan.id);
+				toast.info("这版方向已经记住了");
+				return;
+			}
+			await rememberConfirmedPlan(plan);
+			setRememberedPlanId(plan.id);
+			toast.success("已记住这版创作方向", {
+				description: "只保存可解释的偏好，不保存原视频。",
+			});
+		} catch (error) {
+			toast.error("无法更新 Creator DNA", {
+				description: error instanceof Error ? error.message : undefined,
+			});
+		}
+	};
+
+	const approveBlueprintRunIfReview = (): AutomationRunRecord | null => {
+		if (blueprintRun?.status !== "review") return blueprintRun;
+		const approvedRun = approveAutomationRun({
+			run: blueprintRun,
+			at: nextAutomationTimestamp(blueprintRun.updatedAt),
+			approvedBy: "local-user",
+		});
+		setBlueprintRun(approvedRun);
+		return approvedRun;
+	};
+
 	const handleApplyLocal = () => {
 		if (!plan || !isPlanReviewed) return;
 		if (appliedPlanId === plan.id) {
@@ -532,6 +1190,35 @@ export function AIWorkspacePanel() {
 		}
 		setAppliedPlanId(plan.id);
 		setCanUndoPlan(true);
+		const approvedRun = approveBlueprintRunIfReview();
+		const projectId = project?.metadata.id;
+		if (projectId && operationPlan) {
+			recordProjectVersion({
+				label: "Applied approved local changes",
+				createdAt: approvedRun?.updatedAt ?? new Date().toISOString(),
+				source: "timeline",
+				refs: {
+					editPlan: {
+						kind: operationPlan.kind,
+						projectId,
+						planId: operationPlan.planId,
+						revision: operationPlan.revision,
+						versionId: operationPlan.versionId,
+					},
+					...(approvedRun
+						? {
+								automationRun: {
+									kind: approvedRun.kind,
+									projectId,
+									runId: approvedRun.runId,
+									status: approvedRun.status,
+									updatedAt: approvedRun.updatedAt,
+								},
+							}
+						: {}),
+				},
+			});
+		}
 		toast.success(`已执行 ${result.appliedStepCount} 个本机步骤`, {
 			description: "整组修改可以一次撤销。",
 		});
@@ -541,6 +1228,23 @@ export function AIWorkspacePanel() {
 		editor.command.undo();
 		setAppliedPlanId(null);
 		setCanUndoPlan(false);
+		const projectId = project?.metadata.id;
+		if (projectId && operationPlan) {
+			recordProjectVersion({
+				label: "Undid the latest local change set",
+				createdAt: new Date().toISOString(),
+				source: "user",
+				refs: {
+					editPlan: {
+						kind: operationPlan.kind,
+						projectId,
+						planId: operationPlan.planId,
+						revision: operationPlan.revision,
+						versionId: operationPlan.versionId,
+					},
+				},
+			});
+		}
 		toast.success("已撤销本次本机整理");
 	};
 
@@ -566,6 +1270,31 @@ export function AIWorkspacePanel() {
 		if (!handoff || handoff.requestedSteps.length === 0) return;
 		try {
 			await navigator.clipboard.writeText(formatChatCutTask(handoff));
+			const approvedRun = approveBlueprintRunIfReview();
+			const projectId = project?.metadata.id;
+			if (projectId && operationPlan && approvedRun) {
+				recordProjectVersion({
+					label: "Approved external edit handoff",
+					createdAt: approvedRun.updatedAt,
+					source: "automation-run",
+					refs: {
+						editPlan: {
+							kind: operationPlan.kind,
+							projectId,
+							planId: operationPlan.planId,
+							revision: operationPlan.revision,
+							versionId: operationPlan.versionId,
+						},
+						automationRun: {
+							kind: approvedRun.kind,
+							projectId,
+							runId: approvedRun.runId,
+							status: approvedRun.status,
+							updatedAt: approvedRun.updatedAt,
+						},
+					},
+				});
+			}
 			toast.success("ChatCut 任务已复制", {
 				description: `继续时请一并附上 ${handoff.media.length} 个原素材文件。`,
 			});
@@ -601,6 +1330,14 @@ export function AIWorkspacePanel() {
 	const blockedSteps = enabledSteps.filter(
 		(step) => step.availability === "blocked",
 	);
+	const operationReviewOperations = operationPlan
+		? getEditPlanOperations(operationPlan)
+		: [];
+	const operationReviewComplete =
+		operationReviewOperations.length > 0 &&
+		operationReviewOperations.every(
+			(operation) => operation.status !== "proposed",
+		);
 	const hasLocalSteps = readySteps.length > 0;
 	const hasChatCutSteps = chatCutSteps.length > 0;
 	const hasAppliedLocal = plan?.id === appliedPlanId;
@@ -609,12 +1346,42 @@ export function AIWorkspacePanel() {
 		return (
 			<AIProductStudio
 				assetCount={assets.length}
+				projectId={project?.metadata.id ?? null}
+				projectSnapshot={{
+					assets,
+					timelineElementCount: timelineElements.length,
+					usedMediaCount,
+					durationSeconds,
+				}}
+				storyGraph={storyGraph}
+				exportManifest={exportManifest}
+				agentOrchestration={activeAgentOrchestration}
 				initialIntent={startingIntent}
 				onImportMedia={requestMediaImport}
 				onImportOpenverse={handleImportOpenverse}
 				onOpenDirector={() => setSurface("director")}
+				onOpenModels={() => setSurface("models")}
+				onOpenNativeExport={requestNativeExport}
+				onModelSelectionChange={setModelSelection}
+				onAgentOrchestrationChange={setAgentOrchestration}
+				onStoryGraphChange={handleStoryGraphChange}
 				onUseRecipe={handleUseRecipe}
 			/>
+		);
+	}
+
+	if (surface === "models") {
+		return (
+			<div className="flowcut-ai-shell flex h-full min-h-0 flex-col">
+				<div className="shrink-0 border-b px-3 py-1">
+					<StudioBackButton onClick={() => setSurface("studio")} />
+				</div>
+				<ScrollArea className="min-h-0 flex-1">
+					<div className="p-3">
+						<VisionCutModelCenter onSelectionChange={setModelSelection} />
+					</div>
+				</ScrollArea>
+			</div>
 		);
 	}
 
@@ -632,7 +1399,9 @@ export function AIWorkspacePanel() {
 							</div>
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center justify-between gap-2">
-									<h2 className="text-[15px] font-semibold">VisionCut AI 导演</h2>
+									<h2 className="text-[15px] font-semibold">
+										VisionCut AI 导演
+									</h2>
 									<span className="inline-flex items-center gap-1.5 text-[9px] font-medium text-muted-foreground">
 										<span className="size-1.5 rounded-full bg-emerald-500" />
 										本地优先
@@ -961,8 +1730,7 @@ export function AIWorkspacePanel() {
 					<div className="flowcut-capability-row flex gap-2 px-1 text-[10px] leading-relaxed text-muted-foreground">
 						<Info className="mt-0.5 size-3.5 shrink-0 text-primary" />
 						<span>
-							当前先读取素材类型、数量和时长；对白、停顿、语义高光与逐镜头内容会在
-							ChatCut 阶段分析原文件。
+							当前只读取素材类型、数量和时长。自带模型可以辅助推演蓝图，但对白、停顿、语义高光与逐镜头内容仍需真实分析结果。
 						</span>
 					</div>
 
@@ -985,8 +1753,17 @@ export function AIWorkspacePanel() {
 									</div>
 									<div className="flowcut-output-signal flex shrink-0 flex-col items-center gap-1.5">
 										<AspectFrame ratio={plan.target.aspectRatio} />
-										<span className="text-[9px] font-medium text-cyan-700 dark:text-cyan-300">
-											待确认
+										<span
+											className={cn(
+												"text-[9px] font-medium",
+												blueprintRun?.status === "done"
+													? "text-emerald-700 dark:text-emerald-300"
+													: "text-cyan-700 dark:text-cyan-300",
+											)}
+										>
+											{blueprintRun
+												? AUTOMATION_STATUS_LABELS[blueprintRun.status]
+												: "待确认"}
 										</span>
 									</div>
 								</div>
@@ -1010,6 +1787,62 @@ export function AIWorkspacePanel() {
 											<p className="mt-1 font-medium">{value}</p>
 										</div>
 									))}
+								</div>
+							</section>
+
+							<section className="rounded-[8px] border p-3">
+								<div className="flex items-start justify-between gap-3">
+									<div className="min-w-0">
+										<h3 className="flex items-center gap-1.5 text-xs font-semibold">
+											<Brain className="size-3.5" />
+											导演推演
+										</h3>
+										<p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+											基于意图和项目元数据复核蓝图，不会自动改动时间线。
+										</p>
+									</div>
+									<span className="max-w-28 truncate text-[9px] text-muted-foreground">
+										{modelSelection
+											? modelSelection.local
+												? "本地免费"
+												: modelSelection.connected
+													? modelSelection.model
+													: "模型未连接"
+											: "本地免费"}
+									</span>
+								</div>
+								{directorAdvice ? (
+									<div className="mt-3 border-t pt-3">
+										<p className="whitespace-pre-wrap text-[10px] leading-relaxed">
+											{directorAdvice.text}
+										</p>
+										<p className="mt-2 text-[8px] text-muted-foreground">
+											{directorAdvice.provider} · {directorAdvice.model}
+										</p>
+									</div>
+								) : null}
+								<div className="mt-3 grid grid-cols-2 gap-2">
+									<Button
+										variant="outline"
+										className="h-10"
+										disabled={isRequestingAdvice}
+										onClick={() => void handleRequestDirectorAdvice()}
+									>
+										{isRequestingAdvice ? (
+											<Loader2 className="size-4 animate-spin" />
+										) : (
+											<Brain className="size-4" />
+										)}
+										{directorAdvice ? "重新推演" : "复核蓝图"}
+									</Button>
+									<Button
+										variant="outline"
+										className="h-10"
+										onClick={() => setSurface("models")}
+									>
+										<Cloud className="size-4" />
+										模型设置
+									</Button>
 								</div>
 							</section>
 
@@ -1099,7 +1932,7 @@ export function AIWorkspacePanel() {
 											本机 {readySteps.length}
 										</span>
 										<span className="text-sky-600">
-											ChatCut {chatCutSteps.length}
+											外部 {chatCutSteps.length}
 										</span>
 										{blockedSteps.length > 0 ? (
 											<span className="text-amber-600">
@@ -1152,6 +1985,19 @@ export function AIWorkspacePanel() {
 									})}
 								</div>
 							</section>
+
+							{operationPlan ? (
+								<section className="overflow-hidden rounded-[8px] border">
+									<VisionCutOperationReview
+										plan={operationPlan}
+										disabled={hasAppliedLocal}
+										onPlanChange={(next) => {
+											setOperationPlan(next);
+											setIsPlanReviewed(false);
+										}}
+									/>
+								</section>
+							) : null}
 
 							{hasChatCutSteps ? (
 								<section className="flowcut-surface-section rounded-[8px] border p-3">
@@ -1218,25 +2064,46 @@ export function AIWorkspacePanel() {
 
 							<label
 								htmlFor="ai-plan-reviewed"
-								className="flowcut-review-gate flex cursor-pointer items-start gap-2 rounded-[8px] border p-3"
+								className={cn(
+									"flowcut-review-gate flex items-start gap-2 rounded-[8px] border p-3",
+									operationReviewComplete
+										? "cursor-pointer"
+										: "cursor-not-allowed opacity-65",
+								)}
 							>
 								<Checkbox
 									id="ai-plan-reviewed"
 									checked={isPlanReviewed}
+									disabled={!operationReviewComplete}
 									onCheckedChange={(checked) =>
-										setIsPlanReviewed(checked === true)
+										setIsPlanReviewed(
+											operationReviewComplete && checked === true,
+										)
 									}
 									className="mt-0.5"
 								/>
 								<span className="min-w-0">
 									<span className="block text-xs font-medium">
-										这版方向可以执行
+										{operationReviewComplete
+											? "这版方向可以执行"
+											: "先完成逐项审阅"}
 									</span>
 									<span className="mt-1 block text-[10px] leading-relaxed text-muted-foreground">
-										我已检查画幅、风格、步骤和需要附给 ChatCut 的原素材。
+										我已检查画幅、风格、步骤，以及所有需要外部处理的内容。
 									</span>
 								</span>
 							</label>
+							<Button
+								variant="outline"
+								className="h-11 w-full"
+								disabled={!isPlanReviewed || rememberedPlanId === plan.id}
+								onClick={() => void handleRememberDirection()}
+							>
+								<Fingerprint className="size-4" />
+								{rememberedPlanId === plan.id
+									? "已记住这版方向"
+									: "记住这版方向"}
+							</Button>
 						</div>
 					) : null}
 				</div>

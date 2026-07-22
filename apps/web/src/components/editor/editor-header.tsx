@@ -35,7 +35,7 @@ export function EditorHeader() {
 					<span>Local-first AI</span>
 				</div>
 				<ExportButton />
-				<ThemeToggle />
+				<ThemeToggle className="size-11 lg:size-8" />
 			</nav>
 		</header>
 	);
@@ -107,7 +107,7 @@ function ProjectDropdown() {
 				<DropdownMenuTrigger asChild>
 					<Button
 						variant="ghost"
-						className="h-8 gap-2 rounded-sm px-2"
+						className="h-11 min-w-11 gap-2 rounded-sm px-2 lg:h-8 lg:min-w-0"
 						aria-label="VisionCut project menu"
 					>
 						<Clapperboard className="size-4 text-primary" />
@@ -121,12 +121,14 @@ function ProjectDropdown() {
 						onClick={handleExit}
 						disabled={isExiting}
 						icon={<HugeiconsIcon icon={Logout05Icon} />}
+						className="min-h-11 lg:min-h-8"
 					>
 						Exit project
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						onClick={() => setOpenDialog("shortcuts")}
 						icon={<HugeiconsIcon icon={CommandIcon} />}
+						className="min-h-11 lg:min-h-8"
 					>
 						Shortcuts
 					</DropdownMenuItem>
@@ -216,9 +218,10 @@ function EditableProjectName() {
 			onKeyDown={handleKeyDown}
 			style={{ fieldSizing: "content" }}
 			className={cn(
-				"h-8 min-w-0 max-w-64 cursor-pointer rounded-sm bg-transparent px-2 py-1 text-[0.9rem] outline-none hover:bg-accent hover:text-accent-foreground",
+				"h-11 min-w-0 max-w-64 cursor-pointer rounded-sm bg-transparent px-2 py-1 text-[0.9rem] outline-none hover:bg-accent hover:text-accent-foreground lg:h-8",
 				isEditing && "cursor-text ring-1 ring-ring hover:bg-transparent",
 			)}
+			aria-label="项目名称"
 		/>
 	);
 }

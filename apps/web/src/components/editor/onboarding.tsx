@@ -7,6 +7,7 @@ import {
 	HardDrive,
 	Shuffle,
 	WandSparkles,
+	XIcon,
 } from "lucide-react";
 import { useState } from "react";
 import { useLocalStorage } from "@/services/storage/use-local-storage";
@@ -14,6 +15,7 @@ import { Button } from "../ui/button";
 import {
 	Dialog,
 	DialogBody,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogTitle,
@@ -46,7 +48,11 @@ const STEPS = [
 		description:
 			"执行后先看预览，检查主体是否被裁切、字幕是否需要补、节奏是否太快，再从右上角导出成片。",
 		icon: Film,
-		tips: ["手机平板可用底部 Tab", "长时间线建议横屏", "导出大视频时保持浏览器前台"],
+		tips: [
+			"手机平板可用底部 Tab",
+			"长时间线建议横屏",
+			"导出大视频时保持浏览器前台",
+		],
 	},
 ] as const;
 
@@ -73,8 +79,19 @@ export function Onboarding() {
 			open={!hasSeenOnboarding}
 			onOpenChange={() => setHasSeenOnboarding({ value: true })}
 		>
-			<DialogContent className="sm:max-w-[460px]">
-				<DialogBody>
+			<DialogContent className="sm:max-w-[460px] [&>button:last-child]:hidden">
+				<DialogClose asChild>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="absolute top-3 right-3 z-10 size-11 rounded-sm lg:top-4 lg:right-4 lg:size-8"
+						aria-label="关闭新手引导"
+						title="关闭"
+					>
+						<XIcon className="size-5" aria-hidden="true" />
+					</Button>
+				</DialogClose>
+				<DialogBody className="pt-16 lg:pt-6">
 					<div className="space-y-5">
 						<div className="flex items-start gap-3">
 							<div className="flowcut-ai-pulse flex size-11 shrink-0 items-center justify-center rounded-md border bg-accent/40">
@@ -104,7 +121,11 @@ export function Onboarding() {
 							<span className="text-xs text-muted-foreground">
 								{step + 1} / {STEPS.length}
 							</span>
-							<Button onClick={handleNext}>
+							<Button
+								onClick={handleNext}
+								className="min-h-11 px-4 lg:min-h-9"
+								aria-label={isLast ? "进入 AI 剪辑台" : "下一步"}
+							>
 								{isLast ? "进入 AI 剪辑台" : "下一步"}
 								<ArrowRightIcon className="size-4" />
 							</Button>

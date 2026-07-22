@@ -25,8 +25,8 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Test AI edit planning
-        run: bun test apps/web/src/ai-edit
+      - name: Test AI product foundations
+        run: bun test apps/web/src/ai-edit apps/web/src/ai-studio
 
       - name: Build web app
         run: bun run build:web

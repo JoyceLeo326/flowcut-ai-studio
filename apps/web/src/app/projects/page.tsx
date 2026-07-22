@@ -68,6 +68,9 @@ import { RenameProjectDialog } from "@/project/components/rename-project-dialog"
 import { cn } from "@/utils/ui";
 import { ChangelogNotification } from "@/changelog/components/changelog-notification";
 import { VisionCutHomeStudio } from "@/components/projects/visioncut-home-studio";
+import { createIntentSpec, saveIntentSpec } from "@/ai-studio/intent-spec";
+import { appendProjectVersion } from "@/ai-studio/project-version-store";
+import { processMediaAssets } from "@/media/processing";
 const formatProjectDuration = ({
 	duration,
 }: {
@@ -106,7 +109,13 @@ export default function ProjectsPage() {
 		}
 	}, [editor.project]);
 
-	const handleCreateFromIntent = async (intent: string) => {
+	const handleCreateFromIntent = async ({
+		intent,
+		files,
+	}: {
+		intent: string;
+		files: File[];
+	}) => {
 		setIsCreatingFromIntent(true);
 		try {
 			const normalizedIntent = intent.replace(/\s+/g, " ").trim();
@@ -117,6 +126,40 @@ export default function ProjectsPage() {
 				`visioncut:intent:${projectId}`,
 				normalizedIntent,
 			);
+			const intentSpec = createIntentSpec({
+				projectId,
+				userIntent: normalizedIntent,
+				source: "home",
+				createdAt: new Date().toISOString(),
+			});
+			await saveIntentSpec({ spec: intentSpec });
+			await appendProjectVersion({
+				projectId,
+				label: "Initial creative intent",
+				createdAt: intentSpec.updatedAt,
+				source: "intent-spec",
+				refs: {
+					intentSpec: {
+						kind: intentSpec.kind,
+						projectId,
+						revision: intentSpec.revision,
+						updatedAt: intentSpec.updatedAt,
+					},
+				},
+			});
+			if (files.length > 0) {
+				try {
+					const processedAssets = await processMediaAssets({ files });
+					for (const asset of processedAssets) {
+						await editor.media.addMediaAsset({ projectId, asset });
+					}
+					toast.success(`${processedAssets.length} 个素材已加入项目`);
+				} catch (error) {
+					toast.error("项目已创建，但部分素材无法导入", {
+						description: error instanceof Error ? error.message : undefined,
+					});
+				}
+			}
 			router.push(`/editor/${projectId}`);
 		} catch (error) {
 			toast.error("无法创建创作项目", {
@@ -859,10 +902,7 @@ function ProjectMenu({
 	const handleMenuKeyDown = ({
 		event,
 	}: {
-		event: Pick<
-			KeyboardEvent,
-			"key" | "preventDefault" | "stopPropagation"
-		>;
+		event: Pick<KeyboardEvent, "key" | "preventDefault" | "stopPropagation">;
 	}) => {
 		if (event.key !== "Enter" && event.key !== " ") {
 			return;
@@ -1000,7 +1040,8 @@ function EmptyState() {
 					<div className="flex flex-col items-center gap-3">
 						<h3 className="text-lg font-medium">No results found</h3>
 						<p className="text-muted-foreground max-w-md">
-							Your search for &quot;{searchQuery}&quot; did not return any results.
+							Your search for &quot;{searchQuery}&quot; did not return any
+							results.
 						</p>
 					</div>
 				</div>

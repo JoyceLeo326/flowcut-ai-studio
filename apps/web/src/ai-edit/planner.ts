@@ -350,7 +350,7 @@ function buildChecklist({
 
 function buildRiskNotes(input: PlannerInput): string[] {
 	const notes = [
-		"FlowCut 默认只在浏览器本地处理素材；ChatCut 步骤需要你单独确认上传。",
+		"VisionCut 默认只在浏览器本地处理素材；外部步骤需要你单独确认并交接原文件。",
 	];
 	if (input.assetCount === 0)
 		notes.push("项目还没有素材，必须先导入视频或音频。");
@@ -405,14 +405,15 @@ export function createEditPlan(input: PlannerInput): EditPlan {
 				pattern: /(字幕|转录|高光|精彩|静音|停顿|silence|caption|transcri)/i,
 			}));
 	if (wantsTighterCut) {
-		const execution = executionFor({ mode: input.mode, localCapable: true });
 		steps.push({
 			id: stepId("tighten-clips"),
 			kind: "tighten-clips",
-			title: "收紧片段首尾",
-			description: "每个主视频片段收紧 0.25 秒，并自动闭合产生的间隙。",
-			...execution,
-			enabled: true,
+			title: "基于内容收紧片段",
+			description:
+				"需要真实语音、动作或空白边界作为切点证据；不会在本机盲目固定裁掉片段首尾。",
+			executor: "chatcut",
+			availability: "handoff",
+			enabled: input.mode !== "local",
 		});
 	}
 
