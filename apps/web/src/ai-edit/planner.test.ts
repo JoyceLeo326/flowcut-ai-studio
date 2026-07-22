@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createEditPlan } from "./planner";
 
 describe("createEditPlan", () => {
-	test("creates reversible local structure steps", () => {
+	test("keeps evidence-free tightening out of local execution", () => {
 		const plan = createEditPlan({
 			prompt: "剪紧凑一点，做成 9:16 竖屏",
 			mode: "local",
@@ -18,7 +18,17 @@ describe("createEditPlan", () => {
 			"tighten-clips",
 			"set-aspect-ratio",
 		]);
-		expect(plan.steps.every((step) => step.executor === "local")).toBe(true);
+		expect(
+			plan.steps
+				.filter((step) => step.enabled)
+				.every((step) => step.executor === "local"),
+		).toBe(true);
+		expect(
+			plan.steps.find((step) => step.kind === "tighten-clips"),
+		).toMatchObject({
+			executor: "chatcut",
+			enabled: false,
+		});
 		expect(plan.target.aspectRatio).toBe("9:16");
 	});
 

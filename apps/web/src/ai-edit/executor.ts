@@ -3,18 +3,11 @@ import {
 	BatchCommand,
 	Command,
 	InsertElementCommand,
-	UpdateElementsCommand,
 	UpdateProjectSettingsCommand,
 } from "@/commands";
 import { buildElementFromMedia, hasMediaId } from "@/timeline/element-utils";
 import { DEFAULT_NEW_ELEMENT_DURATION } from "@/timeline/creation";
-import {
-	addMediaTime,
-	maxMediaTime,
-	mediaTimeFromSeconds,
-	subMediaTime,
-	ZERO_MEDIA_TIME,
-} from "@/wasm";
+import { addMediaTime, mediaTimeFromSeconds, ZERO_MEDIA_TIME } from "@/wasm";
 import type { EditPlan } from "./types";
 
 const CANVAS_BY_RATIO = {
@@ -100,33 +93,8 @@ export function applyLocalEditPlan({
 		}
 
 		if (step.kind === "tighten-clips") {
-			const trim = mediaTimeFromSeconds({ seconds: 0.25 });
-			const trimTwice = addMediaTime({ a: trim, b: trim });
-			const minimumDuration = addMediaTime({ a: trimTwice, b: trimTwice });
-			let removedBefore = ZERO_MEDIA_TIME;
-			const updates = scene.tracks.main.elements.flatMap((element) => {
-				if (element.type !== "video" || element.duration <= minimumDuration)
-					return [];
-				const patch = {
-					startTime: maxMediaTime({
-						a: ZERO_MEDIA_TIME,
-						b: subMediaTime({ a: element.startTime, b: removedBefore }),
-					}),
-					duration: subMediaTime({ a: element.duration, b: trimTwice }),
-					trimStart: addMediaTime({ a: element.trimStart, b: trim }),
-					trimEnd: addMediaTime({ a: element.trimEnd, b: trim }),
-				};
-				removedBefore = addMediaTime({ a: removedBefore, b: trimTwice });
-				return [
-					{ trackId: scene.tracks.main.id, elementId: element.id, patch },
-				];
-			});
-			if (updates.length > 0) {
-				commands.push(new UpdateElementsCommand({ updates }));
-				appliedStepCount += 1;
-			} else {
-				skippedStepCount += 1;
-			}
+			// A trim requires content evidence. Legacy fixed-edge plans are skipped.
+			skippedStepCount += 1;
 			continue;
 		}
 

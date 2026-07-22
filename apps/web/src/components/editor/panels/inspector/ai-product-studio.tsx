@@ -33,8 +33,10 @@ import {
 	Palette,
 	RefreshCw,
 	Route,
+	ScanSearch,
 	Scissors,
 	Search,
+	Send,
 	Settings2,
 	ShieldCheck,
 	Sparkles,
@@ -67,23 +69,57 @@ import {
 	type OpenverseSearchItem,
 	type OpenverseSearchResult,
 } from "@/ai-studio/openverse";
+import type { StoryGraph } from "@/ai-studio/story-graph-model";
+import type { ExportManifest } from "@/ai-studio/export-manifest";
+import type { AgentOrchestration } from "@/ai-studio/agent-orchestrator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
-import { VisionCutStoryGraph } from "@/components/editor/panels/inspector/visioncut-story-graph";
+import { VisionCutLiveStoryGraph } from "@/components/editor/panels/inspector/visioncut-live-story-graph";
 import { VisionCutGeneratedLibrary } from "@/components/editor/panels/inspector/visioncut-generated-library";
+import { VisionCutCreatorDNA } from "@/components/editor/panels/inspector/visioncut-creator-dna";
+import {
+	VisionCutModelCenter,
+	type ModelSelectionSummary,
+} from "@/components/editor/panels/inspector/visioncut-model-center";
+import {
+	VisionCutProjectIntelligence,
+	type ProjectIntelligenceSnapshot,
+} from "@/components/editor/panels/inspector/visioncut-project-intelligence";
+import { VisionCutExportCenter } from "@/components/editor/panels/inspector/visioncut-export-center";
+import { VisionCutVersionHistory } from "@/components/editor/panels/inspector/visioncut-version-history";
+import { VisionCutAgentOrchestration } from "@/components/editor/panels/inspector/visioncut-agent-orchestration";
 import { cn } from "@/utils/ui";
 
-type StudioView = "workflows" | "story" | "visual" | "library";
+type StudioView =
+	| "project"
+	| "workflows"
+	| "team"
+	| "story"
+	| "visual"
+	| "library"
+	| "dna"
+	| "delivery"
+	| "models";
 type CatalogRecipe = (typeof AUTOMATION_RECIPES)[number];
 
 interface AIProductStudioProps {
 	assetCount: number;
+	projectId: string | null;
+	projectSnapshot: ProjectIntelligenceSnapshot;
+	storyGraph: StoryGraph;
+	exportManifest: ExportManifest | null;
+	agentOrchestration: AgentOrchestration | null;
 	initialIntent?: string;
 	onImportMedia: () => void;
 	onOpenDirector: () => void;
+	onOpenModels?: () => void;
+	onOpenNativeExport?: () => void;
+	onModelSelectionChange?: (selection: ModelSelectionSummary) => void;
+	onAgentOrchestrationChange?: (next: AgentOrchestration) => void;
+	onStoryGraphChange?: (next: StoryGraph) => void;
 	onImportOpenverse: (item: OpenverseSearchItem) => Promise<void>;
 	onUseRecipe: ({
 		recipeId,
@@ -100,10 +136,14 @@ const STUDIO_VIEWS: Array<{
 	label: string;
 	icon: LucideIcon;
 }> = [
+	{ id: "project", label: "项目", icon: ScanSearch },
 	{ id: "workflows", label: "AI 配方", icon: Sparkles },
+	{ id: "team", label: "制作组", icon: Boxes },
 	{ id: "story", label: "故事图", icon: Route },
 	{ id: "visual", label: "视觉实验室", icon: Aperture },
 	{ id: "library", label: "开放素材", icon: Library },
+	{ id: "dna", label: "DNA", icon: BrainCircuit },
+	{ id: "delivery", label: "交付", icon: Send },
 ];
 
 const CATEGORIES: Array<{
@@ -194,18 +234,35 @@ const PRODUCTION_AGENTS: Array<{
 	icon: LucideIcon;
 	requiresAssets: boolean;
 }> = [
-	{ label: "Director", role: "创意蓝图", icon: Clapperboard, requiresAssets: false },
+	{
+		label: "Director",
+		role: "创意蓝图",
+		icon: Clapperboard,
+		requiresAssets: false,
+	},
 	{ label: "Story", role: "叙事结构", icon: Route, requiresAssets: false },
 	{ label: "Editor", role: "粗剪节奏", icon: Scissors, requiresAssets: true },
 	{ label: "Color", role: "视觉统一", icon: Palette, requiresAssets: true },
 	{ label: "Sound", role: "声音世界", icon: Volume2, requiresAssets: true },
-	{ label: "Growth", role: "平台版本", icon: TrendingUp, requiresAssets: false },
-	{ label: "Creator DNA", role: "等待反馈", icon: BrainCircuit, requiresAssets: false },
+	{
+		label: "Growth",
+		role: "平台版本",
+		icon: TrendingUp,
+		requiresAssets: false,
+	},
+	{
+		label: "Creator DNA",
+		role: "等待反馈",
+		icon: BrainCircuit,
+		requiresAssets: false,
+	},
 ];
 
 function getRecipeWorld(recipeId: AutomationRecipeId) {
 	const worldId = RECIPE_WORLDS[recipeId] ?? "human-daylight";
-	return VISUAL_WORLDS.find((world) => world.id === worldId) ?? VISUAL_WORLDS[0];
+	return (
+		VISUAL_WORLDS.find((world) => world.id === worldId) ?? VISUAL_WORLDS[0]
+	);
 }
 
 function formatEstimatedTime(seconds: number): string {
@@ -271,16 +328,18 @@ function ExperienceSwitch({
 }) {
 	return (
 		<div className="flowcut-experience-switch grid grid-cols-2 rounded-[7px] border p-0.5">
-			{([
-				["guided", "指导模式", Sparkles],
-				["pro", "专业模式", Settings2],
-			] as const).map(([id, label, Icon]) => (
+			{(
+				[
+					["guided", "指导模式", Sparkles],
+					["pro", "专业模式", Settings2],
+				] as const
+			).map(([id, label, Icon]) => (
 				<button
 					key={id}
 					type="button"
 					aria-pressed={experience === id}
 					className={cn(
-						"flex min-h-9 items-center justify-center gap-1.5 rounded-[5px] px-2 text-[10px] font-medium transition",
+						"flex min-h-11 items-center justify-center gap-1.5 rounded-[5px] px-2 text-[10px] font-medium transition xl:min-h-9",
 						experience === id
 							? "bg-foreground text-background"
 							: "text-muted-foreground hover:text-foreground",
@@ -349,9 +408,7 @@ function WorkflowCard({
 					/>
 				</div>
 				<p className="mt-2 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">
-					{experience === "guided"
-						? recipe.beginnerOutcome
-						: recipe.proOutcome}
+					{experience === "guided" ? recipe.beginnerOutcome : recipe.proOutcome}
 				</p>
 			</div>
 		</button>
@@ -373,11 +430,12 @@ function ProductionTeamRail({ assetCount }: { assetCount: number }) {
 			<div className="scrollbar-hidden flex overflow-x-auto divide-x">
 				{PRODUCTION_AGENTS.map((agent) => {
 					const Icon = agent.icon;
-					const status = agent.label === "Creator DNA"
-						? "待启用"
-						: agent.requiresAssets && assetCount === 0
-							? "待素材"
-							: "纳入规划";
+					const status =
+						agent.label === "Creator DNA"
+							? "待启用"
+							: agent.requiresAssets && assetCount === 0
+								? "待素材"
+								: "纳入规划";
 					return (
 						<div
 							key={agent.label}
@@ -387,7 +445,9 @@ function ProductionTeamRail({ assetCount }: { assetCount: number }) {
 								<Icon className="size-3.5" />
 							</span>
 							<div className="min-w-0">
-								<p className="truncate text-[9px] font-semibold">{agent.label}</p>
+								<p className="truncate text-[9px] font-semibold">
+									{agent.label}
+								</p>
 								<p className="truncate text-[8px] text-muted-foreground">
 									{agent.role}
 								</p>
@@ -425,16 +485,15 @@ function WorkflowView({
 	settings: StudioProSettings;
 	onSettingsChange: (settings: StudioProSettings) => void;
 	onImportMedia: () => void;
-	onUseRecipe: (args: {
-		recipeId: AutomationRecipeId;
-		intent: string;
-	}) => void;
+	onUseRecipe: (args: { recipeId: AutomationRecipeId; intent: string }) => void;
 }) {
 	const [query, setQuery] = useState(initialIntent);
 	const deferredQuery = useDeferredValue(query);
 	const [category, setCategory] = useState<"all" | AutomationCategory>("all");
 	const [selectedRecipeId, setSelectedRecipeId] = useState<AutomationRecipeId>(
-		() => recommendAutomationRecipes(initialIntent)[0]?.id ?? "talking-head-cleanup",
+		() =>
+			recommendAutomationRecipes(initialIntent)[0]?.id ??
+			"talking-head-cleanup",
 	);
 	const recommended = useMemo(() => {
 		const ranked = deferredQuery.trim()
@@ -501,7 +560,7 @@ function WorkflowView({
 							</p>
 						</div>
 						<div>
-							<p className="text-[9px] text-muted-foreground">语义精剪</p>
+							<p className="text-[9px] text-muted-foreground">外部处理</p>
 							<p className="mt-0.5 text-[11px] font-semibold text-cyan-600">
 								{run.summary.chatCutCount} 项
 							</p>
@@ -555,7 +614,7 @@ function WorkflowView({
 								type="button"
 								aria-pressed={category === item.id}
 								className={cn(
-									"flex min-h-8 shrink-0 items-center gap-1.5 rounded-[6px] border px-2.5 text-[9px] font-medium transition",
+									"flex min-h-11 shrink-0 items-center gap-1.5 rounded-[6px] border px-2.5 text-[9px] font-medium transition xl:min-h-8",
 									category === item.id
 										? "border-foreground bg-foreground text-background"
 										: "text-muted-foreground hover:text-foreground",
@@ -593,7 +652,7 @@ function WorkflowView({
 			<section className="flowcut-run-panel overflow-hidden rounded-[8px] border">
 				<div className="flex items-center justify-between gap-3 border-b p-3">
 					<div>
-						<h3 className="text-[12px] font-semibold">导演执行队列</h3>
+						<h3 className="text-[12px] font-semibold">导演任务草案</h3>
 						<p className="mt-0.5 text-[9px] text-muted-foreground">
 							{formatEstimatedTime(run.summary.estimatedSeconds)}
 						</p>
@@ -646,7 +705,7 @@ function WorkflowView({
 														: "text-cyan-600",
 												)}
 											>
-												{node.executor === "local" ? "本机" : "ChatCut"}
+												{node.executor === "local" ? "本机" : "外部"}
 											</span>
 										</div>
 										{experience === "pro" ? (
@@ -811,19 +870,23 @@ function WorkflowView({
 					<div className="border-t pt-3">
 						<div className="mb-2 flex items-center justify-between gap-2 text-[11px]">
 							<span className="font-medium">口头禅策略</span>
-							<span className="text-[9px] text-muted-foreground">可随时复核</span>
+							<span className="text-[9px] text-muted-foreground">
+								可随时复核
+							</span>
 						</div>
 						<div className="grid grid-cols-3 gap-1 rounded-[6px] border p-1">
-							{([
-								["review", "先复核"],
-								["remove", "自动删除"],
-								["keep", "保留"],
-							] as const).map(([id, label]) => (
+							{(
+								[
+									["review", "先复核"],
+									["remove", "自动删除"],
+									["keep", "保留"],
+								] as const
+							).map(([id, label]) => (
 								<button
 									key={id}
 									type="button"
 									className={cn(
-										"min-h-8 rounded-[4px] text-[9px] font-medium",
+										"min-h-11 rounded-[4px] text-[9px] font-medium xl:min-h-8",
 										settings.fillerHandling === id
 											? "bg-foreground text-background"
 											: "text-muted-foreground",
@@ -853,8 +916,8 @@ function VisualJobCard({
 	job: VisualGenerationJob;
 	index: number;
 }) {
-	const world = VISUAL_WORLDS.find((item) => item.id === job.worldId) ??
-		VISUAL_WORLDS[0];
+	const world =
+		VISUAL_WORLDS.find((item) => item.id === job.worldId) ?? VISUAL_WORLDS[0];
 	return (
 		<div className="flowcut-job-card overflow-hidden rounded-[8px] border">
 			<div className="relative aspect-[16/9] overflow-hidden border-b">
@@ -885,9 +948,10 @@ function VisualJobCard({
 }
 
 function VisualLabView() {
-	const [surface, setSurface] = useState<"generator" | "originals">("originals");
-	const [worldId, setWorldId] =
-		useState<VisualWorldId>("electric-noir");
+	const [surface, setSurface] = useState<"generator" | "originals">(
+		"originals",
+	);
+	const [worldId, setWorldId] = useState<VisualWorldId>("electric-noir");
 	const [prompt, setPrompt] = useState(
 		"一位创作者在夜色城市中讲述从零开始的创业故事",
 	);
@@ -944,10 +1008,12 @@ function VisualLabView() {
 
 	const surfaceSwitch = (
 		<div className="grid grid-cols-2 rounded-[7px] border p-0.5">
-			{([
-				["originals", "原创素材", Images],
-				["generator", "概念图生成", Wand2],
-			] as const).map(([id, label, Icon]) => (
+			{(
+				[
+					["originals", "原创素材", Images],
+					["generator", "概念图生成", Wand2],
+				] as const
+			).map(([id, label, Icon]) => (
 				<button
 					key={id}
 					type="button"
@@ -1050,7 +1116,9 @@ function VisualLabView() {
 								) : null}
 							</div>
 							<div className="p-2">
-								<p className="truncate text-[10px] font-semibold">{world.label}</p>
+								<p className="truncate text-[10px] font-semibold">
+									{world.label}
+								</p>
 								<p className="mt-0.5 truncate text-[8px] text-muted-foreground">
 									{world.description}
 								</p>
@@ -1095,9 +1163,7 @@ function VisualLabView() {
 									<p
 										className={cn(
 											"mt-0.5 text-[8px]",
-											selected
-												? "text-background/65"
-												: "text-muted-foreground",
+											selected ? "text-background/65" : "text-muted-foreground",
 										)}
 									>
 										{item.description}
@@ -1249,7 +1315,7 @@ function OpenverseCard({
 				<div className="mt-2 flex gap-1.5">
 					<Button
 						variant="outline"
-						className="h-9 min-w-0 flex-1 px-2 text-[9px]"
+						className="h-11 min-w-0 flex-1 px-2 text-[9px] xl:h-9"
 						disabled={isImporting}
 						onClick={() => void onImport()}
 					>
@@ -1264,7 +1330,7 @@ function OpenverseCard({
 						href={item.sourceUrl}
 						target="_blank"
 						rel="noreferrer"
-						className="flex size-9 shrink-0 items-center justify-center rounded-[6px] border text-cyan-600 hover:bg-accent"
+						className="flex size-11 shrink-0 items-center justify-center rounded-[6px] border text-cyan-600 hover:bg-accent xl:size-9"
 						title="查看来源与许可"
 						aria-label="查看来源与许可"
 					>
@@ -1310,9 +1376,7 @@ function OpenLibraryView({
 			if (!parsed) throw new Error("开放素材返回了无法识别的数据");
 			setResult(parsed);
 		} catch (searchError) {
-			setError(
-				searchError instanceof Error ? searchError.message : "搜索失败",
-			);
+			setError(searchError instanceof Error ? searchError.message : "搜索失败");
 		} finally {
 			setIsLoading(false);
 		}
@@ -1426,7 +1490,9 @@ function OpenLibraryView({
 			) : (
 				<section className="rounded-[8px] border border-dashed p-6 text-center">
 					<Images className="mx-auto size-5 text-muted-foreground" />
-					<p className="mt-2 text-[10px] font-medium">搜索开放授权的参考图与补镜</p>
+					<p className="mt-2 text-[10px] font-medium">
+						搜索开放授权的参考图与补镜
+					</p>
 				</section>
 			)}
 		</div>
@@ -1435,18 +1501,33 @@ function OpenLibraryView({
 
 export function AIProductStudio({
 	assetCount,
+	projectId,
+	projectSnapshot,
+	storyGraph,
+	exportManifest,
+	agentOrchestration,
 	initialIntent = "",
 	onImportMedia,
 	onOpenDirector,
+	onOpenModels,
+	onOpenNativeExport,
+	onModelSelectionChange,
+	onAgentOrchestrationChange,
+	onStoryGraphChange,
 	onImportOpenverse,
 	onUseRecipe,
 }: AIProductStudioProps) {
-	const [view, setView] = useState<StudioView>("workflows");
-	const [experience, setExperience] =
-		useState<StudioExperience>("guided");
+	const [view, setView] = useState<StudioView>(() =>
+		initialIntent.trim() || assetCount === 0 ? "workflows" : "project",
+	);
+	const [experience, setExperience] = useState<StudioExperience>("guided");
 	const [settings, setSettings] = useState<StudioProSettings>(
 		DEFAULT_STUDIO_PRO_SETTINGS,
 	);
+	const openModels = () => {
+		setView("models");
+		onOpenModels?.();
+	};
 
 	return (
 		<div className="flowcut-studio-shell flex h-full min-h-0 flex-col bg-background">
@@ -1464,7 +1545,17 @@ export function AIProductStudio({
 					<Button
 						variant="outline"
 						size="icon"
-						className="size-9 shrink-0"
+						className="size-11 shrink-0 xl:size-9"
+						onClick={openModels}
+						title="模型与隐私"
+						aria-label="模型与隐私"
+					>
+						<Settings2 className="size-4" />
+					</Button>
+					<Button
+						variant="outline"
+						size="icon"
+						className="size-11 shrink-0 xl:size-9"
 						onClick={onOpenDirector}
 						title="打开导演蓝图"
 						aria-label="打开导演蓝图"
@@ -1473,12 +1564,12 @@ export function AIProductStudio({
 					</Button>
 				</div>
 				<div className="px-2.5 pb-2.5">
-					<ExperienceSwitch
-						experience={experience}
-						onChange={setExperience}
-					/>
+					<ExperienceSwitch experience={experience} onChange={setExperience} />
 				</div>
-				<nav className="grid grid-cols-4 border-t" aria-label="AI 创作工作面">
+				<nav
+					className="scrollbar-hidden flex overflow-x-auto border-t"
+					aria-label="AI 创作工作面"
+				>
 					{STUDIO_VIEWS.map((item) => {
 						const Icon = item.icon;
 						return (
@@ -1486,7 +1577,7 @@ export function AIProductStudio({
 								key={item.id}
 								type="button"
 								aria-current={view === item.id ? "page" : undefined}
-								className="flowcut-studio-tab relative flex min-h-11 items-center justify-center gap-1.5 border-r px-1 text-[9px] font-medium last:border-r-0"
+								className="flowcut-studio-tab relative flex min-h-11 min-w-[72px] flex-1 items-center justify-center gap-1.5 border-r px-1 text-[9px] font-medium last:border-r-0"
 								data-active={view === item.id ? "true" : "false"}
 								onClick={() => setView(item.id)}
 							>
@@ -1500,6 +1591,19 @@ export function AIProductStudio({
 
 			<ScrollArea className="min-h-0 flex-1">
 				<div className="flowcut-studio-view p-3" key={view}>
+					{view === "project" ? (
+						<div>
+							<VisionCutProjectIntelligence
+								snapshot={projectSnapshot}
+								onImportMedia={onImportMedia}
+								onOpenDirector={onOpenDirector}
+								onOpenModels={openModels}
+							/>
+							{projectId ? (
+								<VisionCutVersionHistory projectId={projectId} />
+							) : null}
+						</div>
+					) : null}
 					{view === "workflows" ? (
 						<WorkflowView
 							key={initialIntent || "new-creation"}
@@ -1514,16 +1618,52 @@ export function AIProductStudio({
 							}
 						/>
 					) : null}
+					{view === "team" && agentOrchestration ? (
+						<VisionCutAgentOrchestration
+							orchestration={agentOrchestration}
+							onChange={(next) => onAgentOrchestrationChange?.(next)}
+						/>
+					) : null}
+					{view === "team" && !agentOrchestration ? (
+						<div className="border-y py-8 text-center">
+							<p className="text-[11px] font-semibold">制作任务图尚未建立</p>
+							<p className="mt-1 text-[9px] text-muted-foreground">
+								先从首页或 AI 配方确定创作意图。
+							</p>
+						</div>
+					) : null}
 					{view === "story" ? (
-						<VisionCutStoryGraph
+						<VisionCutLiveStoryGraph
+							key={`${storyGraph.graphId}:${storyGraph.nodes
+								.map((node) => node.id)
+								.join(":")}`}
 							experience={experience}
-							assetCount={assetCount}
+							graph={storyGraph}
+							onGraphChange={onStoryGraphChange}
 							onOpenDirector={onOpenDirector}
 						/>
 					) : null}
 					{view === "visual" ? <VisualLabView /> : null}
 					{view === "library" ? (
 						<OpenLibraryView onImportOpenverse={onImportOpenverse} />
+					) : null}
+					{view === "dna" ? <VisionCutCreatorDNA /> : null}
+					{view === "delivery" && exportManifest ? (
+						<VisionCutExportCenter
+							exportManifest={exportManifest}
+							onOpenNativeExport={onOpenNativeExport}
+						/>
+					) : null}
+					{view === "delivery" && !exportManifest ? (
+						<div className="border-y py-8 text-center">
+							<p className="text-[11px] font-semibold">交付清单尚未建立</p>
+							<p className="mt-1 text-[9px] text-muted-foreground">
+								项目与时间线加载完成后再生成真实预检。
+							</p>
+						</div>
+					) : null}
+					{view === "models" ? (
+						<VisionCutModelCenter onSelectionChange={onModelSelectionChange} />
 					) : null}
 				</div>
 			</ScrollArea>
@@ -1535,7 +1675,7 @@ export function StudioBackButton({ onClick }: { onClick: () => void }) {
 	return (
 		<button
 			type="button"
-			className="flex min-h-9 items-center gap-1.5 text-[10px] font-medium text-muted-foreground transition hover:text-foreground"
+			className="flex min-h-11 items-center gap-1.5 text-[10px] font-medium text-muted-foreground transition hover:text-foreground xl:min-h-9"
 			onClick={onClick}
 		>
 			<ArrowLeft className="size-3.5" />

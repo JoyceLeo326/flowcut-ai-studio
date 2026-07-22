@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	Popover,
 	PopoverContent,
@@ -45,6 +45,7 @@ import {
 import { useEditor } from "@/editor/use-editor";
 import { DEFAULT_EXPORT_OPTIONS } from "@/export/defaults";
 import { mediaTimeToSeconds } from "@/wasm";
+import { OPEN_NATIVE_EXPORT_EVENT } from "@/editor/navigation-events";
 
 function isExportFormat(value: string): value is ExportFormat {
 	return EXPORT_FORMAT_VALUES.some((formatValue) => formatValue === value);
@@ -53,6 +54,12 @@ function isExportFormat(value: string): value is ExportFormat {
 function isExportQuality(value: string): value is ExportQuality {
 	return EXPORT_QUALITY_VALUES.some((qualityValue) => qualityValue === value);
 }
+
+const TOUCH_RADIO_CLASS_NAME =
+	"relative grid size-11 place-items-center border-0 shadow-none before:pointer-events-none before:absolute before:size-4 before:rounded-full before:border before:border-primary lg:size-4 lg:border lg:shadow-sm lg:before:hidden";
+
+const TOUCH_CHECKBOX_CLASS_NAME =
+	"relative grid size-11 cursor-pointer place-items-center border-0 bg-transparent shadow-none before:pointer-events-none before:absolute before:size-4 before:rounded-sm before:border before:border-border before:bg-background data-[state=checked]:bg-transparent data-[state=checked]:before:border-primary data-[state=checked]:before:bg-primary lg:size-4 lg:border lg:bg-background lg:shadow-xs lg:before:hidden lg:data-[state=checked]:bg-primary";
 
 export function ExportButton() {
 	const [isExportPopoverOpen, setIsExportPopoverOpen] = useState(false);
@@ -81,6 +88,15 @@ export function ExportButton() {
 		setIsExportPopoverOpen(open);
 	};
 
+	useEffect(() => {
+		const handleOpenRequest = () => {
+			if (canOpenExport) setIsExportPopoverOpen(true);
+		};
+		window.addEventListener(OPEN_NATIVE_EXPORT_EVENT, handleOpenRequest);
+		return () =>
+			window.removeEventListener(OPEN_NATIVE_EXPORT_EVENT, handleOpenRequest);
+	}, [canOpenExport]);
+
 	return (
 		<Popover
 			open={isExportPopoverOpen}
@@ -89,7 +105,7 @@ export function ExportButton() {
 			<PopoverTrigger asChild>
 				<Button
 					size="sm"
-					className="h-8 px-3"
+					className="h-11 px-3 lg:h-8"
 					disabled={!canOpenExport}
 					title={canOpenExport ? "导出成片" : "先把视频或图片加入时间线"}
 				>
@@ -259,7 +275,7 @@ function ExportPopover({
 										defaultOpen={false}
 										showTopBorder={false}
 									>
-										<SectionHeader>
+										<SectionHeader className="[&_[aria-label]]:size-11 lg:[&_[aria-label]]:size-7">
 											<SectionTitle>文件格式</SectionTitle>
 										</SectionHeader>
 										<SectionContent>
@@ -272,11 +288,19 @@ function ExportPopover({
 												}}
 											>
 												<div className="flex items-center space-x-2">
-													<RadioGroupItem value="mp4" id="mp4" />
+													<RadioGroupItem
+														value="mp4"
+														id="mp4"
+														className={TOUCH_RADIO_CLASS_NAME}
+													/>
 													<Label htmlFor="mp4">MP4 (H.264) · 兼容性更好</Label>
 												</div>
 												<div className="flex items-center space-x-2">
-													<RadioGroupItem value="webm" id="webm" />
+													<RadioGroupItem
+														value="webm"
+														id="webm"
+														className={TOUCH_RADIO_CLASS_NAME}
+													/>
 													<Label htmlFor="webm">
 														WebM (VP9) · 文件通常更小
 													</Label>
@@ -286,7 +310,7 @@ function ExportPopover({
 									</Section>
 
 									<Section collapsible defaultOpen={false}>
-										<SectionHeader>
+										<SectionHeader className="[&_[aria-label]]:size-11 lg:[&_[aria-label]]:size-7">
 											<SectionTitle>画质</SectionTitle>
 										</SectionHeader>
 										<SectionContent>
@@ -299,19 +323,35 @@ function ExportPopover({
 												}}
 											>
 												<div className="flex items-center space-x-2">
-													<RadioGroupItem value="low" id="low" />
+													<RadioGroupItem
+														value="low"
+														id="low"
+														className={TOUCH_RADIO_CLASS_NAME}
+													/>
 													<Label htmlFor="low">低 · 文件最小</Label>
 												</div>
 												<div className="flex items-center space-x-2">
-													<RadioGroupItem value="medium" id="medium" />
+													<RadioGroupItem
+														value="medium"
+														id="medium"
+														className={TOUCH_RADIO_CLASS_NAME}
+													/>
 													<Label htmlFor="medium">中 · 体积与画质平衡</Label>
 												</div>
 												<div className="flex items-center space-x-2">
-													<RadioGroupItem value="high" id="high" />
+													<RadioGroupItem
+														value="high"
+														id="high"
+														className={TOUCH_RADIO_CLASS_NAME}
+													/>
 													<Label htmlFor="high">高 · 推荐</Label>
 												</div>
 												<div className="flex items-center space-x-2">
-													<RadioGroupItem value="very_high" id="very_high" />
+													<RadioGroupItem
+														value="very_high"
+														id="very_high"
+														className={TOUCH_RADIO_CLASS_NAME}
+													/>
 													<Label htmlFor="very_high">极高 · 文件最大</Label>
 												</div>
 											</RadioGroup>
@@ -319,7 +359,7 @@ function ExportPopover({
 									</Section>
 
 									<Section collapsible defaultOpen={false}>
-										<SectionHeader>
+										<SectionHeader className="[&_[aria-label]]:size-11 lg:[&_[aria-label]]:size-7">
 											<SectionTitle>声音</SectionTitle>
 										</SectionHeader>
 										<SectionContent>
@@ -327,6 +367,7 @@ function ExportPopover({
 												<Checkbox
 													id="include-audio"
 													checked={shouldIncludeAudio}
+													className={TOUCH_CHECKBOX_CLASS_NAME}
 													onCheckedChange={(checked) =>
 														setShouldIncludeAudio(!!checked)
 													}
@@ -340,7 +381,7 @@ function ExportPopover({
 								<div className="p-3 pt-0">
 									<Button
 										onClick={handleExport}
-										className="w-full gap-2"
+										className="min-h-11 w-full gap-2 lg:min-h-9"
 										disabled={!preflight.canExport}
 									>
 										<Download className="size-4" />
@@ -364,7 +405,7 @@ function ExportPopover({
 
 								<Button
 									variant="outline"
-									className="w-full rounded-md"
+									className="min-h-11 w-full rounded-md lg:min-h-9"
 									onClick={handleCancel}
 								>
 									取消
@@ -404,7 +445,7 @@ function ExportError({
 				<Button
 					variant="outline"
 					size="sm"
-					className="h-8 flex-1 text-xs"
+					className="h-11 flex-1 text-xs lg:h-8"
 					onClick={handleCopy}
 				>
 					{copied ? <Check className="text-constructive" /> : <Copy />}
@@ -413,7 +454,7 @@ function ExportError({
 				<Button
 					variant="outline"
 					size="sm"
-					className="h-8 flex-1 text-xs"
+					className="h-11 flex-1 text-xs lg:h-8"
 					onClick={onRetry}
 				>
 					<RotateCcw />

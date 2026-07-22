@@ -20,7 +20,11 @@ export const STUDIO_PHASES: ReadonlyArray<{
 	label: string;
 	description: string;
 }> = [
-	{ id: "understand", label: "理解素材", description: "听懂内容并建立镜头索引" },
+	{
+		id: "understand",
+		label: "理解素材",
+		description: "听懂内容并建立镜头索引",
+	},
 	{ id: "structure", label: "设计成片", description: "选择重点并重组叙事" },
 	{ id: "polish", label: "精修包装", description: "处理画面、声音与信息层级" },
 	{ id: "deliver", label: "版本交付", description: "生成平台版本并完成质检" },
@@ -29,9 +33,9 @@ export const STUDIO_PHASES: ReadonlyArray<{
 export const STUDIO_CAPABILITIES = [
 	{
 		id: "ingest-media",
-		title: "媒体体检",
-		beginnerLabel: "检查素材是否完整",
-		proDescription: "读取编解码、帧率、声道、分辨率与损坏风险",
+		title: "素材元数据",
+		beginnerLabel: "读取素材基本信息",
+		proDescription: "读取浏览器可获得的类型、时长、帧率、声道与分辨率",
 		phase: "understand",
 		executor: "local",
 		estimatedSeconds: 4,
@@ -42,7 +46,7 @@ export const STUDIO_CAPABILITIES = [
 		beginnerLabel: "把说话内容变成文字",
 		proDescription: "生成带词级时间码的转写稿并识别语种",
 		phase: "understand",
-		executor: "local",
+		executor: "chatcut",
 		estimatedSeconds: 22,
 	},
 	{
@@ -195,7 +199,7 @@ export const STUDIO_CAPABILITIES = [
 		beginnerLabel: "自动突出重点词",
 		proDescription: "按语义重音分行，控制每行字数、强调层级和安全区",
 		phase: "polish",
-		executor: "local",
+		executor: "chatcut",
 		estimatedSeconds: 8,
 	},
 	{
@@ -249,7 +253,7 @@ export const STUDIO_CAPABILITIES = [
 		beginnerLabel: "统一声音大小并避免爆音",
 		proDescription: "按 LUFS、true peak 与平台规范完成响度和峰值检查",
 		phase: "polish",
-		executor: "local",
+		executor: "chatcut",
 		estimatedSeconds: 8,
 	},
 	{
@@ -294,14 +298,14 @@ export const STUDIO_CAPABILITIES = [
 		beginnerLabel: "导出前自动检查问题",
 		proDescription: "检查黑帧、静音、峰值、字幕溢出、结尾截断与可播放性",
 		phase: "deliver",
-		executor: "local",
+		executor: "chatcut",
 		estimatedSeconds: 8,
 	},
 	{
 		id: "export-timeline",
 		title: "时间线交接",
 		beginnerLabel: "保留一份可继续编辑的工程",
-		proDescription: "生成 VisionCut JSON，并预留 OTIO/EDL/FCPXML 交换节点",
+		proDescription: "导出当前可审阅的 VisionCut JSON；OTIO/EDL/FCPXML 尚未实现",
 		phase: "deliver",
 		executor: "local",
 		estimatedSeconds: 4,
@@ -350,9 +354,11 @@ export const AUTOMATION_RECIPES = [
 		id: "talking-head-cleanup",
 		title: "口播智能精剪",
 		kicker: "说完就能交片",
-		description: "从逐字稿开始，清理停顿、口头禅和重录，再补 B-roll、重点字幕和声音精修。",
+		description:
+			"从逐字稿开始，清理停顿、口头禅和重录，再补 B-roll、重点字幕和声音精修。",
 		beginnerOutcome: "把一段冗长口播变成自然、紧凑、能直接发布的口播成片。",
-		proOutcome: "可控 VAD 阈值、填充词策略、cut margin、punch-in、B-roll 密度和 LUFS。",
+		proOutcome:
+			"可控 VAD 阈值、填充词策略、cut margin、punch-in、B-roll 密度和 LUFS。",
 		category: "speech",
 		durationLabel: "10-25 分钟",
 		accent: "emerald",
@@ -387,7 +393,8 @@ export const AUTOMATION_RECIPES = [
 		id: "long-to-shorts",
 		title: "长视频拆爆款",
 		kicker: "一次找出多条短视频",
-		description: "分析完整长内容，筛出可独立成立的观点、故事与反差，自动生成多条短视频。",
+		description:
+			"分析完整长内容，筛出可独立成立的观点、故事与反差，自动生成多条短视频。",
 		beginnerOutcome: "从长视频中得到多条有开场钩子、有结论的短内容。",
 		proOutcome: "可控高光评分、上下文窗口、重复覆盖率、目标时长和平台版本。",
 		category: "social",
@@ -421,7 +428,8 @@ export const AUTOMATION_RECIPES = [
 		id: "podcast-multicam",
 		title: "播客多机位导播",
 		kicker: "识别人和话题自动切机",
-		description: "分离说话人，跟随对话和反应镜头切换机位，同时生成章节、字幕与短切片。",
+		description:
+			"分离说话人，跟随对话和反应镜头切换机位，同时生成章节、字幕与短切片。",
 		beginnerOutcome: "像有现场导播一样自动完成多人播客剪辑。",
 		proOutcome: "可控最短镜头、切机延迟、反应镜头权重、L-cut 与角色音轨。",
 		category: "speech",
@@ -456,7 +464,8 @@ export const AUTOMATION_RECIPES = [
 		id: "event-recap",
 		title: "活动高光回顾",
 		kicker: "从散乱素材到完整事件",
-		description: "按到场、过程、高潮、结果和人物反应重组多机素材，并保留品牌与现场声。",
+		description:
+			"按到场、过程、高潮、结果和人物反应重组多机素材，并保留品牌与现场声。",
 		beginnerOutcome: "把大量活动片段变成有开场、有高潮、有结果的回顾片。",
 		proOutcome: "可控镜头去重、人物覆盖、节拍段落、赞助露出和现场声比例。",
 		category: "story",
@@ -491,7 +500,8 @@ export const AUTOMATION_RECIPES = [
 		id: "product-story",
 		title: "产品故事成片",
 		kicker: "价值、演示、证据、行动",
-		description: "从产品素材中提炼卖点，用演示、细节、证据和生成式补镜构成完整商业叙事。",
+		description:
+			"从产品素材中提炼卖点，用演示、细节、证据和生成式补镜构成完整商业叙事。",
 		beginnerOutcome: "自动做出清楚说明产品价值的种草或发布视频。",
 		proOutcome: "可控 USP 顺序、证据镜头、产品安全构图、CTA 与渠道版本。",
 		category: "commerce",
@@ -525,7 +535,8 @@ export const AUTOMATION_RECIPES = [
 		id: "interview-story",
 		title: "采访故事重构",
 		kicker: "让答案组成一条故事线",
-		description: "移除提问和重复答案，按主题重组内容，以 L-cut、档案和环境镜头建立纪录片叙事。",
+		description:
+			"移除提问和重复答案，按主题重组内容，以 L-cut、档案和环境镜头建立纪录片叙事。",
 		beginnerOutcome: "把零散采访回答整理成自然连贯的人物故事。",
 		proOutcome: "可控问题保留、语义重排、连续性、L-cut 长度和档案镜头密度。",
 		category: "story",
@@ -559,7 +570,8 @@ export const AUTOMATION_RECIPES = [
 		id: "course-tutorial",
 		title: "教程课程精简",
 		kicker: "知识点清楚，操作跟得上",
-		description: "删除等待和重复解释，按知识点分章，自动放大操作区域并生成步骤卡。",
+		description:
+			"删除等待和重复解释，按知识点分章，自动放大操作区域并生成步骤卡。",
 		beginnerOutcome: "把录屏或课程变成节奏清楚、容易跟做的教程。",
 		proOutcome: "可控章节粒度、鼠标聚焦、屏幕缩放、步骤卡密度和术语表。",
 		category: "speech",
@@ -593,7 +605,8 @@ export const AUTOMATION_RECIPES = [
 		id: "travel-vlog",
 		title: "旅行 Vlog 叙事",
 		kicker: "地点、体验和情绪自然推进",
-		description: "按地点和时间整理素材，保留环境声与人物反应，用节奏变化串起完整旅程。",
+		description:
+			"按地点和时间整理素材，保留环境声与人物反应，用节奏变化串起完整旅程。",
 		beginnerOutcome: "把旅行碎片整理成有路线、有体验、有情绪的 Vlog。",
 		proOutcome: "可控地点聚类、时间跳跃、环境声桥、蒙太奇密度与速度变化。",
 		category: "story",
@@ -658,7 +671,8 @@ export const AUTOMATION_RECIPES = [
 		id: "sports-highlight",
 		title: "赛事高光集锦",
 		kicker: "动作、比分、反应一个不少",
-		description: "识别关键动作与现场情绪，以重放、比分信息和观众反应构成赛事叙事。",
+		description:
+			"识别关键动作与现场情绪，以重放、比分信息和观众反应构成赛事叙事。",
 		beginnerOutcome: "从比赛素材中快速得到有高潮的高光集锦。",
 		proOutcome: "可控事件窗口、慢放范围、反应镜头、现场声和比分安全区。",
 		category: "popular",
@@ -691,7 +705,8 @@ export const AUTOMATION_RECIPES = [
 		id: "ugc-ad",
 		title: "UGC 转化广告",
 		kicker: "原生表达，清晰转化",
-		description: "从真人体验中提取痛点、转折和证据，补充产品细节、字幕与多个 CTA 版本。",
+		description:
+			"从真人体验中提取痛点、转折和证据，补充产品细节、字幕与多个 CTA 版本。",
 		beginnerOutcome: "把真人分享变成自然但有说服力的短广告。",
 		proOutcome: "可控 hook 变量、证据顺序、异议处理、CTA 和 A/B 版本。",
 		category: "commerce",
@@ -725,7 +740,8 @@ export const AUTOMATION_RECIPES = [
 		id: "cinematic-trailer",
 		title: "电影感预告",
 		kicker: "一句话、一种情绪、一次爆发",
-		description: "提炼故事冲突和高辨识度对白，以声音桥、标题卡和克制留白构成预告节奏。",
+		description:
+			"提炼故事冲突和高辨识度对白，以声音桥、标题卡和克制留白构成预告节奏。",
 		beginnerOutcome: "把长故事浓缩成有悬念、有情绪、有高潮的预告片。",
 		proOutcome: "可控 reveal 顺序、对白密度、标题节奏、声音桥和高潮蒙太奇。",
 		category: "story",
@@ -759,7 +775,8 @@ export const AUTOMATION_RECIPES = [
 		id: "real-estate-tour",
 		title: "空间看房导览",
 		kicker: "路线清晰，卖点可视化",
-		description: "按空间动线整理广角、细节与口播，突出采光、尺度、材质和生活场景。",
+		description:
+			"按空间动线整理广角、细节与口播，突出采光、尺度、材质和生活场景。",
 		beginnerOutcome: "把房屋素材变成路线自然、卖点清楚的空间导览。",
 		proOutcome: "可控空间顺序、广角畸变、动线连续、信息卡和房源安全区。",
 		category: "commerce",
@@ -840,8 +857,7 @@ function normalizeSettings(
 			max: 2000,
 		}),
 		cutPaddingMs: clamp({
-			value:
-				settings.cutPaddingMs ?? DEFAULT_STUDIO_PRO_SETTINGS.cutPaddingMs,
+			value: settings.cutPaddingMs ?? DEFAULT_STUDIO_PRO_SETTINGS.cutPaddingMs,
 			min: 0,
 			max: 800,
 		}),
@@ -853,8 +869,7 @@ function normalizeSettings(
 			max: 100,
 		}),
 		brollDensity: clamp({
-			value:
-				settings.brollDensity ?? DEFAULT_STUDIO_PRO_SETTINGS.brollDensity,
+			value: settings.brollDensity ?? DEFAULT_STUDIO_PRO_SETTINGS.brollDensity,
 			min: 0,
 			max: 100,
 		}),
@@ -878,8 +893,7 @@ function normalizeSettings(
 		}),
 		outputCount: Math.round(
 			clamp({
-				value:
-					settings.outputCount ?? DEFAULT_STUDIO_PRO_SETTINGS.outputCount,
+				value: settings.outputCount ?? DEFAULT_STUDIO_PRO_SETTINGS.outputCount,
 				min: 1,
 				max: 6,
 			}),
@@ -1005,9 +1019,8 @@ export function createAutomationRun({
 			total: nodes.length,
 			localCount: nodes.filter((node) => node.executor === "local").length,
 			chatCutCount: nodes.filter((node) => node.executor === "chatcut").length,
-			blockedCount: nodes.filter(
-				(node) => node.availability === "blocked",
-			).length,
+			blockedCount: nodes.filter((node) => node.availability === "blocked")
+				.length,
 			estimatedSeconds: nodes.reduce(
 				(total, node) => total + node.estimatedSeconds,
 				0,
@@ -1157,12 +1170,16 @@ export const VISUAL_WORLDS = [
 export type VisualWorldId = (typeof VISUAL_WORLDS)[number]["id"];
 
 const VISUAL_USE_CASE_PROMPTS: Record<VisualUseCase, string> = {
-	storyboard: "storyboard keyframe with clear subject blocking and camera intent",
+	storyboard:
+		"storyboard keyframe with clear subject blocking and camera intent",
 	broll: "usable cinematic B-roll insert with one readable action and no text",
 	cover: "high-recognition cover frame with clean title-safe negative space",
-	background: "layerable visual background with restrained detail and subject-safe center",
-	"product-shot": "premium product detail shot with legible material and controlled light",
-	transition: "visual bridge frame designed to connect two scenes through shape or motion",
+	background:
+		"layerable visual background with restrained detail and subject-safe center",
+	"product-shot":
+		"premium product detail shot with legible material and controlled light",
+	transition:
+		"visual bridge frame designed to connect two scenes through shape or motion",
 };
 
 export interface VisualGenerationJob {
