@@ -1,6 +1,4 @@
-import {
-	STICKER_CATEGORIES,
-} from "@/stickers/categories";
+import { isStickerCategory, STICKER_CATEGORIES } from "@/stickers/categories";
 import { STICKER_INTRINSIC_SIZE_FALLBACK } from "@/stickers/intrinsic-size";
 import type { StickerCategory } from "@/stickers/types";
 import { stickersRegistry } from "./registry";
@@ -193,10 +191,12 @@ export async function searchAll({
 		if (result.items.length === 0) {
 			continue;
 		}
-		const category = provider.id as StickerCategory;
+		const category = provider.id;
 		sections.push({
 			id: category,
-			title: STICKER_CATEGORIES[category] ?? provider.id,
+			title: isStickerCategory(category)
+				? STICKER_CATEGORIES[category]
+				: provider.id,
 			items: result.items,
 			hasMore: result.hasMore,
 			layout: "grid",
@@ -261,18 +261,21 @@ export async function browseAll({
 				return null;
 			}
 
-			const category = provider.id as StickerCategory;
-		return {
-			...firstSection,
-			id: category,
-			title: STICKER_CATEGORIES[category] ?? firstSection.title,
-			layout: "row" as const,
-			action: {
-				type: "see-all" as const,
-				category,
-				sectionId: firstSection.id,
-			},
-		};
+			const category = provider.id;
+			if (!isStickerCategory(category) || category === "all") {
+				return null;
+			}
+			return {
+				...firstSection,
+				id: category,
+				title: STICKER_CATEGORIES[category] ?? firstSection.title,
+				layout: "row" as const,
+				action: {
+					type: "see-all" as const,
+					category,
+					sectionId: firstSection.id,
+				},
+			};
 		}),
 	);
 

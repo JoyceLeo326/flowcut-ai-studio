@@ -6,7 +6,6 @@ import { type Label as LabelPrimitive, Slot as SlotPrimitive } from "radix-ui";
 import {
 	Controller,
 	type ControllerProps,
-	type DefaultValues,
 	type FieldPath,
 	type FieldValues,
 	FormProvider,
@@ -34,6 +33,48 @@ type FormProps<
 	storage?: DraftStorage;
 };
 
+function hasSameDraftShape<T>(value: unknown, template: T): value is T {
+	if (template === null) {
+		return value === null;
+	}
+
+	if (typeof template !== "object") {
+		return typeof value === typeof template;
+	}
+
+	if (template instanceof Date) {
+		return value instanceof Date;
+	}
+
+	if (Array.isArray(template)) {
+		if (!Array.isArray(value) || value.length !== template.length) {
+			return false;
+		}
+		return value.every((item, index) =>
+			hasSameDraftShape(item, template[index]),
+		);
+	}
+
+	if (typeof value !== "object" || value === null || Array.isArray(value)) {
+		return false;
+	}
+
+	const templateKeys = Object.keys(template);
+	const valueKeys = Object.keys(value);
+	if (templateKeys.length !== valueKeys.length) {
+		return false;
+	}
+
+	return templateKeys.every((key) => {
+		if (!Reflect.has(value, key)) {
+			return false;
+		}
+		const candidate: unknown = Reflect.get(value, key);
+		const expected: unknown = Reflect.get(template, key);
+		return hasSameDraftShape(candidate, expected);
+	});
+}
+
 function Form<
 	TFieldValues extends FieldValues = FieldValues,
 	TContext = unknown,
@@ -48,6 +89,7 @@ function Form<
 	const persistKeyOnMount = React.useRef(persistKey);
 	const storageOnMount = React.useRef(storage);
 	const resetRef = React.useRef(reset);
+	const getValuesRef = React.useRef(methods.getValues);
 
 	React.useEffect(() => {
 		if (!persistKeyOnMount.current) return;
@@ -55,9 +97,11 @@ function Form<
 		try {
 			const stored = store.getItem(persistKeyOnMount.current);
 			if (stored) {
-				resetRef.current(
-					JSON.parse(stored) as DefaultValues<TFieldValues>,
-				);
+				const parsed: unknown = JSON.parse(stored);
+				const currentValues = getValuesRef.current();
+				if (hasSameDraftShape(parsed, currentValues)) {
+					resetRef.current(parsed);
+				}
 			}
 		} catch {
 			// Storage may be unavailable (private browsing, storage blocked)
@@ -109,8 +153,8 @@ type FormFieldContextValue<
 	name: TName;
 };
 
-const FormFieldContext = React.createContext<FormFieldContextValue>(
-	{} as FormFieldContextValue,
+const FormFieldContext = React.createContext<FormFieldContextValue | null>(
+	null,
 );
 
 const FormField = <
@@ -129,14 +173,16 @@ const FormField = <
 const useFormField = () => {
 	const fieldContext = React.useContext(FormFieldContext);
 	const itemContext = React.useContext(FormItemContext);
-	const { getFieldState, formState } = useFormContext();
-
-	const fieldState = getFieldState(fieldContext.name, formState);
 
 	if (!fieldContext) {
 		throw new Error("useFormField should be used within <FormField>");
 	}
+	if (!itemContext) {
+		throw new Error("useFormField should be used within <FormItem>");
+	}
 
+	const { getFieldState, formState } = useFormContext();
+	const fieldState = getFieldState(fieldContext.name, formState);
 	const { id } = itemContext;
 
 	return {
@@ -153,9 +199,7 @@ type FormItemContextValue = {
 	id: string;
 };
 
-const FormItemContext = React.createContext<FormItemContextValue>(
-	{} as FormItemContextValue,
-);
+const FormItemContext = React.createContext<FormItemContextValue | null>(null);
 
 const FormItem = React.forwardRef<
 	HTMLDivElement,

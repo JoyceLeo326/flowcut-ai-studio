@@ -1,7 +1,12 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
 import type { FrameRate } from "opencut-wasm";
 import { BASE_TIMELINE_PIXELS_PER_SECOND } from "@/timeline/scale";
-import { mediaTime, snapSeekMediaTime, TICKS_PER_SECOND, type MediaTime } from "@/wasm";
+import {
+	mediaTime,
+	snapSeekMediaTime,
+	TICKS_PER_SECOND,
+	type MediaTime,
+} from "@/wasm";
 
 type SeekSource = "ruler" | "tracks";
 
@@ -159,7 +164,8 @@ export class SeekController {
 		if (!isClickGesture({ event, session: this.session })) return false;
 		if (this.config.isSelecting) return false;
 
-		const target = event.target as HTMLElement;
+		const target = event.target;
+		if (!(target instanceof Node)) return false;
 		if (this.config.getPlayheadEl()?.contains(target)) return false;
 
 		if (this.config.getTrackLabelsEl()?.contains(target)) {

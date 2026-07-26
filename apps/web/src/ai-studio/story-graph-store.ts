@@ -905,6 +905,34 @@ export async function appendStoryGraphVersion({
 	return validatedGraph;
 }
 
+export async function appendRestoredStoryGraphVersion({
+	projectId,
+	graph,
+	storage = defaultStoryGraphStorage,
+}: {
+	projectId: string;
+	graph: StoryGraph;
+	storage?: StoryGraphStorageAdapter;
+}): Promise<StoryGraph> {
+	const normalizedProjectId = normalizeProjectId({ projectId });
+	const current = await loadStoryGraph({
+		projectId: normalizedProjectId,
+		storage,
+	});
+	const expectedCurrentVersion = current?.version ?? 0;
+	return appendStoryGraphVersion({
+		projectId: normalizedProjectId,
+		graph: {
+			...graph,
+			projectId: normalizedProjectId,
+			graphId: current?.graphId ?? graph.graphId,
+			version: expectedCurrentVersion + 1,
+		},
+		expectedCurrentVersion,
+		storage,
+	});
+}
+
 export async function deleteStoryGraphHistory({
 	projectId,
 	storage = defaultStoryGraphStorage,

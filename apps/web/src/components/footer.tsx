@@ -31,6 +31,8 @@ const links: CategoryLinks = {
 	],
 };
 
+const categories: readonly Category[] = ["resources", "company"];
+
 export function Footer() {
 	return (
 		<footer className="bg-background border-t">
@@ -57,6 +59,7 @@ export function Footer() {
 								className="text-muted-foreground hover:text-foreground transition-colors"
 								target="_blank"
 								rel="noopener noreferrer"
+								aria-label="OpenCut on GitHub"
 							>
 								<FaGithub className="size-5" />
 							</Link>
@@ -65,6 +68,7 @@ export function Footer() {
 								className="text-muted-foreground hover:text-foreground transition-colors"
 								target="_blank"
 								rel="noopener noreferrer"
+								aria-label="OpenCut on X"
 							>
 								<RiTwitterXLine className="size-5" />
 							</Link>
@@ -73,6 +77,7 @@ export function Footer() {
 								className="text-muted-foreground hover:text-foreground transition-colors"
 								target="_blank"
 								rel="noopener noreferrer"
+								aria-label="OpenCut on Discord"
 							>
 								<RiDiscordFill className="size-5" />
 							</Link>
@@ -80,7 +85,7 @@ export function Footer() {
 					</div>
 
 					<div className="flex items-start justify-start gap-12 py-2">
-						{(Object.keys(links) as Category[]).map((category) => (
+						{categories.map((category) => (
 							<div key={category} className="flex flex-col gap-2">
 								<h3 className="text-foreground font-semibold">
 									{capitalizeFirstLetter({ string: category })}

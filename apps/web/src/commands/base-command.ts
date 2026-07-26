@@ -19,6 +19,8 @@ export function createElementSelectionResult(
 }
 
 export abstract class Command {
+	readonly handlesRipple: boolean = false;
+
 	abstract execute(): CommandResult | undefined;
 
 	undo(): void {

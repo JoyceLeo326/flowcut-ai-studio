@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type SetStateAction,
+} from "react";
 import { SelectionBox } from "@/selection/selection-box";
 import { SelectionContext } from "@/selection/context";
 import { SELECTABLE_ITEM_ATTRIBUTE } from "@/selection/attributes";
@@ -14,10 +21,7 @@ import {
 	selectRange,
 	toggleSelection,
 } from "@/selection/state";
-import type {
-	SelectableSurfaceProps,
-	SelectionState,
-} from "@/selection/types";
+import type { SelectableSurfaceProps, SelectionState } from "@/selection/types";
 import { useBoxSelect } from "@/selection/hooks/use-box-select";
 import { cn } from "@/utils/ui";
 
@@ -30,12 +34,48 @@ export function SelectableSurface({
 	onRevealComplete,
 	onSelectionChange,
 }: SelectableSurfaceProps) {
-	const [selectionState, setSelectionState] = useState<SelectionState>(() =>
-		clearSelection(),
-	);
-	const [highlightedId, setHighlightedId] = useState<string | null>(null);
+	const [selectionModel, setSelectionModel] = useState<{
+		orderedIds: string[];
+		state: SelectionState;
+	}>(() => ({
+		orderedIds,
+		state: clearSelection(),
+	}));
 	const containerRef = useRef<HTMLDivElement>(null);
 	const itemElementsRef = useRef<Map<string, HTMLElement>>(new Map());
+
+	const hasSameOrderedIds =
+		selectionModel.orderedIds.length === orderedIds.length &&
+		selectionModel.orderedIds.every((id, index) => id === orderedIds[index]);
+	if (!hasSameOrderedIds) {
+		setSelectionModel({
+			orderedIds,
+			state: pruneSelection({
+				state: selectionModel.state,
+				orderedIds,
+			}),
+		});
+	}
+
+	const selectionState = selectionModel.state;
+	const setSelectionState = useCallback(
+		(update: SetStateAction<SelectionState>) => {
+			setSelectionModel((model) => {
+				const currentState = pruneSelection({
+					state: model.state,
+					orderedIds,
+				});
+				const nextState =
+					typeof update === "function" ? update(currentState) : update;
+
+				return {
+					orderedIds,
+					state: nextState,
+				};
+			});
+		},
+		[orderedIds],
+	);
 
 	const registerItem = useCallback(
 		(id: string, element: HTMLElement | null) => {
@@ -83,7 +123,7 @@ export function SelectableSurface({
 
 	const clearSelectionState = useCallback(() => {
 		setSelectionState(clearSelection());
-	}, []);
+	}, [setSelectionState]);
 
 	const selectedIdSet = useMemo(
 		() => new Set(selectionState.selectedIds),
@@ -130,7 +170,7 @@ export function SelectableSurface({
 				});
 			});
 		},
-		[orderedIds],
+		[orderedIds, setSelectionState],
 	);
 
 	const selectUnselectedItem = useCallback((id: string) => {
@@ -141,7 +181,7 @@ export function SelectableSurface({
 
 			return replaceSelection({ ids: [id], anchorId: id });
 		});
-	}, []);
+	}, [setSelectionState]);
 
 	const handleItemMouseDown = useCallback(
 		({
@@ -164,7 +204,7 @@ export function SelectableSurface({
 		(change: Parameters<typeof applyBoxSelection>[0]) => {
 			setSelectionState(applyBoxSelection(change));
 		},
-		[],
+		[setSelectionState],
 	);
 
 	const { selectionBox, handleMouseDown, isSelecting, shouldIgnoreClick } =
@@ -198,7 +238,11 @@ export function SelectableSurface({
 				return;
 			}
 
-			if (event.key !== "Enter" && event.key !== " " && event.key !== "Escape") {
+			if (
+				event.key !== "Enter" &&
+				event.key !== " " &&
+				event.key !== "Escape"
+			) {
 				return;
 			}
 
@@ -209,15 +253,6 @@ export function SelectableSurface({
 	);
 
 	useEffect(() => {
-		setSelectionState((state) =>
-			pruneSelection({
-				state,
-				orderedIds,
-			}),
-		);
-	}, [orderedIds]);
-
-	useEffect(() => {
 		onSelectionChange?.(selectionState);
 	}, [onSelectionChange, selectionState]);
 
@@ -226,11 +261,9 @@ export function SelectableSurface({
 			return;
 		}
 
-		setHighlightedId(revealId);
 		getItemElement(revealId)?.scrollIntoView({ block: "center" });
 
 		const timer = setTimeout(() => {
-			setHighlightedId(null);
 			onRevealComplete?.();
 		}, 1500);
 
@@ -238,6 +271,7 @@ export function SelectableSurface({
 	}, [getItemElement, onRevealComplete, revealId]);
 
 	const isBoxSelecting = isSelecting;
+	const highlightedId = revealId;
 
 	const contextValue = useMemo(() => {
 		return {

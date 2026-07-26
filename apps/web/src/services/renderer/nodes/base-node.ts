@@ -1,4 +1,4 @@
-export type BaseNodeParams = object | undefined;
+export type BaseNodeParams = object;
 export type AnyBaseNode = BaseNode<BaseNodeParams, unknown>;
 
 export class BaseNode<
@@ -8,8 +8,8 @@ export class BaseNode<
 	params: Params;
 	resolved: Resolved | null = null;
 
-	constructor(params?: Params) {
-		this.params = params ?? ({} as Params);
+	constructor(params: Params) {
+		this.params = params;
 	}
 
 	children: AnyBaseNode[] = [];

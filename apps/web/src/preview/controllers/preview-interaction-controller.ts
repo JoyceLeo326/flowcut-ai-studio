@@ -37,7 +37,7 @@ type Point = { readonly x: number; readonly y: number };
 
 interface CapturedPointerState {
 	readonly pointerId: number;
-	readonly captureTarget: HTMLElement;
+	readonly captureTarget: Element;
 }
 
 interface PendingGesture extends CapturedPointerState {
@@ -354,7 +354,7 @@ export class PreviewInteractionController {
 			kind: "pending",
 			origin: startPos,
 			pointerId,
-			captureTarget: currentTarget as HTMLElement,
+			captureTarget: currentTarget,
 			topmostHit: hits[0] ?? null,
 			selectedHit: resolvePreferredHit({
 				hits,
@@ -568,17 +568,21 @@ export class PreviewInteractionController {
 			snappedPosition.y - firstElement.initialTransform.position.y;
 
 		this.deps.timeline.previewElements(
-			drag.elements.map(({ trackId, elementId, initialTransform, initialParams }) => ({
-				trackId,
-				elementId,
-				updates: {
-					params: {
-						...initialParams,
-						"transform.positionX": initialTransform.position.x + deltaSnappedX,
-						"transform.positionY": initialTransform.position.y + deltaSnappedY,
+			drag.elements.map(
+				({ trackId, elementId, initialTransform, initialParams }) => ({
+					trackId,
+					elementId,
+					updates: {
+						params: {
+							...initialParams,
+							"transform.positionX":
+								initialTransform.position.x + deltaSnappedX,
+							"transform.positionY":
+								initialTransform.position.y + deltaSnappedY,
+						},
 					},
-				},
-			})),
+				}),
+			),
 		);
 	}
 }

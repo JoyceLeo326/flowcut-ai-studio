@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	AlertTriangle,
 	ArrowDown,
 	ArrowUp,
 	BadgeCheck,
@@ -9,10 +10,15 @@ import {
 	GitMerge,
 	Plus,
 	Route,
+	ListChecks,
 	Timer,
 	Trash2,
+	Undo2,
 } from "lucide-react";
 import { useMemo, useState, type FormEvent } from "react";
+import { toast } from "sonner";
+import { ApplyStoryGraphTimelineSyncCommand } from "@/ai-studio/apply-story-graph-timeline-sync-command";
+import { inspectStoryGraphTimelineSync } from "@/ai-studio/story-graph-timeline-sync";
 import {
 	createStoryGraphNode,
 	deleteStoryGraphNode,
@@ -25,7 +31,9 @@ import {
 } from "@/ai-studio/story-graph-model";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useEditor } from "@/editor/use-editor";
 import { cn } from "@/utils/ui";
+import { mediaTimeFromSeconds } from "@/wasm";
 
 const EVIDENCE_LABELS: Record<StoryGraphEvidenceState, string> = {
 	"timeline-and-media": "时间线 + 素材",
@@ -61,14 +69,43 @@ export function VisionCutLiveStoryGraph({
 	onOpenDirector,
 	onGraphChange,
 }: VisionCutLiveStoryGraphProps) {
-	const [workingGraph, setWorkingGraph] = useState(graph);
+	const editor = useEditor();
+	const scene = useEditor((value) => value.scenes.getActiveSceneOrNull());
+	const selectedTimelineElements = useEditor((value) =>
+		value.selection.getSelectedElements(),
+	);
+	const workingGraph = graph;
 	const [selectedId, setSelectedId] = useState<string | null>(
 		graph.nodes[0]?.id ?? null,
 	);
 	const [newLabel, setNewLabel] = useState("");
+	const [syncReviewed, setSyncReviewed] = useState(false);
+	const [appliedSyncVersion, setAppliedSyncVersion] = useState<number | null>(
+		null,
+	);
+	const [appliedSyncCommand, setAppliedSyncCommand] =
+		useState<ApplyStoryGraphTimelineSyncCommand | null>(null);
 
+	const timelineSelectedNodeId = useMemo(() => {
+		const selectedElementIds = new Set(
+			selectedTimelineElements.map((reference) => reference.elementId),
+		);
+		if (selectedElementIds.size === 0) return null;
+		return (
+			workingGraph.nodes.find((node) =>
+				node.provenance.timelineElementIds.some((elementId) =>
+					selectedElementIds.has(elementId),
+				),
+			)?.id ?? null
+		);
+	}, [selectedTimelineElements, workingGraph.nodes]);
+	const effectiveSelectedId =
+		timelineSelectedNodeId ??
+		(workingGraph.nodes.some((node) => node.id === selectedId)
+			? selectedId
+			: (workingGraph.nodes[0]?.id ?? null));
 	const selectedIndex = workingGraph.nodes.findIndex(
-		(node) => node.id === selectedId,
+		(node) => node.id === effectiveSelectedId,
 	);
 	const selectedNode =
 		selectedIndex >= 0 ? workingGraph.nodes[selectedIndex] : null;
@@ -77,6 +114,44 @@ export function VisionCutLiveStoryGraph({
 			workingGraph.nodes.filter((node) => node.timelineStart !== null).length,
 		[workingGraph.nodes],
 	);
+	const syncInspection = useMemo(
+		() =>
+			scene
+				? inspectStoryGraphTimelineSync({
+						graph: workingGraph,
+						tracks: scene.tracks,
+						bookmarks: scene.bookmarks,
+					})
+				: null,
+		[scene, workingGraph],
+	);
+
+	function handleSelectNode(node: StoryGraphNode) {
+		setSelectedId(node.id);
+		if (scene) {
+			const elementIds = new Set(node.provenance.timelineElementIds);
+			const trackIds = new Set(node.provenance.trackIds);
+			const references = [
+				scene.tracks.main,
+				...scene.tracks.overlay,
+				...scene.tracks.audio,
+			].flatMap((track) =>
+				trackIds.has(track.id)
+					? track.elements
+							.filter((element) => elementIds.has(element.id))
+							.map((element) => ({ trackId: track.id, elementId: element.id }))
+					: [],
+			);
+			if (references.length > 0) {
+				editor.selection.setSelectedElements({ elements: references });
+			}
+		}
+		if (node.timelineStart !== null) {
+			editor.playback.seek({
+				time: mediaTimeFromSeconds({ seconds: node.timelineStart }),
+			});
+		}
+	}
 
 	function commit({
 		nextGraph,
@@ -85,8 +160,10 @@ export function VisionCutLiveStoryGraph({
 		nextGraph: StoryGraph;
 		nextSelectedId?: string | null;
 	}) {
-		setWorkingGraph(nextGraph);
 		onGraphChange?.(nextGraph);
+		setSyncReviewed(false);
+		setAppliedSyncVersion(null);
+		setAppliedSyncCommand(null);
 		if (nextSelectedId !== undefined) setSelectedId(nextSelectedId);
 	}
 
@@ -156,6 +233,38 @@ export function VisionCutLiveStoryGraph({
 		});
 	}
 
+	function handleApplyTimelineSync() {
+		if (!syncReviewed || !syncInspection?.canApply || !scene) return;
+		const command = new ApplyStoryGraphTimelineSyncCommand({
+			graph: workingGraph,
+			sceneId: scene.id,
+		});
+		editor.command.execute({
+			command,
+		});
+		setAppliedSyncVersion(workingGraph.version);
+		setAppliedSyncCommand(command);
+		toast.success("故事顺序已同步到时间线", {
+			description: "同轨连续片段已原子重排，可以一次撤销。",
+		});
+	}
+
+	const canUndoTimelineSync =
+		appliedSyncCommand !== null &&
+		editor.command.isLatest(appliedSyncCommand) &&
+		scene?.id === appliedSyncCommand.sceneId;
+
+	function handleUndoTimelineSync() {
+		if (!appliedSyncCommand || !canUndoTimelineSync) {
+			toast.error("这次同步已不是当前场景的最近一次编辑，不能越过后续修改撤销。");
+			return;
+		}
+		editor.command.undo();
+		setAppliedSyncVersion(null);
+		setAppliedSyncCommand(null);
+		toast.success("已撤销故事顺序同步");
+	}
+
 	return (
 		<div className="space-y-4 pb-5">
 			<header className="border-b pb-3">
@@ -208,7 +317,7 @@ export function VisionCutLiveStoryGraph({
 			) : (
 				<section className="space-y-2" aria-label="故事节点">
 					{workingGraph.nodes.map((node, index) => {
-						const selected = node.id === selectedId;
+						const selected = node.id === effectiveSelectedId;
 						return (
 							<button
 								key={node.id}
@@ -220,7 +329,7 @@ export function VisionCutLiveStoryGraph({
 										? "border-foreground bg-muted/60"
 										: "hover:bg-muted/35",
 								)}
-								onClick={() => setSelectedId(node.id)}
+								onClick={() => handleSelectNode(node)}
 							>
 								<span className="flex size-8 shrink-0 items-center justify-center rounded-[6px] border font-mono text-[10px] font-semibold">
 									{String(index + 1).padStart(2, "0")}
@@ -308,6 +417,87 @@ export function VisionCutLiveStoryGraph({
 					>
 						<Trash2 className="size-4" />
 					</Button>
+				</div>
+			</section>
+
+			<section className="rounded-[8px] border p-3">
+				<div className="flex items-start gap-3">
+					<ListChecks className="mt-0.5 size-4 shrink-0" />
+					<div className="min-w-0 flex-1">
+						<h3 className="text-[10px] font-semibold">同步到时间线</h3>
+						<p className="mt-1 text-[9px] leading-relaxed text-muted-foreground">
+							上面的前移、后移、合并和删除先保存为结构草案，不会静默修改成片。
+						</p>
+					</div>
+				</div>
+				{syncReviewed && syncInspection ? (
+					<div className="mt-3 border-t pt-3">
+						{syncInspection.canApply ? (
+							<p className="text-[9px] leading-relaxed text-emerald-700">
+								将按故事图顺序重排 {syncInspection.orderedElementIds.length}{" "}
+								个同轨连续片段，目标区间{" "}
+								{formatTime(syncInspection.span?.startSeconds ?? 0)} -{" "}
+								{formatTime(syncInspection.span?.endSeconds ?? 0)}。
+							</p>
+						) : (
+							<div className="space-y-1.5">
+								{syncInspection.blockers.map((blocker) => (
+									<p
+										key={blocker}
+										className="flex gap-2 text-[9px] leading-relaxed text-amber-700"
+									>
+										<AlertTriangle className="mt-0.5 size-3 shrink-0" />
+										{blocker}
+									</p>
+								))}
+							</div>
+						)}
+					</div>
+				) : null}
+				<div className="mt-3 flex gap-2">
+					{!syncReviewed ? (
+						<Button
+							variant="outline"
+							className="h-11 w-full"
+							onClick={() => setSyncReviewed(true)}
+						>
+							<ListChecks className="size-4" />
+							检查同步影响
+						</Button>
+					) : appliedSyncVersion === workingGraph.version ? (
+						<Button
+							variant="outline"
+							className="h-11 w-full"
+							disabled={!canUndoTimelineSync}
+							onClick={handleUndoTimelineSync}
+							title={
+								canUndoTimelineSync
+									? "撤销本次时间线同步"
+									: "已有后续编辑或场景已切换，不能在这里撤销"
+							}
+						>
+							<Undo2 className="size-4" />
+							撤销时间线同步
+						</Button>
+					) : (
+						<>
+							<Button
+								className="h-11 min-w-0 flex-1"
+								disabled={!syncInspection?.canApply}
+								onClick={handleApplyTimelineSync}
+							>
+								<Route className="size-4" />
+								应用到时间线
+							</Button>
+							<Button
+								variant="outline"
+								className="h-11"
+								onClick={() => setSyncReviewed(false)}
+							>
+								返回草案
+							</Button>
+						</>
+					)}
 				</div>
 			</section>
 

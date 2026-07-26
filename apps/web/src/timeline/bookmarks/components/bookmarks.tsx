@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { EditorCore } from "@/core";
 import { useEditor } from "@/editor/use-editor";
 import type { BookmarkDragState } from "../hooks/use-bookmark-drag";
@@ -96,11 +96,21 @@ export function TimelineBookmarksRow({
 				type="button"
 				onWheel={handleWheel}
 				onClick={(event) => {
-					if (!event.currentTarget.contains(event.target as Node)) return;
+					if (
+						!(event.target instanceof Node) ||
+						!event.currentTarget.contains(event.target)
+					) {
+						return;
+					}
 					handleTimelineContentClick(event);
 				}}
 				onMouseDown={(event) => {
-					if (!event.currentTarget.contains(event.target as Node)) return;
+					if (
+						!(event.target instanceof Node) ||
+						!event.currentTarget.contains(event.target)
+					) {
+						return;
+					}
 					handleRulerMouseDown(event);
 					handleRulerTrackingMouseDown(event);
 				}}
@@ -276,6 +286,7 @@ function TimelineBookmark({
 				onOpenAutoFocus={(event) => event.preventDefault()}
 			>
 				<BookmarkPopoverContent
+					key={bookmark.color ?? DEFAULT_TIMELINE_BOOKMARK_COLOR}
 					bookmark={bookmark}
 					time={time}
 					timelineDuration={duration}
@@ -303,14 +314,6 @@ function BookmarkPopoverContent({
 			.replace("#", "")
 			.toUpperCase(),
 	);
-
-	useEffect(() => {
-		setDraftColorHex(
-			(bookmark.color ?? DEFAULT_TIMELINE_BOOKMARK_COLOR)
-				.replace("#", "")
-				.toUpperCase(),
-		);
-	}, [bookmark.color]);
 
 	const handleRemove = () => {
 		editor.scenes.removeBookmark({ time });

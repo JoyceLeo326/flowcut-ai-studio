@@ -2,51 +2,80 @@
 
 import {
 	AlertCircle,
-	ArrowRight,
 	Ban,
 	BookOpenText,
+	Bot,
 	Check,
 	CheckCircle2,
 	CircleDashed,
-	Clock3,
 	Clapperboard,
+	Clock3,
 	Database,
-	GitBranch,
+	FileJson2,
+	GitMerge,
 	LoaderCircle,
 	Music2,
 	Palette,
 	Play,
+	RefreshCcw,
 	RotateCcw,
 	Scissors,
 	ShieldCheck,
-	Sparkles,
+	Square,
 	Target,
 	TrendingUp,
+	Video,
 	X,
 	type LucideIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	approveAgentTask,
-	completeAgentTask,
-	failAgentTask,
 	rejectAgentTask,
-	retryAgentTask,
-	startAgentTask,
 	type AgentEvidenceKind,
 	type AgentOrchestration,
 	type AgentRole,
 	type AgentTask,
-	type AgentTaskStatus,
 } from "@/ai-studio/agent-orchestrator";
+import {
+	AGENT_RUNTIME_DEFAULT_ROLES,
+	createAgentRuntimeSession,
+	executeAgentRuntimeSession,
+	resolveAgentRuntimeRoleSelection,
+	retryAgentRuntimeRuns,
+	type AgentModelInvocationResult,
+	type AgentModelInvoker,
+	type AgentRuntimeAction,
+	type AgentRuntimeEvidenceSources,
+	type AgentRuntimeModelBinding,
+	type AgentRuntimeRun,
+	type AgentRuntimeRunStatus,
+	type AgentRuntimeSession,
+	type AgentRuntimeSessionStatus,
+	type AgentRuntimeUpdate,
+} from "@/ai-studio/agent-runtime";
+import {
+	IndexedDBAgentSessionStorage,
+	listProjectAgentRuntimeSessions,
+	saveAgentRuntimeSession,
+} from "@/ai-studio/agent-session-store";
+import {
+	isRemoteModelProvider,
+	loadModelProviderSession,
+	type RemoteModelProvider,
+	type SessionProviderConnection,
+} from "@/ai-studio/model-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/ui";
 
 export interface VisionCutAgentOrchestrationProps {
 	orchestration: AgentOrchestration;
 	onChange: (next: AgentOrchestration) => void;
+	evidenceSources?: AgentRuntimeEvidenceSources;
 	disabled?: boolean;
 }
+
+type RuntimePreference = "local" | "byok";
 
 interface RolePresentation {
 	label: string;
@@ -56,89 +85,97 @@ interface RolePresentation {
 
 interface StatusPresentation {
 	label: string;
-	icon: LucideIcon;
 	className: string;
+	icon: LucideIcon;
 }
 
 const ROLE_PRESENTATION: Record<AgentRole, RolePresentation> = {
 	director: {
 		label: "导演",
-		description: "把创作意图与已引用证据整理成制作简报",
+		description: "把创作意图与证据整理成制作方向。",
 		icon: Clapperboard,
 	},
 	story: {
 		label: "故事",
-		description: "在导演简报基础上组织可审阅的叙事结构",
+		description: "组织叙事结构，不描述证据之外的素材。",
 		icon: BookOpenText,
+	},
+	camera: {
+		label: "镜头",
+		description: "依据场景或视觉证据规划构图、运动与镜头覆盖。",
+		icon: Video,
 	},
 	editor: {
 		label: "剪辑",
-		description: "依据故事方案与媒体证据提出可逆剪辑决策",
+		description: "提出带证据引用的可逆剪辑决策。",
 		icon: Scissors,
 	},
 	color: {
 		label: "调色",
-		description: "根据意图与视觉证据规划色彩处理",
+		description: "基于视觉证据提出色彩处理方案。",
 		icon: Palette,
 	},
 	sound: {
 		label: "声音",
-		description: "根据音频证据规划对白、音乐、环境与混音",
+		description: "基于音频证据规划对白、音乐与混音。",
 		icon: Music2,
 	},
 	growth: {
 		label: "增长",
-		description: "围绕受众与发布目标规划包装和分发",
+		description: "围绕受众和平台规划包装与分发。",
 		icon: TrendingUp,
 	},
 };
 
-const STATUS_PRESENTATION: Record<AgentTaskStatus, StatusPresentation> = {
-	blocked: {
-		label: "被阻塞",
-		icon: AlertCircle,
-		className:
-			"border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-	},
-	"awaiting-approval": {
-		label: "待审批",
+const RUN_STATUS: Record<AgentRuntimeRunStatus, StatusPresentation> = {
+	queued: {
+		label: "排队",
+		className: "border-border text-muted-foreground",
 		icon: Clock3,
-		className: "border-border bg-muted/35 text-muted-foreground",
-	},
-	ready: {
-		label: "可运行",
-		icon: Play,
-		className: "border-foreground/25 bg-foreground/5 text-foreground",
 	},
 	running: {
 		label: "运行中",
+		className: "border-sky-500/40 text-sky-700 dark:text-sky-300",
 		icon: LoaderCircle,
-		className: "border-sky-500/35 bg-sky-500/10 text-sky-700 dark:text-sky-300",
 	},
 	succeeded: {
-		label: "计划已生成",
+		label: "模型完成",
+		className: "border-emerald-500/40 text-emerald-700 dark:text-emerald-300",
 		icon: CheckCircle2,
-		className:
-			"border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+	},
+	"local-evidence-only": {
+		label: "仅本地证据",
+		className: "border-cyan-500/40 text-cyan-700 dark:text-cyan-300",
+		icon: Database,
 	},
 	failed: {
 		label: "失败",
+		className: "border-destructive/40 text-destructive",
 		icon: AlertCircle,
-		className: "border-destructive/35 bg-destructive/10 text-destructive",
 	},
-	rejected: {
-		label: "已拒绝",
-		icon: Ban,
-		className: "border-border bg-muted text-muted-foreground",
+	aborted: {
+		label: "已取消",
+		className: "border-amber-500/40 text-amber-700 dark:text-amber-300",
+		icon: Square,
 	},
 };
 
-const EVIDENCE_KIND_LABELS: Record<AgentEvidenceKind, string> = {
+const SESSION_STATUS: Record<AgentRuntimeSessionStatus, string> = {
+	queued: "等待运行",
+	running: "正在运行",
+	succeeded: "全部完成",
+	"local-evidence-only": "本地证据整理完成",
+	partial: "部分完成",
+	failed: "运行失败",
+	aborted: "已取消",
+};
+
+const EVIDENCE_LABELS: Record<AgentEvidenceKind, string> = {
 	"intent-spec": "创作意图",
 	"publication-target": "发布目标",
 	"asset-metadata": "素材元数据",
 	"audio-metadata": "音频元数据",
-	"scene-analysis": "场景分析",
+	"scene-analysis": "场景候选",
 	transcript: "转写文本",
 	"visual-analysis": "视觉分析",
 	"audio-analysis": "音频分析",
@@ -149,45 +186,39 @@ const EVIDENCE_KIND_LABELS: Record<AgentEvidenceKind, string> = {
 	"human-note": "人工备注",
 };
 
-const LIMITATION_TRANSLATIONS: Record<string, string> = {
-	"This task produces a reviewable plan reference only; it does not analyze or mutate media.":
-		"此任务只生成可审阅的计划引用，不分析或修改媒体。",
-	"Local rules can organize intent and evidence, but cannot claim creative model judgment.":
-		"本地规则可以组织意图和证据，但不会冒充大模型的创意判断。",
-	"Without transcript or scene evidence, story suggestions must remain conceptual and must not describe unseen footage.":
-		"缺少转写或场景证据时，故事建议只能停留在概念层，不能描述未读取的画面。",
-	"No cut, trim, timing, or footage-quality claim is valid without referenced media evidence.":
-		"没有媒体证据时，不会声称已经判断切点、修剪、节奏或素材质量。",
-	"The task cannot claim exposure, palette, skin-tone, or grading findings without imported visual evidence.":
-		"没有导入视觉证据时，不会声称已经判断曝光、色板、肤色或调色问题。",
-	"The task cannot claim silence, loudness, speech quality, or music fit without cited audio evidence.":
-		"没有音频证据时，不会声称已经判断静音、响度、语音质量或音乐适配度。",
-	"The task cannot claim predicted retention or virality without cited performance evidence.":
-		"没有表现数据时，不会声称已经预测留存或传播效果。",
-};
+const ACTION_STATUS = {
+	eligible: {
+		label: "证据合格",
+		className: "text-emerald-700 dark:text-emerald-300",
+	},
+	"review-only": {
+		label: "仅供审阅",
+		className: "text-muted-foreground",
+	},
+	blocked: {
+		label: "证据不足",
+		className: "text-amber-700 dark:text-amber-300",
+	},
+} as const;
 
-function transitionTimestamp({
-	orchestration,
-	offset = 1,
-}: {
-	orchestration: AgentOrchestration;
-	offset?: number;
-}): string {
-	const updatedAt = Date.parse(orchestration.updatedAt);
-	const baseline = Number.isFinite(updatedAt) ? updatedAt : 0;
-	return new Date(Math.max(Date.now(), baseline) + offset).toISOString();
+const DEFAULT_SELECTED_ROLES = new Set<AgentRole>(AGENT_RUNTIME_DEFAULT_ROLES);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function errorMessage(error: unknown): string {
-	return error instanceof Error ? error.message : "本地状态转换失败。";
+	return error instanceof Error ? error.message : "运行时发生未知错误。";
 }
 
-function localArtifactReference(outputId: string): string {
-	return `local-rule-result:${outputId}`;
+function transitionTimestamp(orchestration: AgentOrchestration): string {
+	const updatedAt = Date.parse(orchestration.updatedAt);
+	const baseline = Number.isFinite(updatedAt) ? updatedAt : 0;
+	return new Date(Math.max(Date.now(), baseline + 1)).toISOString();
 }
 
 function formatTime(value: string | null): string {
-	if (value === null) return "尚未决定";
+	if (value === null) return "尚未结束";
 	const date = new Date(value);
 	if (Number.isNaN(date.getTime())) return value;
 	return new Intl.DateTimeFormat("zh-CN", {
@@ -195,21 +226,161 @@ function formatTime(value: string | null): string {
 		day: "numeric",
 		hour: "2-digit",
 		minute: "2-digit",
+		second: "2-digit",
 	}).format(date);
 }
 
-function StatusBadge({ status }: { status: AgentTaskStatus }) {
-	const presentation = STATUS_PRESENTATION[status];
-	const Icon = presentation.icon;
+function formatDuration(value: number | null): string {
+	if (value === null) return "计时中";
+	if (value < 1_000) return `${value} ms`;
+	return `${(value / 1_000).toFixed(1)} s`;
+}
 
+function createSessionNonce(): string {
+	const random =
+		typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+			? crypto.randomUUID()
+			: Math.random().toString(36).slice(2);
+	return `${Date.now()}-${random}`;
+}
+
+function parseCompletionPayload(
+	payload: unknown,
+): AgentModelInvocationResult | null {
+	if (!isRecord(payload) || typeof payload.ok !== "boolean") return null;
+	if (payload.ok) {
+		if (typeof payload.text !== "string") return null;
+		const usage = isRecord(payload.usage)
+			? {
+					...(typeof payload.usage.inputTokens === "number"
+						? { inputTokens: payload.usage.inputTokens }
+						: {}),
+					...(typeof payload.usage.outputTokens === "number"
+						? { outputTokens: payload.usage.outputTokens }
+						: {}),
+					...(typeof payload.usage.totalTokens === "number"
+						? { totalTokens: payload.usage.totalTokens }
+						: {}),
+				}
+			: undefined;
+		return {
+			ok: true,
+			text: payload.text,
+			...(usage === undefined ? {} : { usage }),
+		};
+	}
+	if (
+		!isRecord(payload.error) ||
+		typeof payload.error.code !== "string" ||
+		typeof payload.error.message !== "string" ||
+		typeof payload.error.retryable !== "boolean"
+	) {
+		return null;
+	}
+	return {
+		ok: false,
+		error: {
+			code: payload.error.code,
+			message: payload.error.message,
+			retryable: payload.error.retryable,
+		},
+	};
+}
+
+function createByokInvoker({
+	provider,
+	connection,
+}: {
+	provider: RemoteModelProvider;
+	connection: SessionProviderConnection;
+}): AgentModelInvoker {
+	const apiKey = connection.apiKey;
+	return async (request) => {
+		try {
+			const response = await fetch("/api/ai/complete", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				cache: "no-store",
+				signal: request.signal,
+				body: JSON.stringify({
+					provider,
+					apiKey,
+					model: connection.model,
+					prompt: request.prompt,
+					systemPrompt: request.systemPrompt,
+					maxOutputTokens: 1_400,
+					purpose: "completion",
+				}),
+			});
+			const payload: unknown = await response.json().catch(() => null);
+			const parsed = parseCompletionPayload(payload);
+			if (parsed !== null) return parsed;
+			return {
+				ok: false,
+				error: {
+					code: "invalid-runtime-response",
+					message: "模型接口返回了无法识别的结果。",
+					retryable: response.status >= 500,
+				},
+			};
+		} catch (error) {
+			if (
+				request.signal.aborted ||
+				(error instanceof Error && error.name === "AbortError")
+			) {
+				throw error;
+			}
+			return {
+				ok: false,
+				error: {
+					code: "model-request-failed",
+					message: errorMessage(error),
+					retryable: true,
+				},
+			};
+		}
+	};
+}
+
+function resolveModelBinding({
+	preference,
+}: {
+	preference: RuntimePreference;
+}): AgentRuntimeModelBinding | undefined {
+	if (preference === "local") return undefined;
+	const providerSession = loadModelProviderSession();
+	if (!isRemoteModelProvider(providerSession.selectedProvider)) {
+		throw new Error("当前没有选中 BYOK 模型，请先在模型页连接提供商。");
+	}
+	const connection =
+		providerSession.connections[providerSession.selectedProvider];
+	if (connection === undefined) {
+		throw new Error("当前模型没有会话级 API Key，请先在模型页保存连接。");
+	}
+	return {
+		provider: providerSession.selectedProvider,
+		model: connection.model,
+		invoke: createByokInvoker({
+			provider: providerSession.selectedProvider,
+			connection,
+		}),
+	};
+}
+
+function StatusBadge({ status }: { status: AgentRuntimeRunStatus }) {
+	const presentation = RUN_STATUS[status];
+	const Icon = presentation.icon;
 	return (
 		<span
 			className={cn(
-				"inline-flex min-h-6 shrink-0 items-center gap-1 rounded-[5px] border px-2 text-[11px] font-medium",
+				"inline-flex min-h-6 shrink-0 items-center gap-1 rounded-[5px] border px-2 text-[10px] font-medium",
 				presentation.className,
 			)}
 		>
-			<Icon className="size-3.5" aria-hidden="true" />
+			<Icon
+				className={cn("size-3.5", status === "running" && "animate-spin")}
+				aria-hidden="true"
+			/>
 			{presentation.label}
 		</span>
 	);
@@ -230,227 +401,237 @@ function SectionLabel({
 	);
 }
 
-function AgentTaskRow({
+function ActionRow({ action }: { action: AgentRuntimeAction }) {
+	const status = ACTION_STATUS[action.applicability];
+	return (
+		<div className="border-t py-2.5 first:border-t-0">
+			<div className="flex min-w-0 items-start justify-between gap-3">
+				<div className="min-w-0">
+					<p className="text-[11px] font-medium">{action.title}</p>
+					<p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+						{action.description}
+					</p>
+				</div>
+				<span
+					className={cn("shrink-0 text-[9px] font-medium", status.className)}
+				>
+					{status.label}
+				</span>
+			</div>
+			{action.evidenceIds.length > 0 ? (
+				<p className="mt-1.5 break-all font-mono text-[9px] text-muted-foreground">
+					证据：{action.evidenceIds.join(" · ")}
+				</p>
+			) : null}
+			{action.blockers.length > 0 ? (
+				<ul className="mt-1.5 space-y-1 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+					{action.blockers.map((blocker) => (
+						<li key={blocker}>{blocker}</li>
+					))}
+				</ul>
+			) : null}
+		</div>
+	);
+}
+
+function RuntimeAudit({ run }: { run: AgentRuntimeRun }) {
+	const attempt = run.attempts.at(-1);
+	if (attempt === undefined) {
+		return (
+			<p className="text-[10px] text-muted-foreground">
+				尚未执行，未产生 Prompt/Response 审计记录。
+			</p>
+		);
+	}
+	return (
+		<div>
+			<div className="grid gap-2 text-[10px] sm:grid-cols-2">
+				<p>
+					<span className="text-muted-foreground">提供方：</span>
+					{attempt.provider} / {attempt.model}
+				</p>
+				<p>
+					<span className="text-muted-foreground">耗时：</span>
+					{formatDuration(attempt.durationMs)}
+				</p>
+				<p>
+					<span className="text-muted-foreground">开始：</span>
+					{formatTime(attempt.startedAt)}
+				</p>
+				<p>
+					<span className="text-muted-foreground">结束：</span>
+					{formatTime(attempt.endedAt)}
+				</p>
+			</div>
+			<details className="mt-2 border-t pt-2">
+				<summary className="min-h-8 cursor-pointer text-[10px] font-medium">
+					查看脱敏 Prompt / Response
+				</summary>
+				<div className="mt-2 grid gap-2">
+					<pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words bg-muted/30 p-2 text-[9px] leading-relaxed">
+						{attempt.promptAudit}
+					</pre>
+					<pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words bg-muted/30 p-2 text-[9px] leading-relaxed">
+						{attempt.responseAudit ?? "没有保存模型响应。"}
+					</pre>
+				</div>
+			</details>
+		</div>
+	);
+}
+
+function AgentRow({
 	task,
-	orchestration,
-	onChange,
+	runtimeRun,
+	selected,
 	disabled,
+	executing,
+	orchestration,
+	onToggle,
+	onChange,
+	onRetry,
 }: {
 	task: AgentTask;
-	orchestration: AgentOrchestration;
-	onChange: (next: AgentOrchestration) => void;
+	runtimeRun: AgentRuntimeRun | null;
+	selected: boolean;
 	disabled: boolean;
+	executing: boolean;
+	orchestration: AgentOrchestration;
+	onToggle: (role: AgentRole) => void;
+	onChange: (next: AgentOrchestration) => void;
+	onRetry: (runId: string) => Promise<void>;
 }) {
-	const role = ROLE_PRESENTATION[task.role];
-	const RoleIcon = role.icon;
-	const [rejectionOpen, setRejectionOpen] = useState(false);
+	const presentation = ROLE_PRESENTATION[task.role];
+	const RoleIcon = presentation.icon;
+	const [showReject, setShowReject] = useState(false);
 	const [rejectionNote, setRejectionNote] = useState("");
 	const [actionError, setActionError] = useState<string | null>(null);
-	const dependencies = task.dependencyTaskIds
-		.map((taskId) =>
-			orchestration.tasks.find((candidate) => candidate.taskId === taskId),
-		)
-		.filter((candidate): candidate is AgentTask => candidate !== undefined);
-	const evidence = task.inputEvidenceIds
-		.map((evidenceId) =>
-			orchestration.evidence.find(
-				(candidate) => candidate.evidenceId === evidenceId,
-			),
-		)
-		.filter((candidate) => candidate !== undefined);
 	const canDecide = task.approvalGate.status === "pending";
-	const canRetry =
-		task.status === "failed" &&
-		task.failure?.retryable === true &&
-		task.retryCount < task.maxRetries;
+	const retryable =
+		runtimeRun !== null &&
+		(runtimeRun.status === "failed" || runtimeRun.status === "aborted") &&
+		runtimeRun.attempts.at(-1)?.failure?.retryable === true &&
+		runtimeRun.retryCount < runtimeRun.maxRetries;
 
-	const emit = (next: AgentOrchestration) => {
-		setActionError(null);
-		onChange(next);
-	};
-
-	const handleApprove = () => {
+	const approve = () => {
 		try {
-			emit(
+			onChange(
 				approveAgentTask({
 					orchestration,
 					taskId: task.taskId,
 					approvedBy: "local-user",
-					at: transitionTimestamp({ orchestration }),
-					note: "用户在 Multi-Agent 工作台明确批准此任务。",
+					at: transitionTimestamp(orchestration),
+					note: "用户批准该角色生成可审阅计划。",
 				}),
 			);
+			setActionError(null);
 		} catch (error) {
 			setActionError(errorMessage(error));
 		}
 	};
 
-	const handleReject = () => {
+	const reject = () => {
 		const note = rejectionNote.trim();
 		if (!note) {
-			setActionError("请先填写拒绝原因，便于后续版本理解这次决定。");
+			setActionError("请填写拒绝原因。");
 			return;
 		}
 		try {
-			emit(
+			onChange(
 				rejectAgentTask({
 					orchestration,
 					taskId: task.taskId,
 					rejectedBy: "local-user",
-					at: transitionTimestamp({ orchestration }),
+					at: transitionTimestamp(orchestration),
 					note,
 				}),
 			);
-			setRejectionOpen(false);
+			setShowReject(false);
 			setRejectionNote("");
-		} catch (error) {
-			setActionError(errorMessage(error));
-		}
-	};
-
-	const handleRun = () => {
-		let started: AgentOrchestration | null = null;
-		try {
-			started = startAgentTask({
-				orchestration,
-				taskId: task.taskId,
-				at: transitionTimestamp({ orchestration }),
-			});
-			const startedTask = started.tasks.find(
-				(candidate) => candidate.taskId === task.taskId,
-			);
-			if (startedTask === undefined) {
-				throw new Error("运行后的任务状态不存在。");
-			}
-			const completed = completeAgentTask({
-				orchestration: started,
-				taskId: task.taskId,
-				at: transitionTimestamp({ orchestration: started }),
-				outputs: startedTask.outputReferences.map((output) => ({
-					outputId: output.outputId,
-					artifactReference: localArtifactReference(output.outputId),
-					origin: "local-rule-result" as const,
-				})),
-			});
-			emit(completed);
-		} catch (error) {
-			const message = errorMessage(error);
-			if (started !== null) {
-				try {
-					emit(
-						failAgentTask({
-							orchestration: started,
-							taskId: task.taskId,
-							at: transitionTimestamp({ orchestration: started }),
-							code: "local-rule-runtime-error",
-							message,
-							retryable: true,
-						}),
-					);
-				} catch (failureError) {
-					setActionError(
-						`${message}；记录失败状态时又发生：${errorMessage(failureError)}`,
-					);
-				}
-			} else {
-				setActionError(message);
-			}
-		}
-	};
-
-	const handleRetry = () => {
-		try {
-			emit(
-				retryAgentTask({
-					orchestration,
-					taskId: task.taskId,
-					at: transitionTimestamp({ orchestration }),
-				}),
-			);
+			setActionError(null);
 		} catch (error) {
 			setActionError(errorMessage(error));
 		}
 	};
 
 	return (
-		<article
-			className="px-3 py-4 sm:px-4"
-			aria-labelledby={`agent-${task.role}`}
-		>
+		<article className="border-t px-3 py-4 first:border-t-0 sm:px-4">
 			<div className="flex min-w-0 items-start gap-3">
-				<div className="flex size-10 shrink-0 items-center justify-center rounded-[7px] border bg-muted/35">
+				<label className="flex min-h-11 shrink-0 cursor-pointer items-center">
+					<input
+						type="checkbox"
+						checked={selected}
+						disabled={disabled || executing}
+						className="size-4 accent-cyan-500"
+						aria-label={`选择${presentation.label} Agent`}
+						onChange={() => onToggle(task.role)}
+					/>
+				</label>
+				<div className="flex size-10 shrink-0 items-center justify-center rounded-[7px] border bg-muted/30">
 					<RoleIcon className="size-4.5" aria-hidden="true" />
 				</div>
 				<div className="min-w-0 flex-1">
 					<div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
 						<div className="min-w-0">
-							<h3 id={`agent-${task.role}`} className="text-sm font-semibold">
-								{role.label} Agent
+							<h3 className="text-sm font-semibold">
+								{presentation.label} Agent
 							</h3>
-							<p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-								{role.description}
+							<p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+								{presentation.description}
 							</p>
 						</div>
-						<StatusBadge status={task.status} />
+						{runtimeRun ? (
+							<StatusBadge status={runtimeRun.status} />
+						) : (
+							<span className="text-[10px] text-muted-foreground">
+								尚无运行记录
+							</span>
+						)}
 					</div>
 				</div>
 			</div>
 
-			<div className="mt-4 grid gap-x-5 gap-y-4 sm:grid-cols-2">
+			<div className="mt-4 grid gap-4 sm:grid-cols-2">
 				<section>
-					<SectionLabel icon={GitBranch}>任务依赖</SectionLabel>
-					<div className="mt-1 space-y-1.5">
-						{dependencies.length === 0 ? (
-							<p className="text-[11px] text-muted-foreground">
-								无前置任务，可独立审批。
-							</p>
-						) : (
-							dependencies.map((dependency) => {
-								const DependencyIcon = ROLE_PRESENTATION[dependency.role].icon;
-								return (
-									<div
-										key={dependency.taskId}
-										className="flex min-w-0 items-center gap-2 text-[11px]"
-									>
-										<DependencyIcon
-											className="size-3.5 shrink-0 text-muted-foreground"
-											aria-hidden="true"
-										/>
-										<span className="min-w-0 flex-1 truncate">
-											{ROLE_PRESENTATION[dependency.role].label}
-										</span>
-										<ArrowRight
-											className="size-3 shrink-0 text-muted-foreground"
-											aria-hidden="true"
-										/>
-										<span className="shrink-0 text-muted-foreground">
-											{STATUS_PRESENTATION[dependency.status].label}
-										</span>
-									</div>
-								);
-							})
-						)}
-					</div>
+					<SectionLabel icon={ShieldCheck}>合同审批</SectionLabel>
+					<p className="mt-1 text-[10px] leading-relaxed">
+						{task.approvalGate.status === "pending"
+							? "待明确批准，未批准不会进入运行时。"
+							: task.approvalGate.status === "approved"
+								? `已批准 · ${formatTime(task.approvalGate.decidedAt)}`
+								: `已拒绝 · ${formatTime(task.approvalGate.decidedAt)}`}
+					</p>
+					{task.approvalGate.note ? (
+						<p className="mt-1 text-[9px] leading-relaxed text-muted-foreground">
+							{task.approvalGate.note}
+						</p>
+					) : null}
 				</section>
-
 				<section>
-					<SectionLabel icon={Database}>引用证据</SectionLabel>
+					<SectionLabel icon={Database}>输入证据</SectionLabel>
 					<div className="mt-1 space-y-1.5">
-						{evidence.map((item) => (
-							<div
-								key={item.evidenceId}
-								className="flex min-w-0 items-center gap-2 text-[11px]"
-							>
-								<Check
-									className="size-3.5 shrink-0 text-emerald-600"
-									aria-hidden="true"
-								/>
-								<span className="min-w-0 flex-1 truncate">{item.label}</span>
-								<span className="shrink-0 text-[9px] text-muted-foreground">
-									{EVIDENCE_KIND_LABELS[item.kind]}
-								</span>
-							</div>
-						))}
+						{task.inputEvidenceIds.map((evidenceId) => {
+							const evidence = orchestration.evidence.find(
+								(candidate) => candidate.evidenceId === evidenceId,
+							);
+							return (
+								<div
+									key={evidenceId}
+									className="flex min-w-0 items-center gap-2 text-[10px]"
+								>
+									<Check
+										className="size-3.5 shrink-0 text-emerald-600"
+										aria-hidden="true"
+									/>
+									<span className="min-w-0 flex-1 truncate">
+										{evidence?.label ?? evidenceId}
+									</span>
+									<span className="shrink-0 text-[8px] text-muted-foreground">
+										{evidence ? EVIDENCE_LABELS[evidence.kind] : "引用"}
+									</span>
+								</div>
+							);
+						})}
 					</div>
 				</section>
 			</div>
@@ -459,14 +640,14 @@ function AgentTaskRow({
 				<SectionLabel icon={Target}>证据门槛</SectionLabel>
 				<div className="mt-1.5 space-y-2">
 					{task.evidenceRequirements.map((requirement) => {
-						const matchingCount = orchestration.evidence.filter((item) =>
+						const matching = orchestration.evidence.filter((item) =>
 							requirement.anyOfKinds.includes(item.kind),
 						).length;
-						const satisfied = matchingCount >= requirement.minimum;
+						const satisfied = matching >= requirement.minimum;
 						return (
 							<div
 								key={requirement.requirementId}
-								className="flex items-start gap-2 text-[11px]"
+								className="flex items-start gap-2 text-[10px]"
 							>
 								{satisfied ? (
 									<CheckCircle2
@@ -479,12 +660,12 @@ function AgentTaskRow({
 										aria-hidden="true"
 									/>
 								)}
-								<div className="min-w-0 flex-1">
-									<p className="leading-relaxed">{requirement.description}</p>
-									<p className="mt-0.5 text-[9px] text-muted-foreground">
-										{matchingCount}/{requirement.minimum} ·{" "}
+								<div className="min-w-0">
+									<p>{requirement.description}</p>
+									<p className="mt-0.5 text-[8px] text-muted-foreground">
+										{matching}/{requirement.minimum} ·{" "}
 										{requirement.anyOfKinds
-											.map((kind) => EVIDENCE_KIND_LABELS[kind])
+											.map((kind) => EVIDENCE_LABELS[kind])
 											.join(" / ")}
 									</p>
 								</div>
@@ -494,154 +675,113 @@ function AgentTaskRow({
 				</div>
 			</section>
 
-			{task.blockers.length > 0 ? (
-				<section className="mt-3" aria-label="当前阻塞">
-					<SectionLabel icon={AlertCircle}>当前阻塞</SectionLabel>
-					<div className="mt-1.5 space-y-1.5">
-						{task.blockers.map((blocker) => (
-							<div
-								key={`${blocker.kind}-${blocker.referenceId}`}
-								className="flex items-start gap-2 text-[11px] text-amber-800 dark:text-amber-200"
-							>
-								<AlertCircle
-									className="mt-0.5 size-3.5 shrink-0"
-									aria-hidden="true"
-								/>
-								<p className="min-w-0 leading-relaxed">{blocker.message}</p>
-							</div>
+			<section className="mt-4 grid gap-3 sm:grid-cols-2">
+				<div>
+					<SectionLabel icon={FileJson2}>输出合同</SectionLabel>
+					<p className="mt-1 text-[10px] leading-relaxed">
+						{task.outputReferences[0]?.label}
+					</p>
+					<p className="mt-0.5 font-mono text-[9px] text-muted-foreground">
+						{task.outputReferences[0]?.kind}
+					</p>
+				</div>
+				<div>
+					<SectionLabel icon={AlertCircle}>能力边界</SectionLabel>
+					<ul className="mt-1 space-y-1 text-[10px] leading-relaxed text-muted-foreground">
+						{task.limitations.map((limitation) => (
+							<li key={limitation}>• {limitation}</li>
 						))}
-					</div>
+					</ul>
+				</div>
+			</section>
+
+			{runtimeRun?.artifact ? (
+				<section className="mt-4">
+					<SectionLabel icon={FileJson2}>结构化产物</SectionLabel>
+					<p className="mt-1 text-[10px] leading-relaxed">
+						{runtimeRun.artifact.summary}
+					</p>
+					{runtimeRun.artifact.actions.length > 0 ? (
+						<div className="mt-2">
+							{runtimeRun.artifact.actions.map((action) => (
+								<ActionRow key={action.actionId} action={action} />
+							))}
+						</div>
+					) : (
+						<p className="mt-2 text-[9px] text-muted-foreground">
+							没有生成剪辑动作。本地模式只整理现有证据。
+						</p>
+					)}
 				</section>
 			) : null}
 
-			<section className="mt-4 grid gap-4 sm:grid-cols-2">
-				<div>
-					<SectionLabel icon={ShieldCheck}>人工审批</SectionLabel>
-					<p className="mt-1 text-[11px] leading-relaxed">
-						{task.approvalGate.status === "pending"
-							? "等待你明确批准或拒绝，未审批不会运行。"
-							: `${task.approvalGate.status === "approved" ? "已批准" : "已拒绝"} · ${formatTime(task.approvalGate.decidedAt)}`}
-					</p>
-					{task.approvalGate.note ? (
-						<p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-							{task.approvalGate.note}
-						</p>
-					) : null}
-				</div>
-
-				<div>
-					<SectionLabel icon={Sparkles}>计划输出</SectionLabel>
-					<div className="mt-1 space-y-2">
-						{task.outputReferences.map((output) => (
-							<div key={output.outputId} className="min-w-0 text-[11px]">
-								<div className="flex items-center gap-2">
-									{output.state === "available" ? (
-										<CheckCircle2
-											className="size-3.5 shrink-0 text-emerald-600"
-											aria-hidden="true"
-										/>
-									) : (
-										<CircleDashed
-											className="size-3.5 shrink-0 text-muted-foreground"
-											aria-hidden="true"
-										/>
-									)}
-									<span>{output.label}</span>
-								</div>
-								<p className="mt-1 break-all font-mono text-[9px] text-muted-foreground">
-									{output.artifactReference ?? output.outputId}
-								</p>
-							</div>
-						))}
-					</div>
-				</div>
-			</section>
-
 			<section className="mt-4 border-t pt-3">
-				<SectionLabel icon={AlertCircle}>能力边界</SectionLabel>
-				<ul className="mt-1.5 space-y-1.5 text-[10px] leading-relaxed text-muted-foreground">
-					{task.limitations.map((limitation) => (
-						<li key={limitation} className="flex items-start gap-2">
-							<span className="mt-[0.45rem] size-1 shrink-0 rounded-full bg-muted-foreground/60" />
-							<span>{LIMITATION_TRANSLATIONS[limitation] ?? limitation}</span>
-						</li>
-					))}
-				</ul>
+				<SectionLabel icon={Clock3}>执行审计</SectionLabel>
+				<div className="mt-1">
+					{runtimeRun ? (
+						<RuntimeAudit run={runtimeRun} />
+					) : (
+						<p className="text-[10px] text-muted-foreground">
+							运行后记录提供方、模型、时间、耗时、重试和脱敏输入输出。
+						</p>
+					)}
+				</div>
 			</section>
 
-			{task.failure ? (
+			{runtimeRun?.attempts.at(-1)?.failure ? (
 				<div
-					className="mt-4 border-y border-destructive/30 bg-destructive/5 py-3"
+					className="mt-3 border-y border-destructive/30 py-3 text-[10px]"
 					role="alert"
 				>
-					<div className="flex items-start gap-2">
-						<AlertCircle
-							className="mt-0.5 size-4 shrink-0 text-destructive"
-							aria-hidden="true"
-						/>
-						<div className="min-w-0">
-							<p className="text-[11px] font-semibold text-destructive">
-								本地规则运行失败
-							</p>
-							<p className="mt-1 break-words text-[10px] leading-relaxed text-muted-foreground">
-								{task.failure.message}
-							</p>
-							<p className="mt-1 font-mono text-[9px] text-muted-foreground">
-								{task.failure.code} · 尝试 {task.failure.attempt}
-							</p>
-						</div>
-					</div>
+					<p className="font-medium text-destructive">
+						{runtimeRun.attempts.at(-1)?.failure?.message}
+					</p>
+					<p className="mt-1 font-mono text-[8px] text-muted-foreground">
+						{runtimeRun.attempts.at(-1)?.failure?.code} · 已重试{" "}
+						{runtimeRun.retryCount}/{runtimeRun.maxRetries}
+					</p>
 				</div>
 			) : null}
 
 			{actionError ? (
-				<p
-					className="mt-3 text-[11px] leading-relaxed text-destructive"
-					role="alert"
-				>
+				<p className="mt-3 text-[10px] text-destructive" role="alert">
 					{actionError}
 				</p>
 			) : null}
 
-			{rejectionOpen && canDecide ? (
+			{showReject && canDecide ? (
 				<div className="mt-4 border-t pt-3">
 					<label
-						htmlFor={`reject-${task.taskId}`}
-						className="text-[11px] font-medium"
+						htmlFor={`reject-agent-${task.role}`}
+						className="text-[10px] font-medium"
 					>
 						拒绝原因
 					</label>
 					<textarea
-						id={`reject-${task.taskId}`}
+						id={`reject-agent-${task.role}`}
 						value={rejectionNote}
-						disabled={disabled}
+						disabled={disabled || executing}
 						maxLength={500}
-						placeholder="说明为什么不让这个 Agent 继续"
-						className="mt-2 min-h-20 w-full resize-y rounded-[6px] border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+						className="mt-2 min-h-20 w-full resize-y rounded-[6px] border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+						placeholder="说明为什么不让该角色参与本次运行"
 						onChange={(event) => setRejectionNote(event.target.value)}
 					/>
-					<p className="mt-1 text-[9px] leading-relaxed text-muted-foreground">
-						拒绝会终止当前版本中的该任务；依赖它的任务将保持阻塞。
-					</p>
-					<div className="mt-3 grid grid-cols-2 gap-2">
+					<div className="mt-2 grid grid-cols-2 gap-2">
 						<Button
 							variant="outline"
 							className="min-h-11 rounded-[6px]"
-							disabled={disabled}
-							onClick={() => {
-								setRejectionOpen(false);
-								setActionError(null);
-							}}
+							onClick={() => setShowReject(false)}
 						>
+							<X aria-hidden="true" />
 							取消
 						</Button>
 						<Button
 							variant="destructive"
 							className="min-h-11 rounded-[6px]"
-							disabled={disabled || rejectionNote.trim().length === 0}
-							onClick={handleReject}
+							disabled={!rejectionNote.trim()}
+							onClick={reject}
 						>
-							<X aria-hidden="true" />
+							<Ban aria-hidden="true" />
 							确认拒绝
 						</Button>
 					</div>
@@ -651,46 +791,34 @@ function AgentTaskRow({
 					{canDecide ? (
 						<>
 							<Button
-								variant="outline"
-								className="min-h-11 rounded-[6px] px-3"
-								disabled={disabled}
-								onClick={() => {
-									setRejectionOpen(true);
-									setActionError(null);
-								}}
+								variant="ghost"
+								className="min-h-11 rounded-[6px]"
+								disabled={disabled || executing}
+								onClick={() => setShowReject(true)}
 							>
-								<X aria-hidden="true" />
+								<Ban aria-hidden="true" />
 								拒绝
 							</Button>
 							<Button
-								className="min-h-11 rounded-[6px] px-3"
-								disabled={disabled}
-								onClick={handleApprove}
+								variant="outline"
+								className="min-h-11 rounded-[6px]"
+								disabled={disabled || executing}
+								onClick={approve}
 							>
 								<Check aria-hidden="true" />
-								批准任务
+								批准角色
 							</Button>
 						</>
 					) : null}
-					{task.status === "ready" ? (
-						<Button
-							className="min-h-11 rounded-[6px] px-3"
-							disabled={disabled}
-							onClick={handleRun}
-						>
-							<Play aria-hidden="true" />
-							运行本地规则
-						</Button>
-					) : null}
-					{task.status === "failed" ? (
+					{retryable && runtimeRun ? (
 						<Button
 							variant="outline"
-							className="min-h-11 rounded-[6px] px-3"
-							disabled={disabled || !canRetry}
-							onClick={handleRetry}
+							className="min-h-11 rounded-[6px]"
+							disabled={disabled || executing}
+							onClick={() => void onRetry(runtimeRun.runId)}
 						>
 							<RotateCcw aria-hidden="true" />
-							{canRetry ? "准备重试" : "不可重试"}
+							重试该角色
 						</Button>
 					) : null}
 				</div>
@@ -702,81 +830,435 @@ function AgentTaskRow({
 export function VisionCutAgentOrchestration({
 	orchestration,
 	onChange,
+	evidenceSources,
 	disabled = false,
 }: VisionCutAgentOrchestrationProps) {
-	const succeededCount = orchestration.tasks.filter(
-		(task) => task.status === "succeeded",
-	).length;
-	const actionableCount = orchestration.tasks.filter(
-		(task) => task.status === "ready" || task.status === "awaiting-approval",
-	).length;
-	const blockedCount = orchestration.tasks.filter(
-		(task) => task.status === "blocked",
-	).length;
+	const storageRef = useRef(new IndexedDBAgentSessionStorage());
+	const abortRef = useRef<AbortController | null>(null);
+	const [runtimeSession, setRuntimeSession] =
+		useState<AgentRuntimeSession | null>(null);
+	const [selectedRoles, setSelectedRoles] = useState<Set<AgentRole>>(
+		() => new Set(DEFAULT_SELECTED_ROLES),
+	);
+	const [preference, setPreference] = useState<RuntimePreference>("local");
+	const [concurrencyLimit, setConcurrencyLimit] = useState(3);
+	const [isExecuting, setIsExecuting] = useState(false);
+	const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+	const [runtimeError, setRuntimeError] = useState<string | null>(null);
+
+	const providerSummary = (() => {
+		const session = loadModelProviderSession();
+		if (!isRemoteModelProvider(session.selectedProvider)) {
+			return { connected: false, label: "未连接 BYOK 模型" };
+		}
+		const connection = session.connections[session.selectedProvider];
+		return connection
+			? {
+					connected: true,
+					label: `${session.selectedProvider} / ${connection.model}`,
+				}
+			: {
+					connected: false,
+					label: `${session.selectedProvider} 尚未保存会话密钥`,
+				};
+	})();
+
+	useEffect(() => {
+		let active = true;
+		void listProjectAgentRuntimeSessions({
+			projectId: orchestration.projectId,
+			orchestrationId: orchestration.orchestrationId,
+			storage: storageRef.current,
+		})
+			.then((sessions) => {
+				if (!active) return;
+				setRuntimeSession(sessions[0] ?? null);
+				setIsLoadingHistory(false);
+			})
+			.catch((error: unknown) => {
+				if (!active) return;
+				setRuntimeError(errorMessage(error));
+				setIsLoadingHistory(false);
+			});
+		return () => {
+			active = false;
+		};
+	}, [orchestration.orchestrationId, orchestration.projectId]);
+
+	const persistUpdate = useCallback(async ({ session }: AgentRuntimeUpdate) => {
+		const saved = await saveAgentRuntimeSession({
+			session,
+			storage: storageRef.current,
+		});
+		setRuntimeSession(saved);
+	}, []);
+
+	const selected = useMemo(
+		() =>
+			orchestration.tasks
+				.map((task) => task.role)
+				.filter((role) => selectedRoles.has(role)),
+		[orchestration.tasks, selectedRoles],
+	);
+	const approvedSelected = selected.filter((role) => {
+		const task = orchestration.tasks.find(
+			(candidate) => candidate.role === role,
+		);
+		return task?.approvalGate.status === "approved";
+	});
+	const pendingSelected = selected.filter((role) => {
+		const task = orchestration.tasks.find(
+			(candidate) => candidate.role === role,
+		);
+		return task?.approvalGate.status === "pending";
+	});
+	const rejectedSelected = selected.filter((role) => {
+		const task = orchestration.tasks.find(
+			(candidate) => candidate.role === role,
+		);
+		return task?.approvalGate.status === "rejected";
+	});
+
+	const toggleRole = (role: AgentRole) => {
+		setSelectedRoles((current) => {
+			if (!current.has(role)) {
+				return new Set(
+					resolveAgentRuntimeRoleSelection({
+						orchestration,
+						roles: [...current, role],
+					}),
+				);
+			}
+			const next = new Set(current);
+			const removedTaskIds = new Set(
+				orchestration.tasks
+					.filter((task) => task.role === role)
+					.map((task) => task.taskId),
+			);
+			next.delete(role);
+			let changed = true;
+			while (changed) {
+				changed = false;
+				for (const task of orchestration.tasks) {
+					if (
+						!next.has(task.role) ||
+						!task.dependencyTaskIds.some((taskId) => removedTaskIds.has(taskId))
+					) {
+						continue;
+					}
+					next.delete(task.role);
+					removedTaskIds.add(task.taskId);
+					changed = true;
+				}
+			}
+			return next;
+		});
+	};
+
+	const approveSelected = () => {
+		let next = orchestration;
+		try {
+			for (const role of selected) {
+				const task = next.tasks.find((candidate) => candidate.role === role);
+				if (task?.approvalGate.status !== "pending") continue;
+				next = approveAgentTask({
+					orchestration: next,
+					taskId: task.taskId,
+					approvedBy: "local-user",
+					at: transitionTimestamp(next),
+					note: "用户批量批准该角色生成可审阅计划。",
+				});
+			}
+			onChange(next);
+			setRuntimeError(null);
+		} catch (error) {
+			setRuntimeError(errorMessage(error));
+		}
+	};
+
+	const runSelected = async () => {
+		if (selected.length === 0) {
+			setRuntimeError("请至少选择一个 Agent。");
+			return;
+		}
+		if (pendingSelected.length > 0) {
+			setRuntimeError(
+				`先批准所选角色：${pendingSelected.map((role) => ROLE_PRESENTATION[role].label).join("、")}。`,
+			);
+			return;
+		}
+		if (rejectedSelected.length > 0) {
+			setRuntimeError(
+				`已拒绝的角色不能运行：${rejectedSelected.map((role) => ROLE_PRESENTATION[role].label).join("、")}。请取消选择该角色及依赖它的下游角色。`,
+			);
+			return;
+		}
+		setRuntimeError(null);
+		setIsExecuting(true);
+		const controller = new AbortController();
+		abortRef.current = controller;
+		try {
+			const model = resolveModelBinding({ preference });
+			const created = createAgentRuntimeSession({
+				orchestration,
+				roles: approvedSelected,
+				concurrencyLimit,
+				createdAt: new Date().toISOString(),
+				sessionNonce: createSessionNonce(),
+				evidenceSources,
+			});
+			const saved = await saveAgentRuntimeSession({
+				session: created,
+				storage: storageRef.current,
+			});
+			setRuntimeSession(saved);
+			const completed = await executeAgentRuntimeSession({
+				session: saved,
+				orchestration,
+				...(model === undefined ? {} : { model }),
+				signal: controller.signal,
+				onUpdate: persistUpdate,
+			});
+			setRuntimeSession(completed);
+		} catch (error) {
+			setRuntimeError(errorMessage(error));
+		} finally {
+			abortRef.current = null;
+			setIsExecuting(false);
+		}
+	};
+
+	const retryRun = async (runId: string) => {
+		if (runtimeSession === null) return;
+		setRuntimeError(null);
+		setIsExecuting(true);
+		const controller = new AbortController();
+		abortRef.current = controller;
+		try {
+			const model = resolveModelBinding({ preference });
+			const completed = await retryAgentRuntimeRuns({
+				session: runtimeSession,
+				orchestration,
+				runIds: [runId],
+				...(model === undefined ? {} : { model }),
+				signal: controller.signal,
+				onUpdate: persistUpdate,
+			});
+			setRuntimeSession(completed);
+		} catch (error) {
+			setRuntimeError(errorMessage(error));
+		} finally {
+			abortRef.current = null;
+			setIsExecuting(false);
+		}
+	};
+
+	const cancel = () => {
+		abortRef.current?.abort();
+	};
 
 	return (
-		<div className="min-w-0 pb-5">
-			<header className="px-3 pb-4 pt-2 sm:px-4">
-				<div className="flex min-w-0 items-start gap-3">
-					<div className="flex size-10 shrink-0 items-center justify-center rounded-[7px] border bg-foreground text-background">
-						<GitBranch className="size-5" aria-hidden="true" />
-					</div>
-					<div className="min-w-0 flex-1">
-						<div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-							<h2 className="text-sm font-semibold">Multi-Agent 制作台</h2>
-							<span className="text-[10px] text-muted-foreground">
-								修订 {orchestration.revision}
-							</span>
+		<div className="min-w-0">
+			<header className="border-y px-3 py-4 sm:px-4">
+				<div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+					<div className="min-w-0">
+						<div className="flex items-center gap-2">
+							<Bot className="size-4" aria-hidden="true" />
+							<h2 className="text-sm font-semibold">Multi-Agent 运行台</h2>
 						</div>
-						<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-							六个专业角色按真实依赖逐步产生可审阅计划，每一步都需要你的明确决定。
+						<p className="mt-1 max-w-xl text-[10px] leading-relaxed text-muted-foreground">
+							所选角色并行生成可审阅产物。默认只整理本地证据，不调用模型，也不会自动修改媒体。
+						</p>
+					</div>
+					<div className="text-right text-[9px] text-muted-foreground">
+						<p>合同修订 {orchestration.revision}</p>
+						<p className="mt-0.5">
+							{runtimeSession
+								? `${SESSION_STATUS[runtimeSession.status]} · 审计修订 ${runtimeSession.revision}`
+								: isLoadingHistory
+									? "读取审计记录"
+									: "尚无运行会话"}
 						</p>
 					</div>
 				</div>
 
-				<div
-					className="mt-4 grid grid-cols-3 divide-x border-y text-center"
-					aria-live="polite"
-				>
-					{[
-						["计划已生成", succeededCount],
-						["可处理", actionableCount],
-						["被阻塞", blockedCount],
-					].map(([label, value]) => (
-						<div key={label} className="min-w-0 px-2 py-2.5">
-							<p className="text-[9px] text-muted-foreground">{label}</p>
-							<p className="mt-1 text-xs font-semibold">{value}</p>
+				<div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
+					<div>
+						<p className="text-[9px] font-medium text-muted-foreground">
+							执行来源
+						</p>
+						<div className="mt-1 grid grid-cols-2 gap-1 rounded-[7px] border p-1">
+							<button
+								type="button"
+								className={cn(
+									"min-h-11 rounded-[5px] px-3 text-[10px] font-medium",
+									preference === "local"
+										? "bg-foreground text-background"
+										: "text-muted-foreground hover:bg-muted/50",
+								)}
+								disabled={disabled || isExecuting}
+								onClick={() => setPreference("local")}
+							>
+								本地证据
+							</button>
+							<button
+								type="button"
+								className={cn(
+									"min-h-11 rounded-[5px] px-3 text-[10px] font-medium",
+									preference === "byok"
+										? "bg-foreground text-background"
+										: "text-muted-foreground hover:bg-muted/50",
+								)}
+								disabled={disabled || isExecuting}
+								onClick={() => setPreference("byok")}
+							>
+								BYOK 模型
+							</button>
 						</div>
-					))}
+						<p className="mt-1 text-[8px] text-muted-foreground">
+							{preference === "local"
+								? "免费默认，不访问网络。"
+								: providerSummary.label}
+						</p>
+					</div>
+
+					<label className="block">
+						<span className="text-[9px] font-medium text-muted-foreground">
+							并发上限
+						</span>
+						<select
+							value={concurrencyLimit}
+							disabled={disabled || isExecuting}
+							className="mt-1 min-h-11 w-full rounded-[6px] border bg-background px-3 text-[11px] outline-none focus-visible:ring-1 focus-visible:ring-ring lg:w-28"
+							onChange={(event) =>
+								setConcurrencyLimit(Number(event.target.value))
+							}
+						>
+							<option value={1}>1 路</option>
+							<option value={2}>2 路</option>
+							<option value={3}>3 路</option>
+							<option value={4}>4 路</option>
+							<option value={6}>6 路</option>
+						</select>
+					</label>
 				</div>
+
+				<div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+					<p className="text-[9px] text-muted-foreground">
+						已选 {selected.length} · 已批准 {approvedSelected.length} · 并发{" "}
+						{concurrencyLimit}
+					</p>
+					<div className="flex flex-wrap gap-2">
+						{pendingSelected.length > 0 ? (
+							<Button
+								variant="outline"
+								className="min-h-11 rounded-[6px]"
+								disabled={disabled || isExecuting}
+								onClick={approveSelected}
+							>
+								<ShieldCheck aria-hidden="true" />
+								批准所选
+							</Button>
+						) : null}
+						{isExecuting ? (
+							<Button
+								variant="destructive"
+								className="min-h-11 rounded-[6px]"
+								onClick={cancel}
+							>
+								<Square aria-hidden="true" />
+								取消运行
+							</Button>
+						) : (
+							<Button
+								className="min-h-11 rounded-[6px]"
+								disabled={disabled || selected.length === 0}
+								onClick={() => void runSelected()}
+							>
+								<Play aria-hidden="true" />
+								运行所选
+							</Button>
+						)}
+					</div>
+				</div>
+
+				{runtimeError ? (
+					<div
+						className="mt-3 flex items-start gap-2 border-y border-destructive/30 py-2 text-[10px] text-destructive"
+						role="alert"
+					>
+						<AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+						<p>{runtimeError}</p>
+					</div>
+				) : null}
 			</header>
 
-			<div className="border-y bg-muted/20 px-3 py-3 sm:px-4" role="note">
-				<div className="flex items-start gap-2.5">
-					<ShieldCheck
-						className="mt-0.5 size-4 shrink-0 text-emerald-600"
-						aria-hidden="true"
-					/>
-					<div className="min-w-0">
-						<p className="text-[11px] font-medium">本地规则的真实边界</p>
-						<p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-							当前编排不联网、不调用模型、不分析素材，也不修改媒体。运行只会生成带稳定引用的计划结果。
-						</p>
-					</div>
-				</div>
-			</div>
-
-			<div className="divide-y">
+			<section aria-label="Agent 角色">
 				{orchestration.tasks.map((task) => (
-					<AgentTaskRow
+					<AgentRow
 						key={task.taskId}
 						task={task}
-						orchestration={orchestration}
-						onChange={onChange}
+						runtimeRun={
+							runtimeSession?.runs.find((run) => run.role === task.role) ?? null
+						}
+						selected={selectedRoles.has(task.role)}
 						disabled={disabled}
+						executing={isExecuting}
+						orchestration={orchestration}
+						onToggle={toggleRole}
+						onChange={onChange}
+						onRetry={retryRun}
 					/>
 				))}
-			</div>
+			</section>
+
+			{runtimeSession ? (
+				<footer className="border-y px-3 py-4 sm:px-4">
+					<div className="grid gap-4 sm:grid-cols-2">
+						<section>
+							<SectionLabel icon={GitMerge}>确定性合并</SectionLabel>
+							<p className="mt-1 text-[10px] leading-relaxed">
+								证据合格动作 {runtimeSession.merge.eligibleActionIds.length} ·
+								仅审阅 {runtimeSession.merge.reviewOnlyActionIds.length} · 阻塞{" "}
+								{runtimeSession.merge.blockedActionIds.length}
+							</p>
+							<p className="mt-1 break-all font-mono text-[8px] text-muted-foreground">
+								{runtimeSession.merge.fingerprint}
+							</p>
+						</section>
+						<section>
+							<SectionLabel icon={RefreshCcw}>冲突</SectionLabel>
+							{runtimeSession.merge.conflicts.length === 0 ? (
+								<p className="mt-1 text-[10px] text-muted-foreground">
+									当前产物没有检测到跨角色目标冲突。
+								</p>
+							) : (
+								<div className="mt-1 space-y-2">
+									{runtimeSession.merge.conflicts.map((conflict) => (
+										<div key={conflict.conflictId} className="text-[10px]">
+											<p className="font-medium">{conflict.targetReference}</p>
+											<p className="mt-0.5 leading-relaxed text-muted-foreground">
+												{conflict.description}
+											</p>
+											<p className="mt-0.5 font-mono text-[8px] text-muted-foreground">
+												{conflict.roles.join(" + ")}
+											</p>
+										</div>
+									))}
+								</div>
+							)}
+						</section>
+					</div>
+					<div className="mt-4 flex items-start gap-2 border-t pt-3 text-[9px] leading-relaxed text-muted-foreground">
+						<ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
+						<p>
+							IndexedDB
+							保存输入证据、提供方/模型、时间、耗时、失败、重试、结构化产物与冲突；API
+							Key 只在当前会话闭包中用于请求，不进入运行时或审计记录。
+						</p>
+					</div>
+				</footer>
+			) : null}
 		</div>
 	);
 }

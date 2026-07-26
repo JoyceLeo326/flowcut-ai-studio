@@ -59,11 +59,19 @@ function createCompletionRequest({
 function createRouteRequest({
 	body,
 	contentLength,
+	origin = "http://localhost",
+	secFetchSite,
 }: {
 	body: unknown;
 	contentLength?: number;
+	origin?: string | null;
+	secFetchSite?: string;
 }): Request {
 	const headers = new Headers({ "Content-Type": "application/json" });
+	if (origin !== null) headers.set("Origin", origin);
+	if (secFetchSite !== undefined) {
+		headers.set("Sec-Fetch-Site", secFetchSite);
+	}
 	if (contentLength !== undefined) {
 		headers.set("Content-Length", String(contentLength));
 	}
@@ -292,6 +300,49 @@ describe("VisionCut BYOK completion route", () => {
 			error: { code: "invalid_request", retryable: false },
 			ok: false,
 		});
+	});
+
+	test("rejects cross-origin and unclassified requests before fetch", async () => {
+		let fetchCalls = 0;
+		const fetchImpl: ModelProviderFetch = async () => {
+			fetchCalls += 1;
+			return Response.json({});
+		};
+		const crossOrigin = await handleAiCompletion({
+			fetchImpl,
+			request: createRouteRequest({
+				body: createCompletionRequest(),
+				origin: "https://attacker.example",
+			}),
+		});
+		const missingOrigin = await handleAiCompletion({
+			fetchImpl,
+			request: createRouteRequest({
+				body: createCompletionRequest(),
+				origin: null,
+			}),
+		});
+		const sameOriginFetchMetadata = await handleAiCompletion({
+			fetchImpl: async () =>
+				Response.json({
+					output: [
+						{
+							content: [{ text: "SAME_ORIGIN_OK", type: "output_text" }],
+							type: "message",
+						},
+					],
+				}),
+			request: createRouteRequest({
+				body: createCompletionRequest(),
+				origin: null,
+				secFetchSite: "same-origin",
+			}),
+		});
+
+		expect(crossOrigin.status).toBe(403);
+		expect(missingOrigin.status).toBe(403);
+		expect(sameOriginFetchMetadata.status).toBe(200);
+		expect(fetchCalls).toBe(0);
 	});
 
 	test("enforces request and upstream response size limits", async () => {

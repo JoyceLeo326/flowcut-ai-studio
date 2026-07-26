@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	Popover,
 	PopoverContent,
@@ -20,14 +20,18 @@ import {
 } from "@/export";
 import {
 	AlertTriangle,
+	Ban,
 	Check,
+	CheckCircle2,
 	Clock3,
 	Copy,
 	Download,
+	LoaderCircle,
 	Monitor,
 	RotateCcw,
 	Volume2,
 	VolumeX,
+	XCircle,
 	type LucideIcon,
 } from "lucide-react";
 import {
@@ -45,7 +49,25 @@ import {
 import { useEditor } from "@/editor/use-editor";
 import { DEFAULT_EXPORT_OPTIONS } from "@/export/defaults";
 import { mediaTimeToSeconds } from "@/wasm";
-import { OPEN_NATIVE_EXPORT_EVENT } from "@/editor/navigation-events";
+import {
+	CANCEL_VISIONCUT_EXPORT_QUEUE_EVENT,
+	OPEN_NATIVE_EXPORT_EVENT,
+	START_VISIONCUT_EXPORT_QUEUE_EVENT,
+	isVisionCutExportQueueCancelRequest,
+	isVisionCutExportQueueRequest,
+} from "@/editor/navigation-events";
+import {
+	createExportJobQueue,
+	runExportJobQueue,
+	type ExportJobQueue,
+	type ExportVariantJob,
+} from "@/ai-studio/export-job";
+import type { ExportManifest } from "@/ai-studio/export-manifest";
+import {
+	downloadExportArtifact,
+	exportJobStore,
+} from "@/ai-studio/export-job-store";
+import { exportProjectSnapshot } from "@/services/renderer/project-exporter";
 
 function isExportFormat(value: string): value is ExportFormat {
 	return EXPORT_FORMAT_VALUES.some((formatValue) => formatValue === value);
@@ -63,6 +85,15 @@ const TOUCH_CHECKBOX_CLASS_NAME =
 
 export function ExportButton() {
 	const [isExportPopoverOpen, setIsExportPopoverOpen] = useState(false);
+	const [queueManifest, setQueueManifest] = useState<ExportManifest | null>(
+		null,
+	);
+	const [queue, setQueue] = useState<ExportJobQueue | null>(null);
+	const [queueError, setQueueError] = useState<string | null>(null);
+	const activeQueueRef = useRef<{
+		readonly queueId: string;
+		readonly controller: AbortController;
+	} | null>(null);
 	const editor = useEditor();
 	const activeProject = useEditor((e) => e.project.getActiveOrNull());
 	const activeScene = useEditor((e) => e.scenes.getActiveSceneOrNull());
@@ -90,12 +121,196 @@ export function ExportButton() {
 
 	useEffect(() => {
 		const handleOpenRequest = () => {
-			if (canOpenExport) setIsExportPopoverOpen(true);
+			if (!canOpenExport) return;
+			if (
+				activeQueueRef.current &&
+				!activeQueueRef.current.controller.signal.aborted
+			) {
+				setQueueError("本地多规格队列正在运行，不能并行启动单次导出。");
+				setIsExportPopoverOpen(true);
+				return;
+			}
+			setQueueManifest(null);
+			setQueueError(null);
+			setIsExportPopoverOpen(true);
 		};
 		window.addEventListener(OPEN_NATIVE_EXPORT_EVENT, handleOpenRequest);
 		return () =>
 			window.removeEventListener(OPEN_NATIVE_EXPORT_EVENT, handleOpenRequest);
 	}, [canOpenExport]);
+
+	useEffect(() => {
+		const projectId = activeProject?.metadata.id;
+		if (!projectId) return;
+		const syncQueue = () => setQueue(exportJobStore.getProject(projectId));
+		const unsubscribe = exportJobStore.subscribe(syncQueue);
+		void exportJobStore.loadProject(projectId).then(syncQueue);
+		return unsubscribe;
+	}, [activeProject?.metadata.id]);
+
+	useEffect(() => {
+		const startQueue = async (manifest: ExportManifest) => {
+			if (
+				activeQueueRef.current &&
+				!activeQueueRef.current.controller.signal.aborted
+			) {
+				setQueueError("已有本地交付队列正在运行，请先等待完成或明确取消。");
+				setQueueManifest(manifest);
+				setIsExportPopoverOpen(true);
+				return;
+			}
+			if (editor.project.getExportState().isExporting) {
+				setQueueError("单次导出正在运行，不能并行启动本地多规格队列。");
+				setQueueManifest(manifest);
+				setIsExportPopoverOpen(true);
+				return;
+			}
+			const project = editor.project.getActiveOrNull();
+			const scene = editor.scenes.getActiveSceneOrNull();
+			if (!project || !scene) {
+				setQueueError("当前没有可渲染的项目场景。");
+				setQueueManifest(manifest);
+				setIsExportPopoverOpen(true);
+				return;
+			}
+			const duration = editor.timeline.getTotalDuration();
+			const currentDurationSeconds = mediaTimeToSeconds({ time: duration });
+			const tracksSnapshot = structuredClone(scene.tracks);
+			const mediaAssetsSnapshot = [...editor.media.getAssets()];
+			const sourceCanvasSize = { ...project.settings.canvasSize };
+			const background = structuredClone(project.settings.background);
+
+			let nextQueue: ExportJobQueue;
+			try {
+				nextQueue = createExportJobQueue({
+					manifest,
+					runtime: {
+						projectId: project.metadata.id,
+						projectVersion: project.version,
+						sceneId: scene.id,
+						canvasSize: project.settings.canvasSize,
+						durationSeconds: currentDurationSeconds,
+					},
+				});
+			} catch (error) {
+				setQueueError(
+					error instanceof Error ? error.message : "无法创建本地交付队列。",
+				);
+				setQueueManifest(manifest);
+				setIsExportPopoverOpen(true);
+				return;
+			}
+
+			const controller = new AbortController();
+			activeQueueRef.current = {
+				queueId: nextQueue.queueId,
+				controller,
+			};
+			setQueueManifest(manifest);
+			setQueueError(null);
+			setQueue(nextQueue);
+			exportJobStore.setProject(nextQueue);
+			setIsExportPopoverOpen(true);
+
+			try {
+				nextQueue = await runExportJobQueue({
+					queue: nextQueue,
+					signal: controller.signal,
+					onChange: (changedQueue) => {
+						setQueue(changedQueue);
+						exportJobStore.setProject(changedQueue);
+					},
+					renderer: {
+						render: ({ job, signal, onProgress }) => {
+							return exportProjectSnapshot({
+								tracks: tracksSnapshot,
+								mediaAssets: mediaAssetsSnapshot,
+								duration,
+								sourceCanvasSize,
+								outputCanvasSize: {
+									width: job.output.width,
+									height: job.output.height,
+								},
+								background,
+								options: {
+									format: job.output.format,
+									quality: job.output.quality,
+									fps: project.settings.fps,
+									includeAudio: job.output.includeAudio,
+								},
+								onProgress: ({ progress }) => onProgress(progress),
+								onCancel: () => signal.aborted,
+							});
+						},
+					},
+				});
+				setQueue(nextQueue);
+				exportJobStore.setProject(nextQueue);
+				await exportJobStore.flush();
+			} catch (error) {
+				setQueueError(
+					error instanceof Error ? error.message : "本地交付队列执行失败。",
+				);
+			} finally {
+				if (activeQueueRef.current?.queueId === nextQueue.queueId) {
+					activeQueueRef.current = null;
+				}
+			}
+		};
+
+		const handleQueueRequest = (event: Event) => {
+			if (
+				!(event instanceof CustomEvent) ||
+				!isVisionCutExportQueueRequest(event.detail)
+			) {
+				return;
+			}
+			void startQueue(event.detail.manifest);
+		};
+		const handleCancelRequest = (event: Event) => {
+			if (
+				!(event instanceof CustomEvent) ||
+				!isVisionCutExportQueueCancelRequest(event.detail)
+			) {
+				return;
+			}
+			if (activeQueueRef.current?.queueId === event.detail.queueId) {
+				activeQueueRef.current.controller.abort();
+			}
+		};
+		window.addEventListener(
+			START_VISIONCUT_EXPORT_QUEUE_EVENT,
+			handleQueueRequest,
+		);
+		window.addEventListener(
+			CANCEL_VISIONCUT_EXPORT_QUEUE_EVENT,
+			handleCancelRequest,
+		);
+		return () => {
+			window.removeEventListener(
+				START_VISIONCUT_EXPORT_QUEUE_EVENT,
+				handleQueueRequest,
+			);
+			window.removeEventListener(
+				CANCEL_VISIONCUT_EXPORT_QUEUE_EVENT,
+				handleCancelRequest,
+			);
+		};
+	}, [editor]);
+
+	useEffect(
+		() => () => {
+			activeQueueRef.current?.controller.abort();
+		},
+		[],
+	);
+
+	const visibleQueue =
+		queueManifest &&
+		queue?.manifestId === queueManifest.manifestId &&
+		queue.projectId === activeProject?.metadata.id
+			? queue
+			: null;
 
 	return (
 		<Popover
@@ -113,8 +328,263 @@ export function ExportButton() {
 					导出
 				</Button>
 			</PopoverTrigger>
-			{hasProject && <ExportPopover onOpenChange={setIsExportPopoverOpen} />}
+			{hasProject && queueManifest ? (
+				visibleQueue ? (
+					<ExportQueuePopover
+						queue={visibleQueue}
+						error={queueError}
+						onCancel={() => {
+							if (activeQueueRef.current?.queueId === visibleQueue.queueId) {
+								activeQueueRef.current.controller.abort();
+							}
+						}}
+						onOpenNativeExport={() => {
+							setQueueManifest(null);
+							setQueueError(null);
+						}}
+					/>
+				) : queueError ? (
+					<ExportQueueLaunchErrorPopover
+						error={queueError}
+						onOpenNativeExport={() => {
+							setQueueManifest(null);
+							setQueueError(null);
+						}}
+					/>
+				) : (
+					<ExportPopover onOpenChange={setIsExportPopoverOpen} />
+				)
+			) : (
+				hasProject && <ExportPopover onOpenChange={setIsExportPopoverOpen} />
+			)}
 		</Popover>
+	);
+}
+
+const EXPORT_JOB_STATUS_LABELS: Record<ExportVariantJob["status"], string> = {
+	queued: "排队中",
+	rendering: "渲染中",
+	completed: "已完成",
+	failed: "失败",
+	cancelled: "已取消",
+};
+
+function formatExportBytes(bytes: number): string {
+	if (bytes < 1024) return `${bytes} B`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function ExportJobStatusIcon({ job }: { job: ExportVariantJob }) {
+	if (job.status === "rendering") {
+		return (
+			<LoaderCircle
+				className="size-3.5 animate-spin motion-reduce:animate-none"
+				aria-hidden="true"
+			/>
+		);
+	}
+	if (job.status === "completed") {
+		return <CheckCircle2 className="size-3.5" aria-hidden="true" />;
+	}
+	if (job.status === "failed") {
+		return job.capability.state === "rejected" ? (
+			<Ban className="size-3.5" aria-hidden="true" />
+		) : (
+			<XCircle className="size-3.5" aria-hidden="true" />
+		);
+	}
+	if (job.status === "cancelled") {
+		return <XCircle className="size-3.5" aria-hidden="true" />;
+	}
+	return <Clock3 className="size-3.5" aria-hidden="true" />;
+}
+
+function ExportQueueLaunchErrorPopover({
+	error,
+	onOpenNativeExport,
+}: {
+	error: string;
+	onOpenNativeExport: () => void;
+}) {
+	return (
+		<PopoverContent
+			collisionPadding={8}
+			className="mr-0 w-[min(22rem,calc(100vw-2rem))] bg-background p-3 sm:mr-2"
+		>
+			<div
+				className="flex items-start gap-2 rounded-[6px] border border-destructive/30 px-3 py-3 text-xs leading-relaxed text-destructive"
+				role="alert"
+			>
+				<AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+				<span>{error}</span>
+			</div>
+			<Button
+				type="button"
+				variant="outline"
+				className="mt-3 min-h-11 w-full rounded-[6px]"
+				onClick={onOpenNativeExport}
+			>
+				<RotateCcw aria-hidden="true" />
+				返回单次导出
+			</Button>
+		</PopoverContent>
+	);
+}
+
+function ExportQueuePopover({
+	queue,
+	error,
+	onCancel,
+	onOpenNativeExport,
+}: {
+	queue: ExportJobQueue;
+	error: string | null;
+	onCancel: () => void;
+	onOpenNativeExport: () => void;
+}) {
+	const isActive = queue.status === "queued" || queue.status === "rendering";
+	const completedCount = queue.jobs.filter(
+		(job) => job.status === "completed",
+	).length;
+	const rejectedCount = queue.jobs.filter(
+		(job) => job.capability.state === "rejected",
+	).length;
+
+	return (
+		<PopoverContent
+			collisionPadding={8}
+			className="mr-0 flex max-h-[min(84vh,44rem)] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-y-auto bg-background p-0 sm:mr-2"
+		>
+			<header className="border-b px-3 py-3">
+				<div className="flex items-center justify-between gap-3">
+					<div className="min-w-0">
+						<h3 className="text-sm font-medium">本地多规格交付</h3>
+						<p className="mt-0.5 text-[10px] text-muted-foreground">
+							{completedCount}/{queue.jobs.length} 完成
+							{rejectedCount > 0 ? ` · ${rejectedCount} 个已拒绝` : ""}
+						</p>
+					</div>
+					<span className="shrink-0 text-xs font-semibold">
+						{Math.round(queue.progress * 100)}%
+					</span>
+				</div>
+				<Progress value={queue.progress * 100} className="mt-2 h-1.5" />
+			</header>
+
+			<div className="divide-y">
+				{queue.jobs.map((job) => (
+					<div key={job.variantId} className="px-3 py-3">
+						<div className="flex min-w-0 items-start gap-2.5">
+							<div
+								className={cn(
+									"mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-[6px] border",
+									job.status === "completed" &&
+										"border-emerald-500/30 text-emerald-700 dark:text-emerald-300",
+									job.status === "rendering" &&
+										"border-primary/30 text-primary",
+									job.status === "failed" &&
+										"border-destructive/30 text-destructive",
+									(job.status === "queued" || job.status === "cancelled") &&
+										"text-muted-foreground",
+								)}
+							>
+								<ExportJobStatusIcon job={job} />
+							</div>
+							<div className="min-w-0 flex-1">
+								<div className="flex min-w-0 items-center justify-between gap-2">
+									<p className="truncate text-xs font-medium">{job.label}</p>
+									<span className="shrink-0 text-[10px] text-muted-foreground">
+										{job.capability.state === "rejected"
+											? "已拒绝"
+											: EXPORT_JOB_STATUS_LABELS[job.status]}
+									</span>
+								</div>
+								<p className="mt-1 break-all text-[10px] text-muted-foreground">
+									{job.output.fileName}
+								</p>
+								<p className="mt-1 text-[10px] text-muted-foreground">
+									{job.output.width}×{job.output.height} ·{" "}
+									{job.output.format.toUpperCase()} · 高画质
+								</p>
+								{job.status === "rendering" && (
+									<Progress value={job.progress * 100} className="mt-2 h-1" />
+								)}
+								{job.failure && (
+									<p className="mt-2 text-[10px] leading-relaxed text-destructive">
+										{job.failure.message}
+									</p>
+								)}
+								{job.artifact && job.measurements && (
+									<div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
+										<span>{formatExportBytes(job.artifact.byteLength)}</span>
+										<span>
+											实际渲染{" "}
+											{(job.measurements.renderElapsedMs / 1000).toFixed(1)}s
+										</span>
+										<span>响度未测量</span>
+										<Button
+											type="button"
+											variant="outline"
+											size="icon"
+											className="ml-auto size-11 rounded-[6px] lg:size-8"
+											onClick={() => {
+												if (job.artifact) {
+													downloadExportArtifact(job.artifact);
+												}
+											}}
+											title={`下载 ${job.artifact.fileName}`}
+										>
+											<Download aria-hidden="true" />
+											<span className="sr-only">
+												下载 {job.artifact.fileName}
+											</span>
+										</Button>
+									</div>
+								)}
+							</div>
+						</div>
+					</div>
+				))}
+			</div>
+
+			<div className="space-y-2 border-t px-3 py-3">
+				{error && (
+					<div
+						className="flex items-start gap-2 rounded-[6px] border border-destructive/30 px-3 py-2.5 text-[10px] leading-relaxed text-destructive"
+						role="alert"
+					>
+						<AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+						<span>{error}</span>
+					</div>
+				)}
+				<p className="text-[10px] leading-relaxed text-muted-foreground">
+					队列只调用本地浏览器
+					renderer，不修改时间线、不自动上传。文件大小与渲染耗时来自实际结果；LUFS
+					和编码后时长尚未测量。
+				</p>
+				{isActive && (
+					<Button
+						type="button"
+						variant="outline"
+						className="min-h-11 w-full rounded-[6px]"
+						onClick={onCancel}
+					>
+						<XCircle aria-hidden="true" />
+						取消整个队列
+					</Button>
+				)}
+				<Button
+					type="button"
+					variant="ghost"
+					className="min-h-11 w-full rounded-[6px]"
+					onClick={onOpenNativeExport}
+				>
+					<RotateCcw aria-hidden="true" />
+					返回单次导出
+				</Button>
+			</div>
+		</PopoverContent>
 	);
 }
 

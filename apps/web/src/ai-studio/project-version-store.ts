@@ -4,6 +4,19 @@ export const PROJECT_VERSION_SCHEMA_VERSION = 1 as const;
 export const PROJECT_VERSION_KIND = "visioncut.project-version" as const;
 export const PROJECT_VERSION_LEDGER_KIND =
 	"visioncut.project-version-ledger" as const;
+export const PROJECT_VERSION_RESTORE_KIND =
+	"visioncut.project-restore-payload" as const;
+export const PROJECT_VERSION_RESTORE_SCHEMA_VERSION = 1 as const;
+export const PROJECT_VERSION_RESTORE_INTEGRITY_ALGORITHM =
+	"visioncut-stable-hash64-v1" as const;
+export const PROJECT_VERSION_RESTORE_ASSET_KINDS = [
+	"video",
+	"audio",
+	"image",
+	"font",
+	"sticker",
+	"other",
+] as const;
 export const PROJECT_VERSION_SOURCES = [
 	"user",
 	"intent-spec",
@@ -25,14 +38,80 @@ export const PROJECT_VERSION_AUTOMATION_STATUSES = [
 export type ProjectVersionSource = (typeof PROJECT_VERSION_SOURCES)[number];
 export type ProjectVersionAutomationStatus =
 	(typeof PROJECT_VERSION_AUTOMATION_STATUSES)[number];
+export type ProjectVersionRestoreAssetKind =
+	(typeof PROJECT_VERSION_RESTORE_ASSET_KINDS)[number];
 
-export interface ProjectVersionLocalGuarantees {
+interface ProjectVersionLocalGuaranteeBase {
 	readonly localOnly: true;
 	readonly accountRequired: false;
 	readonly network: false;
 	readonly paidService: false;
-	readonly referencesOnly: true;
 	readonly binaryPayloadsStored: false;
+}
+
+export interface ProjectVersionReferenceOnlyGuarantees extends ProjectVersionLocalGuaranteeBase {
+	readonly referencesOnly: true;
+}
+
+export interface ProjectVersionRestorableGuarantees extends ProjectVersionLocalGuaranteeBase {
+	readonly referencesOnly: false;
+	readonly restorablePayloadsStored: true;
+}
+
+export type ProjectVersionLocalGuarantees =
+	| ProjectVersionReferenceOnlyGuarantees
+	| ProjectVersionRestorableGuarantees;
+
+export type ProjectVersionRestoreJsonPrimitive =
+	| string
+	| number
+	| boolean
+	| null;
+export type ProjectVersionRestoreJsonValue =
+	| ProjectVersionRestoreJsonPrimitive
+	| readonly ProjectVersionRestoreJsonValue[]
+	| {
+			readonly [key: string]: ProjectVersionRestoreJsonValue;
+	  };
+export type ProjectVersionRestoreJsonObject = Readonly<{
+	[key: string]: ProjectVersionRestoreJsonValue;
+}>;
+
+export interface ProjectVersionRestoreAssetReference {
+	readonly assetId: string;
+	readonly kind: ProjectVersionRestoreAssetKind;
+	readonly fingerprint: string;
+	readonly name?: string;
+	readonly mimeType?: string;
+	readonly sizeBytes?: number;
+}
+
+export interface ProjectVersionRestoreIntegrity {
+	readonly algorithm: typeof PROJECT_VERSION_RESTORE_INTEGRITY_ALGORITHM;
+	readonly digest: string;
+}
+
+export interface ProjectVersionRestorePayload {
+	readonly kind: typeof PROJECT_VERSION_RESTORE_KIND;
+	readonly schemaVersion: typeof PROJECT_VERSION_RESTORE_SCHEMA_VERSION;
+	readonly projectId: string;
+	readonly snapshotId: string;
+	readonly capturedAt: string;
+	readonly projectState: ProjectVersionRestoreJsonObject;
+	readonly timelineState: ProjectVersionRestoreJsonObject;
+	readonly creativeState?: ProjectVersionRestoreJsonObject;
+	readonly assets: readonly ProjectVersionRestoreAssetReference[];
+	readonly integrity: ProjectVersionRestoreIntegrity;
+}
+
+export interface CreateProjectVersionRestorePayloadInput {
+	readonly projectId: string;
+	readonly snapshotId: string;
+	readonly capturedAt: string;
+	readonly projectState: ProjectVersionRestoreJsonObject;
+	readonly timelineState: ProjectVersionRestoreJsonObject;
+	readonly creativeState?: ProjectVersionRestoreJsonObject;
+	readonly assets?: readonly ProjectVersionRestoreAssetReference[];
 }
 
 export interface IntentSpecVersionReference {
@@ -99,6 +178,7 @@ export interface ProjectVersion {
 	readonly createdAt: string;
 	readonly source: ProjectVersionSource;
 	readonly refs: ProjectVersionReferences;
+	readonly restorePayload?: ProjectVersionRestorePayload;
 	readonly guarantees: ProjectVersionLocalGuarantees;
 }
 
@@ -156,7 +236,7 @@ const identifierSchema = z
 	});
 const projectIdSchema = identifierSchema;
 const positiveVersionSchema = z.number().int().positive().max(1_000_000_000);
-const localGuaranteesSchema = z
+const referenceOnlyGuaranteesSchema = z
 	.object({
 		localOnly: z.literal(true),
 		accountRequired: z.literal(false),
@@ -164,6 +244,77 @@ const localGuaranteesSchema = z
 		paidService: z.literal(false),
 		referencesOnly: z.literal(true),
 		binaryPayloadsStored: z.literal(false),
+	})
+	.strict();
+const restorableGuaranteesSchema = z
+	.object({
+		localOnly: z.literal(true),
+		accountRequired: z.literal(false),
+		network: z.literal(false),
+		paidService: z.literal(false),
+		referencesOnly: z.literal(false),
+		restorablePayloadsStored: z.literal(true),
+		binaryPayloadsStored: z.literal(false),
+	})
+	.strict();
+const localGuaranteesSchema = z.union([
+	referenceOnlyGuaranteesSchema,
+	restorableGuaranteesSchema,
+]);
+const restoreJsonValueSchema: z.ZodType<ProjectVersionRestoreJsonValue> =
+	z.lazy(() =>
+		z.union([
+			z.string().max(100_000),
+			z.number().finite(),
+			z.boolean(),
+			z.null(),
+			z.array(restoreJsonValueSchema).max(20_000),
+			z.record(z.string().min(1).max(200), restoreJsonValueSchema),
+		]),
+	);
+const restoreJsonObjectSchema: z.ZodType<ProjectVersionRestoreJsonObject> = z
+	.record(z.string().min(1).max(200), restoreJsonValueSchema)
+	.refine((value) => Object.keys(value).length > 0, {
+		message: "Restore state objects cannot be empty.",
+	});
+const restoreAssetReferenceSchema = z
+	.object({
+		assetId: identifierSchema,
+		kind: z.enum(PROJECT_VERSION_RESTORE_ASSET_KINDS),
+		fingerprint: identifierSchema,
+		name: z.string().min(1).max(500).optional(),
+		mimeType: z
+			.string()
+			.min(1)
+			.max(200)
+			.regex(/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/u)
+			.optional(),
+		sizeBytes: z
+			.number()
+			.int()
+			.nonnegative()
+			.max(Number.MAX_SAFE_INTEGER)
+			.optional(),
+	})
+	.strict();
+const restoreIntegritySchema = z
+	.object({
+		algorithm: z.literal(PROJECT_VERSION_RESTORE_INTEGRITY_ALGORITHM),
+		digest: z.string().regex(/^[a-f0-9]{16}$/u),
+	})
+	.strict();
+const restorePayloadSchema = z
+	.object({
+		kind: z.literal(PROJECT_VERSION_RESTORE_KIND),
+		schemaVersion: z.literal(PROJECT_VERSION_RESTORE_SCHEMA_VERSION),
+		projectId: projectIdSchema,
+		snapshotId: identifierSchema,
+		capturedAt: canonicalTimestampSchema,
+		projectState: restoreJsonObjectSchema,
+		timelineState: restoreJsonObjectSchema,
+		creativeState: restoreJsonObjectSchema.optional(),
+		assets: z.array(restoreAssetReferenceSchema).max(10_000),
+		integrity: restoreIntegritySchema,
 	})
 	.strict();
 const intentSpecReferenceSchema = z
@@ -232,6 +383,7 @@ const projectVersionSchema = z
 		createdAt: canonicalTimestampSchema,
 		source: z.enum(PROJECT_VERSION_SOURCES),
 		refs: projectVersionReferencesSchema,
+		restorePayload: restorePayloadSchema.optional(),
 		guarantees: localGuaranteesSchema,
 	})
 	.strict();
@@ -245,14 +397,25 @@ const projectVersionLedgerSchema = z
 	})
 	.strict();
 
-const LOCAL_GUARANTEES: ProjectVersionLocalGuarantees = Object.freeze({
-	localOnly: true,
-	accountRequired: false,
-	network: false,
-	paidService: false,
-	referencesOnly: true,
-	binaryPayloadsStored: false,
-});
+const LOCAL_REFERENCE_ONLY_GUARANTEES: ProjectVersionReferenceOnlyGuarantees =
+	Object.freeze({
+		localOnly: true,
+		accountRequired: false,
+		network: false,
+		paidService: false,
+		referencesOnly: true,
+		binaryPayloadsStored: false,
+	});
+const LOCAL_RESTORABLE_GUARANTEES: ProjectVersionRestorableGuarantees =
+	Object.freeze({
+		localOnly: true,
+		accountRequired: false,
+		network: false,
+		paidService: false,
+		referencesOnly: false,
+		restorablePayloadsStored: true,
+		binaryPayloadsStored: false,
+	});
 const EMPTY_PROJECT_VERSIONS: readonly ProjectVersion[] = Object.freeze([]);
 
 function isCanonicalTimestamp(value: string): boolean {
@@ -336,6 +499,591 @@ function normalizePositiveVersion({
 		);
 	}
 	return value;
+}
+
+const RESTORE_MAX_DEPTH = 48;
+const RESTORE_MAX_NODES = 100_000;
+const RESTORE_MAX_CANONICAL_CHARACTERS = 2_000_000;
+const RESTORE_FORBIDDEN_KEYS = new Set([
+	"arraybuffer",
+	"base64",
+	"binary",
+	"blob",
+	"buffer",
+	"bytes",
+	"dataurl",
+	"file",
+	"objecturl",
+]);
+const RESTORE_RUNTIME_PROTOCOL = /^(?:blob|data|file):/iu;
+const RESTORE_EXTERNAL_LOCATION_KEY = /(?:href|src|uri|url)$/iu;
+const RESTORE_ANY_PROTOCOL = /^[A-Za-z][A-Za-z0-9+.-]*:/u;
+
+function isRestoreJsonObject(
+	value: unknown,
+): value is Readonly<Record<string, unknown>> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isTypedRestoreJsonObject(
+	value: ProjectVersionRestoreJsonValue,
+): value is ProjectVersionRestoreJsonObject {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function canonicalizeRestoreJson({ value }: { value: unknown }): string {
+	if (
+		value === null ||
+		typeof value === "string" ||
+		typeof value === "boolean"
+	) {
+		return JSON.stringify(value);
+	}
+	if (typeof value === "number") {
+		if (!Number.isFinite(value)) {
+			throw new ProjectVersionValidationError(
+				"Canonical restore JSON cannot contain non-finite numbers.",
+			);
+		}
+		return JSON.stringify(value);
+	}
+	if (Array.isArray(value)) {
+		return `[${value
+			.map((item) => canonicalizeRestoreJson({ value: item }))
+			.join(",")}]`;
+	}
+	if (!isRestoreJsonObject(value)) {
+		throw new ProjectVersionValidationError(
+			"Canonical restore JSON contains an unsupported value.",
+		);
+	}
+	return `{${Object.keys(value)
+		.sort()
+		.map(
+			(key) =>
+				`${JSON.stringify(key)}:${canonicalizeRestoreJson({
+					value: value[key],
+				})}`,
+		)
+		.join(",")}}`;
+}
+
+function assertRestoreJsonSafety({
+	value,
+	label,
+}: {
+	value: ProjectVersionRestoreJsonValue;
+	label: string;
+}): void {
+	let nodes = 0;
+	const visit = ({
+		current,
+		path,
+		depth,
+		parentKey,
+	}: {
+		current: ProjectVersionRestoreJsonValue;
+		path: string;
+		depth: number;
+		parentKey?: string;
+	}) => {
+		nodes += 1;
+		if (nodes > RESTORE_MAX_NODES) {
+			throw new ProjectVersionValidationError(
+				`${label} exceeds the maximum JSON node count.`,
+			);
+		}
+		if (depth > RESTORE_MAX_DEPTH) {
+			throw new ProjectVersionValidationError(
+				`${label} exceeds the maximum JSON depth.`,
+			);
+		}
+		if (typeof current === "string") {
+			if (RESTORE_RUNTIME_PROTOCOL.test(current.trim())) {
+				throw new ProjectVersionValidationError(
+					`${path} cannot contain a runtime or binary URL.`,
+				);
+			}
+			if (
+				parentKey !== undefined &&
+				RESTORE_EXTERNAL_LOCATION_KEY.test(parentKey) &&
+				RESTORE_ANY_PROTOCOL.test(current.trim())
+			) {
+				throw new ProjectVersionValidationError(
+					`${path} must use a stable local asset id instead of a URL.`,
+				);
+			}
+			return;
+		}
+		if (current === null || typeof current !== "object") return;
+		if (Array.isArray(current)) {
+			for (const [index, item] of current.entries()) {
+				visit({
+					current: item,
+					path: `${path}[${index}]`,
+					depth: depth + 1,
+				});
+			}
+			return;
+		}
+		for (const [key, item] of Object.entries(current)) {
+			const normalizedKey = key.toLowerCase();
+			if (
+				normalizedKey === "__proto__" ||
+				normalizedKey === "prototype" ||
+				normalizedKey === "constructor" ||
+				RESTORE_FORBIDDEN_KEYS.has(normalizedKey)
+			) {
+				throw new ProjectVersionValidationError(
+					`${path}.${key} is not allowed in a local restore payload.`,
+				);
+			}
+			visit({
+				current: item,
+				path: `${path}.${key}`,
+				depth: depth + 1,
+				parentKey: key,
+			});
+		}
+	};
+
+	visit({ current: value, path: label, depth: 0 });
+}
+
+function freezeRestoreJsonValue(
+	value: ProjectVersionRestoreJsonValue,
+): ProjectVersionRestoreJsonValue {
+	if (value === null || typeof value !== "object") return value;
+	if (Array.isArray(value)) {
+		return Object.freeze(value.map((item) => freezeRestoreJsonValue(item)));
+	}
+	if (isTypedRestoreJsonObject(value)) return freezeRestoreJsonObject(value);
+	throw new ProjectVersionValidationError(
+		"Restore JSON contains an unsupported object value.",
+	);
+}
+
+function freezeRestoreJsonObject(
+	value: ProjectVersionRestoreJsonObject,
+): ProjectVersionRestoreJsonObject {
+	const frozen: Record<string, ProjectVersionRestoreJsonValue> = {};
+	for (const [key, item] of Object.entries(value)) {
+		frozen[key] = freezeRestoreJsonValue(item);
+	}
+	return Object.freeze(frozen);
+}
+
+function normalizeRestoreJsonObject({
+	value,
+	label,
+}: {
+	value: ProjectVersionRestoreJsonObject;
+	label: string;
+}): ProjectVersionRestoreJsonObject {
+	const parsed = restoreJsonObjectSchema.safeParse(value);
+	if (!parsed.success) {
+		throw new ProjectVersionValidationError(
+			parsed.error.issues[0]?.message ?? `${label} is invalid.`,
+		);
+	}
+	assertRestoreJsonSafety({ value: parsed.data, label });
+	return freezeRestoreJsonObject(parsed.data);
+}
+
+function normalizeRestoreAssets({
+	assets,
+}: {
+	assets: readonly ProjectVersionRestoreAssetReference[];
+}): readonly ProjectVersionRestoreAssetReference[] {
+	const parsed = z
+		.array(restoreAssetReferenceSchema)
+		.max(10_000)
+		.safeParse(assets);
+	if (!parsed.success) {
+		throw new ProjectVersionValidationError(
+			parsed.error.issues[0]?.message ?? "Restore asset manifest is invalid.",
+		);
+	}
+	const normalized = parsed.data
+		.map((asset) =>
+			Object.freeze({
+				assetId: normalizeIdentifier({
+					value: asset.assetId,
+					label: "Restore asset id",
+				}),
+				kind: asset.kind,
+				fingerprint: normalizeIdentifier({
+					value: asset.fingerprint,
+					label: "Restore asset fingerprint",
+				}),
+				...(asset.name === undefined
+					? {}
+					: {
+							name: normalizeText({
+								value: asset.name,
+								label: "Restore asset name",
+								maxLength: 500,
+							}),
+						}),
+				...(asset.mimeType === undefined
+					? {}
+					: { mimeType: asset.mimeType.toLowerCase() }),
+				...(asset.sizeBytes === undefined
+					? {}
+					: { sizeBytes: asset.sizeBytes }),
+			}),
+		)
+		.sort((left, right) => left.assetId.localeCompare(right.assetId));
+	const ids = new Set<string>();
+	for (const asset of normalized) {
+		if (ids.has(asset.assetId)) {
+			throw new ProjectVersionValidationError(
+				"Restore asset ids must be unique.",
+			);
+		}
+		ids.add(asset.assetId);
+	}
+	return Object.freeze(normalized);
+}
+
+function collectRestoreAssetIds({
+	value,
+	label,
+}: {
+	value: ProjectVersionRestoreJsonValue;
+	label: string;
+}): ReadonlySet<string> {
+	const assetIds = new Set<string>();
+	const visit = ({
+		current,
+		path,
+	}: {
+		current: ProjectVersionRestoreJsonValue;
+		path: string;
+	}) => {
+		if (current === null || typeof current !== "object") return;
+		if (Array.isArray(current)) {
+			for (const [index, item] of current.entries()) {
+				visit({ current: item, path: `${path}[${index}]` });
+			}
+			return;
+		}
+		for (const [key, item] of Object.entries(current)) {
+			if (key === "mediaId" || key === "assetId") {
+				if (typeof item !== "string") {
+					throw new ProjectVersionValidationError(
+						`${path}.${key} must be a stable local asset id.`,
+					);
+				}
+				const normalized = normalizeIdentifier({
+					value: item,
+					label: `${label} asset id`,
+				});
+				if (normalized !== item) {
+					throw new ProjectVersionValidationError(
+						`${path}.${key} is not normalized.`,
+					);
+				}
+				assetIds.add(normalized);
+			}
+			visit({ current: item, path: `${path}.${key}` });
+		}
+	};
+	visit({ current: value, path: label });
+	return assetIds;
+}
+
+function assertRestoreStateBindings({
+	projectId,
+	projectState,
+	timelineState,
+	assets,
+}: {
+	projectId: string;
+	projectState: ProjectVersionRestoreJsonObject;
+	timelineState: ProjectVersionRestoreJsonObject;
+	assets: readonly ProjectVersionRestoreAssetReference[];
+}): void {
+	const stateProjectId = projectState.projectId ?? projectState.id;
+	if (
+		typeof stateProjectId !== "string" ||
+		normalizeProjectId({ projectId: stateProjectId }) !== projectId
+	) {
+		throw new ProjectVersionValidationError(
+			"Restore project state must identify the same project.",
+		);
+	}
+	const sceneId = timelineState.sceneId;
+	if (
+		typeof sceneId !== "string" ||
+		normalizeIdentifier({
+			value: sceneId,
+			label: "Restore timeline scene id",
+		}) !== sceneId
+	) {
+		throw new ProjectVersionValidationError(
+			"Restore timeline state must include a normalized scene id.",
+		);
+	}
+	const manifestIds = new Set(assets.map(({ assetId }) => assetId));
+	const referencedAssetIds = new Set([
+		...collectRestoreAssetIds({
+			value: projectState,
+			label: "Restore project state",
+		}),
+		...collectRestoreAssetIds({
+			value: timelineState,
+			label: "Restore timeline state",
+		}),
+	]);
+	for (const assetId of referencedAssetIds) {
+		if (!manifestIds.has(assetId)) {
+			throw new ProjectVersionValidationError(
+				`Restore asset manifest is missing referenced asset ${assetId}.`,
+			);
+		}
+	}
+}
+
+function restorePayloadDigest({
+	payload,
+}: {
+	payload: Omit<ProjectVersionRestorePayload, "integrity">;
+}): string {
+	return hashIdentity({
+		value: canonicalizeRestoreJson({
+			value: {
+				kind: payload.kind,
+				schemaVersion: payload.schemaVersion,
+				projectId: payload.projectId,
+				snapshotId: payload.snapshotId,
+				capturedAt: payload.capturedAt,
+				projectState: payload.projectState,
+				timelineState: payload.timelineState,
+				...(payload.creativeState === undefined
+					? {}
+					: { creativeState: payload.creativeState }),
+				assets: payload.assets.map((asset) => ({ ...asset })),
+			},
+		}),
+	});
+}
+
+function freezeRestorePayload({
+	payload,
+}: {
+	payload: ProjectVersionRestorePayload;
+}): ProjectVersionRestorePayload {
+	return Object.freeze({
+		...payload,
+		projectState: freezeRestoreJsonObject(payload.projectState),
+		timelineState: freezeRestoreJsonObject(payload.timelineState),
+		...(payload.creativeState === undefined
+			? {}
+			: {
+					creativeState: freezeRestoreJsonObject(payload.creativeState),
+				}),
+		assets: Object.freeze(
+			payload.assets.map((asset) => Object.freeze({ ...asset })),
+		),
+		integrity: Object.freeze({ ...payload.integrity }),
+	});
+}
+
+export function assertProjectVersionRestorePayloadInvariants({
+	payload,
+}: {
+	payload: ProjectVersionRestorePayload;
+}): void {
+	const parsed = restorePayloadSchema.safeParse(payload);
+	if (!parsed.success) {
+		throw new ProjectVersionValidationError(
+			parsed.error.issues[0]?.message ?? "Restore payload is invalid.",
+		);
+	}
+	const candidate = parsed.data;
+	if (
+		normalizeProjectId({ projectId: candidate.projectId }) !==
+			candidate.projectId ||
+		normalizeIdentifier({
+			value: candidate.snapshotId,
+			label: "Restore snapshot id",
+		}) !== candidate.snapshotId
+	) {
+		throw new ProjectVersionValidationError(
+			"Restore payload identifiers are not normalized.",
+		);
+	}
+	assertRestoreJsonSafety({
+		value: candidate.projectState,
+		label: "Restore project state",
+	});
+	assertRestoreJsonSafety({
+		value: candidate.timelineState,
+		label: "Restore timeline state",
+	});
+	if (candidate.creativeState !== undefined) {
+		assertRestoreJsonSafety({
+			value: candidate.creativeState,
+			label: "Restore creative state",
+		});
+		const creativeProjectId = candidate.creativeState.projectId;
+		if (
+			typeof creativeProjectId !== "string" ||
+			normalizeProjectId({ projectId: creativeProjectId }) !==
+				candidate.projectId
+		) {
+			throw new ProjectVersionValidationError(
+				"Restore creative state must identify the same project.",
+			);
+		}
+	}
+	const canonicalSize = canonicalizeRestoreJson({
+		value: {
+			projectState: candidate.projectState,
+			timelineState: candidate.timelineState,
+			...(candidate.creativeState === undefined
+				? {}
+				: { creativeState: candidate.creativeState }),
+			assets: candidate.assets,
+		},
+	}).length;
+	if (canonicalSize > RESTORE_MAX_CANONICAL_CHARACTERS) {
+		throw new ProjectVersionValidationError(
+			"Restore payload exceeds the local snapshot size limit.",
+		);
+	}
+	const normalizedAssets = normalizeRestoreAssets({ assets: candidate.assets });
+	if (
+		canonicalizeRestoreJson({
+			value: candidate.assets.map((asset) => ({ ...asset })),
+		}) !==
+		canonicalizeRestoreJson({
+			value: normalizedAssets.map((asset) => ({ ...asset })),
+		})
+	) {
+		throw new ProjectVersionValidationError(
+			"Restore asset manifest is not normalized and sorted.",
+		);
+	}
+	assertRestoreStateBindings({
+		projectId: candidate.projectId,
+		projectState: candidate.projectState,
+		timelineState: candidate.timelineState,
+		assets: normalizedAssets,
+	});
+	const expectedDigest = restorePayloadDigest({
+		payload: {
+			kind: candidate.kind,
+			schemaVersion: candidate.schemaVersion,
+			projectId: candidate.projectId,
+			snapshotId: candidate.snapshotId,
+			capturedAt: candidate.capturedAt,
+			projectState: candidate.projectState,
+			timelineState: candidate.timelineState,
+			...(candidate.creativeState === undefined
+				? {}
+				: { creativeState: candidate.creativeState }),
+			assets: candidate.assets,
+		},
+	});
+	if (candidate.integrity.digest !== expectedDigest) {
+		throw new ProjectVersionValidationError(
+			"Restore payload digest does not match its immutable content.",
+		);
+	}
+}
+
+export function parseProjectVersionRestorePayload({
+	value,
+}: {
+	value: unknown;
+}): ProjectVersionRestorePayload | null {
+	const parsed = restorePayloadSchema.safeParse(value);
+	if (!parsed.success) return null;
+	try {
+		assertProjectVersionRestorePayloadInvariants({ payload: parsed.data });
+		return freezeRestorePayload({ payload: parsed.data });
+	} catch {
+		return null;
+	}
+}
+
+export function createProjectVersionRestorePayload({
+	projectId,
+	snapshotId,
+	capturedAt,
+	projectState,
+	timelineState,
+	creativeState,
+	assets = [],
+}: CreateProjectVersionRestorePayloadInput): ProjectVersionRestorePayload {
+	const normalizedProjectId = normalizeProjectId({ projectId });
+	const normalizedProjectState = normalizeRestoreJsonObject({
+		value: projectState,
+		label: "Restore project state",
+	});
+	const normalizedTimelineState = normalizeRestoreJsonObject({
+		value: timelineState,
+		label: "Restore timeline state",
+	});
+	const normalizedCreativeState =
+		creativeState === undefined
+			? undefined
+			: normalizeRestoreJsonObject({
+					value: creativeState,
+					label: "Restore creative state",
+				});
+	const normalizedAssets = normalizeRestoreAssets({ assets });
+	const content = {
+		kind: PROJECT_VERSION_RESTORE_KIND,
+		schemaVersion: PROJECT_VERSION_RESTORE_SCHEMA_VERSION,
+		projectId: normalizedProjectId,
+		snapshotId: normalizeIdentifier({
+			value: snapshotId,
+			label: "Restore snapshot id",
+		}),
+		capturedAt: normalizeTimestamp({
+			value: capturedAt,
+			label: "Restore capture time",
+		}),
+		projectState: normalizedProjectState,
+		timelineState: normalizedTimelineState,
+		...(normalizedCreativeState === undefined
+			? {}
+			: { creativeState: normalizedCreativeState }),
+		assets: normalizedAssets,
+	} satisfies Omit<ProjectVersionRestorePayload, "integrity">;
+	const payload: ProjectVersionRestorePayload = {
+		...content,
+		integrity: Object.freeze({
+			algorithm: PROJECT_VERSION_RESTORE_INTEGRITY_ALGORITHM,
+			digest: restorePayloadDigest({ payload: content }),
+		}),
+	};
+	assertProjectVersionRestorePayloadInvariants({ payload });
+	return freezeRestorePayload({ payload });
+}
+
+function normalizeProjectVersionRestorePayload({
+	projectId,
+	payload,
+}: {
+	projectId: string;
+	payload: ProjectVersionRestorePayload;
+}): ProjectVersionRestorePayload {
+	const parsed = parseProjectVersionRestorePayload({ value: payload });
+	if (parsed === null) {
+		throw new ProjectVersionValidationError(
+			"Project version restore payload is invalid.",
+		);
+	}
+	if (parsed.projectId !== projectId) {
+		throw new ProjectVersionValidationError(
+			"Project version restore payload belongs to a different project.",
+		);
+	}
+	return parsed;
 }
 
 function assertReferenceProject({
@@ -616,6 +1364,7 @@ function projectVersionIdentity({
 	createdAt,
 	source,
 	refs,
+	restorePayload,
 }: {
 	projectId: string;
 	version: number;
@@ -624,8 +1373,9 @@ function projectVersionIdentity({
 	createdAt: string;
 	source: ProjectVersionSource;
 	refs: ProjectVersionReferences;
+	restorePayload?: ProjectVersionRestorePayload;
 }): string {
-	const canonical = JSON.stringify({
+	const identity = {
 		projectId,
 		version,
 		parentVersionId,
@@ -633,8 +1383,24 @@ function projectVersionIdentity({
 		createdAt,
 		source,
 		refs,
-	});
+		...(restorePayload === undefined ? {} : { restorePayload }),
+	};
+	// Preserve the exact v1 reference-only identity algorithm for existing records.
+	const canonical =
+		restorePayload === undefined
+			? JSON.stringify(identity)
+			: canonicalizeRestoreJson({ value: identity });
 	return `project_version_${hashIdentity({ value: canonical })}`;
+}
+
+function guaranteesForRestorePayload({
+	restorePayload,
+}: {
+	restorePayload?: ProjectVersionRestorePayload;
+}): ProjectVersionLocalGuarantees {
+	return restorePayload === undefined
+		? LOCAL_REFERENCE_ONLY_GUARANTEES
+		: LOCAL_RESTORABLE_GUARANTEES;
 }
 
 function freezeProjectVersion({
@@ -645,7 +1411,16 @@ function freezeProjectVersion({
 	return Object.freeze({
 		...version,
 		refs: freezeReferences({ refs: version.refs }),
-		guarantees: LOCAL_GUARANTEES,
+		...(version.restorePayload === undefined
+			? {}
+			: {
+					restorePayload: freezeRestorePayload({
+						payload: version.restorePayload,
+					}),
+				}),
+		guarantees: guaranteesForRestorePayload({
+			restorePayload: version.restorePayload,
+		}),
 	});
 }
 
@@ -659,7 +1434,11 @@ function freezeProjectVersionLedger({
 		versions: Object.freeze(
 			ledger.versions.map((version) => freezeProjectVersion({ version })),
 		),
-		guarantees: LOCAL_GUARANTEES,
+		guarantees: ledger.versions.some(
+			(version) => version.restorePayload !== undefined,
+		)
+			? LOCAL_RESTORABLE_GUARANTEES
+			: LOCAL_REFERENCE_ONLY_GUARANTEES,
 	});
 }
 
@@ -728,6 +1507,31 @@ export function assertProjectVersionInvariants({
 			"Every project artifact reference must match the version project.",
 		);
 	}
+	if (candidate.restorePayload !== undefined) {
+		assertProjectVersionRestorePayloadInvariants({
+			payload: candidate.restorePayload,
+		});
+		if (candidate.restorePayload.projectId !== candidate.projectId) {
+			throw new ProjectVersionValidationError(
+				"Project version restore payload belongs to a different project.",
+			);
+		}
+	}
+	const expectedGuarantees = guaranteesForRestorePayload({
+		restorePayload: candidate.restorePayload,
+	});
+	if (
+		canonicalizeRestoreJson({
+			value: candidate.guarantees,
+		}) !==
+		canonicalizeRestoreJson({
+			value: expectedGuarantees,
+		})
+	) {
+		throw new ProjectVersionValidationError(
+			"Project version guarantees do not match its restore payload.",
+		);
+	}
 	const expectedVersionId = projectVersionIdentity({
 		projectId: candidate.projectId,
 		version: candidate.version,
@@ -736,6 +1540,7 @@ export function assertProjectVersionInvariants({
 		createdAt: candidate.createdAt,
 		source: candidate.source,
 		refs: candidate.refs,
+		restorePayload: candidate.restorePayload,
 	});
 	if (candidate.versionId !== expectedVersionId) {
 		throw new ProjectVersionValidationError(
@@ -765,6 +1570,7 @@ export function createProjectVersion({
 	createdAt,
 	source,
 	refs,
+	restorePayload,
 	parent = null,
 }: {
 	projectId: string;
@@ -772,6 +1578,7 @@ export function createProjectVersion({
 	createdAt: string;
 	source: ProjectVersionSource;
 	refs: ProjectVersionReferencePatch;
+	restorePayload?: ProjectVersionRestorePayload;
 	parent?: ProjectVersion | null;
 }): ProjectVersion {
 	const normalizedProjectId = normalizeProjectId({ projectId });
@@ -819,6 +1626,13 @@ export function createProjectVersion({
 		parent: validatedParent,
 		patch: refs,
 	});
+	const normalizedRestorePayload =
+		restorePayload === undefined
+			? undefined
+			: normalizeProjectVersionRestorePayload({
+					projectId: normalizedProjectId,
+					payload: restorePayload,
+				});
 	const versionId = projectVersionIdentity({
 		projectId: normalizedProjectId,
 		version: versionNumber,
@@ -827,6 +1641,7 @@ export function createProjectVersion({
 		createdAt: normalizedCreatedAt,
 		source,
 		refs: normalizedRefs,
+		restorePayload: normalizedRestorePayload,
 	});
 	const version: ProjectVersion = {
 		kind: PROJECT_VERSION_KIND,
@@ -839,7 +1654,12 @@ export function createProjectVersion({
 		createdAt: normalizedCreatedAt,
 		source,
 		refs: normalizedRefs,
-		guarantees: LOCAL_GUARANTEES,
+		...(normalizedRestorePayload === undefined
+			? {}
+			: { restorePayload: normalizedRestorePayload }),
+		guarantees: guaranteesForRestorePayload({
+			restorePayload: normalizedRestorePayload,
+		}),
 	};
 	assertProjectVersionInvariants({ version });
 	return freezeProjectVersion({ version });
@@ -895,6 +1715,23 @@ export function assertProjectVersionLedgerInvariants({
 		versionIds.add(version.versionId);
 		previous = version;
 	}
+	const expectedGuarantees = candidate.versions.some(
+		(version) => version.restorePayload !== undefined,
+	)
+		? LOCAL_RESTORABLE_GUARANTEES
+		: LOCAL_REFERENCE_ONLY_GUARANTEES;
+	if (
+		canonicalizeRestoreJson({
+			value: candidate.guarantees,
+		}) !==
+		canonicalizeRestoreJson({
+			value: expectedGuarantees,
+		})
+	) {
+		throw new ProjectVersionValidationError(
+			"Project version ledger guarantees do not match its stored payloads.",
+		);
+	}
 }
 
 export function parseProjectVersionLedger({
@@ -924,7 +1761,9 @@ function buildProjectVersionLedger({
 		schemaVersion: PROJECT_VERSION_SCHEMA_VERSION,
 		projectId,
 		versions,
-		guarantees: LOCAL_GUARANTEES,
+		guarantees: versions.some((version) => version.restorePayload !== undefined)
+			? LOCAL_RESTORABLE_GUARANTEES
+			: LOCAL_REFERENCE_ONLY_GUARANTEES,
 	};
 	assertProjectVersionLedgerInvariants({ ledger });
 	return freezeProjectVersionLedger({ ledger });
@@ -1319,12 +2158,35 @@ export async function loadProjectVersion({
 	);
 }
 
+export async function loadProjectVersionRestorePayload({
+	projectId,
+	versionId,
+	storage = defaultProjectVersionStorage,
+}: {
+	projectId: string;
+	versionId?: string;
+	storage?: ProjectVersionStorageAdapter;
+}): Promise<ProjectVersionRestorePayload | null> {
+	const normalizedProjectId = normalizeProjectId({ projectId });
+	const version = await loadProjectVersion({
+		projectId: normalizedProjectId,
+		versionId,
+		storage,
+	});
+	if (version?.restorePayload === undefined) return null;
+	return normalizeProjectVersionRestorePayload({
+		projectId: normalizedProjectId,
+		payload: version.restorePayload,
+	});
+}
+
 export async function appendProjectVersion({
 	projectId,
 	label,
 	createdAt,
 	source,
 	refs,
+	restorePayload,
 	storage = defaultProjectVersionStorage,
 }: {
 	projectId: string;
@@ -1332,6 +2194,7 @@ export async function appendProjectVersion({
 	createdAt: string;
 	source: ProjectVersionSource;
 	refs: ProjectVersionReferencePatch;
+	restorePayload?: ProjectVersionRestorePayload;
 	storage?: ProjectVersionStorageAdapter;
 }): Promise<ProjectVersion> {
 	const normalizedProjectId = normalizeProjectId({ projectId });
@@ -1345,6 +2208,7 @@ export async function appendProjectVersion({
 		createdAt,
 		source,
 		refs,
+		restorePayload,
 		parent: current,
 	});
 	await storage.append({

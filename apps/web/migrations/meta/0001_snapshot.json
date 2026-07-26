@@ -1,0 +1,2824 @@
+{
+	"id": "beabe7ca-eaf0-4f65-bf5e-bf819f157768",
+	"prevId": "33a6742f-89da-4ac5-958f-421aa1cf9bd6",
+	"version": "7",
+	"dialect": "postgresql",
+	"tables": {
+		"public.accounts": {
+			"name": "accounts",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"account_id": {
+					"name": "account_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"provider_id": {
+					"name": "provider_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"access_token": {
+					"name": "access_token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"refresh_token": {
+					"name": "refresh_token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"id_token": {
+					"name": "id_token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"access_token_expires_at": {
+					"name": "access_token_expires_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"refresh_token_expires_at": {
+					"name": "refresh_token_expires_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"scope": {
+					"name": "scope",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"password": {
+					"name": "password",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"accounts_user_id_users_id_fk": {
+					"name": "accounts_user_id_users_id_fk",
+					"tableFrom": "accounts",
+					"tableTo": "users",
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": true
+		},
+		"public.agent_artifacts": {
+			"name": "agent_artifacts",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"project_id": {
+					"name": "project_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"owner_user_id": {
+					"name": "owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"ai_session_id": {
+					"name": "ai_session_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"parent_artifact_id": {
+					"name": "parent_artifact_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"parent_project_id": {
+					"name": "parent_project_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"parent_owner_user_id": {
+					"name": "parent_owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_by_user_id": {
+					"name": "created_by_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"role": {
+					"name": "role",
+					"type": "agent_role",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"artifact_kind": {
+					"name": "artifact_kind",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "agent_artifact_status",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'candidate'"
+				},
+				"revision": {
+					"name": "revision",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"input_fingerprint": {
+					"name": "input_fingerprint",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"artifact_digest": {
+					"name": "artifact_digest",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"payload": {
+					"name": "payload",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"evidence": {
+					"name": "evidence",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'[]'::jsonb"
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"reviewed_at": {
+					"name": "reviewed_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"agent_artifacts_id_project_scope_unique": {
+					"name": "agent_artifacts_id_project_scope_unique",
+					"columns": [
+						{
+							"expression": "id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "owner_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"agent_artifacts_session_role_revision_unique": {
+					"name": "agent_artifacts_session_role_revision_unique",
+					"columns": [
+						{
+							"expression": "ai_session_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "role",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "revision",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"agent_artifacts_project_status_idx": {
+					"name": "agent_artifacts_project_status_idx",
+					"columns": [
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"agent_artifacts_session_idx": {
+					"name": "agent_artifacts_session_idx",
+					"columns": [
+						{
+							"expression": "ai_session_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"agent_artifacts_created_by_user_id_users_id_fk": {
+					"name": "agent_artifacts_created_by_user_id_users_id_fk",
+					"tableFrom": "agent_artifacts",
+					"tableTo": "users",
+					"columnsFrom": ["created_by_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "cascade"
+				},
+				"agent_artifacts_project_scope_fk": {
+					"name": "agent_artifacts_project_scope_fk",
+					"tableFrom": "agent_artifacts",
+					"tableTo": "projects",
+					"columnsFrom": ["project_id", "owner_user_id"],
+					"columnsTo": ["id", "owner_user_id"],
+					"onDelete": "cascade",
+					"onUpdate": "cascade"
+				},
+				"agent_artifacts_session_scope_fk": {
+					"name": "agent_artifacts_session_scope_fk",
+					"tableFrom": "agent_artifacts",
+					"tableTo": "ai_sessions",
+					"columnsFrom": ["ai_session_id", "project_id", "owner_user_id"],
+					"columnsTo": ["id", "project_id", "owner_user_id"],
+					"onDelete": "restrict",
+					"onUpdate": "cascade"
+				},
+				"agent_artifacts_parent_scope_fk": {
+					"name": "agent_artifacts_parent_scope_fk",
+					"tableFrom": "agent_artifacts",
+					"tableTo": "agent_artifacts",
+					"columnsFrom": [
+						"parent_artifact_id",
+						"parent_project_id",
+						"parent_owner_user_id"
+					],
+					"columnsTo": ["id", "project_id", "owner_user_id"],
+					"onDelete": "set null",
+					"onUpdate": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {
+				"agent_artifacts_select_member": {
+					"name": "agent_artifacts_select_member",
+					"as": "PERMISSIVE",
+					"for": "SELECT",
+					"to": ["public"],
+					"using": "(\n\t\t\"agent_artifacts\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"agent_artifacts\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"agent_artifacts\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t)\n\t)"
+				},
+				"agent_artifacts_insert_editor": {
+					"name": "agent_artifacts_insert_editor",
+					"as": "PERMISSIVE",
+					"for": "INSERT",
+					"to": ["public"],
+					"withCheck": "(\n\t\t\"agent_artifacts\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"agent_artifacts\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"agent_artifacts\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				},
+				"agent_artifacts_update_editor": {
+					"name": "agent_artifacts_update_editor",
+					"as": "PERMISSIVE",
+					"for": "UPDATE",
+					"to": ["public"],
+					"using": "(\n\t\t\"agent_artifacts\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"agent_artifacts\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"agent_artifacts\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)",
+					"withCheck": "(\n\t\t\"agent_artifacts\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"agent_artifacts\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"agent_artifacts\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				},
+				"agent_artifacts_delete_owner": {
+					"name": "agent_artifacts_delete_owner",
+					"as": "PERMISSIVE",
+					"for": "DELETE",
+					"to": ["public"],
+					"using": "(\"agent_artifacts\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				}
+			},
+			"checkConstraints": {
+				"agent_artifacts_revision_positive": {
+					"name": "agent_artifacts_revision_positive",
+					"value": "\"agent_artifacts\".\"revision\" > 0"
+				},
+				"agent_artifacts_parent_scope_consistent": {
+					"name": "agent_artifacts_parent_scope_consistent",
+					"value": "(\n\t\t\t\t(\n\t\t\t\t\t\"agent_artifacts\".\"parent_artifact_id\" IS NULL\n\t\t\t\t\tAND \"agent_artifacts\".\"parent_project_id\" IS NULL\n\t\t\t\t\tAND \"agent_artifacts\".\"parent_owner_user_id\" IS NULL\n\t\t\t\t)\n\t\t\t\tOR (\n\t\t\t\t\t\"agent_artifacts\".\"parent_artifact_id\" IS NOT NULL\n\t\t\t\t\tAND \"agent_artifacts\".\"parent_project_id\" = \"agent_artifacts\".\"project_id\"\n\t\t\t\t\tAND \"agent_artifacts\".\"parent_owner_user_id\" = \"agent_artifacts\".\"owner_user_id\"\n\t\t\t\t)\n\t\t\t)"
+				},
+				"agent_artifacts_input_fingerprint_sha256": {
+					"name": "agent_artifacts_input_fingerprint_sha256",
+					"value": "\"agent_artifacts\".\"input_fingerprint\" ~ '^[a-f0-9]{64}$'"
+				},
+				"agent_artifacts_digest_sha256": {
+					"name": "agent_artifacts_digest_sha256",
+					"value": "\"agent_artifacts\".\"artifact_digest\" ~ '^[a-f0-9]{64}$'"
+				},
+				"agent_artifacts_payload_safe_json": {
+					"name": "agent_artifacts_payload_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"agent_artifacts\".\"payload\") = 'object'\n\t\tAND NOT (\n\t\t\t\"agent_artifacts\".\"payload\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				},
+				"agent_artifacts_evidence_safe_json": {
+					"name": "agent_artifacts_evidence_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"agent_artifacts\".\"evidence\") = 'array'\n\t\tAND NOT (\n\t\t\t\"agent_artifacts\".\"evidence\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				}
+			},
+			"isRLSEnabled": true
+		},
+		"public.ai_sessions": {
+			"name": "ai_sessions",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"project_id": {
+					"name": "project_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"owner_user_id": {
+					"name": "owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_by_user_id": {
+					"name": "created_by_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"status": {
+					"name": "status",
+					"type": "ai_session_status",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'planning'"
+				},
+				"execution_mode": {
+					"name": "execution_mode",
+					"type": "ai_execution_mode",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'local'"
+				},
+				"intent": {
+					"name": "intent",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"provider_id": {
+					"name": "provider_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"model_id": {
+					"name": "model_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"request_metadata": {
+					"name": "request_metadata",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'{}'::jsonb"
+				},
+				"revision": {
+					"name": "revision",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 1
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"started_at": {
+					"name": "started_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"completed_at": {
+					"name": "completed_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"ai_sessions_id_project_scope_unique": {
+					"name": "ai_sessions_id_project_scope_unique",
+					"columns": [
+						{
+							"expression": "id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "owner_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"ai_sessions_project_status_idx": {
+					"name": "ai_sessions_project_status_idx",
+					"columns": [
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"ai_sessions_creator_idx": {
+					"name": "ai_sessions_creator_idx",
+					"columns": [
+						{
+							"expression": "created_by_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"ai_sessions_created_by_user_id_users_id_fk": {
+					"name": "ai_sessions_created_by_user_id_users_id_fk",
+					"tableFrom": "ai_sessions",
+					"tableTo": "users",
+					"columnsFrom": ["created_by_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "cascade"
+				},
+				"ai_sessions_project_scope_fk": {
+					"name": "ai_sessions_project_scope_fk",
+					"tableFrom": "ai_sessions",
+					"tableTo": "projects",
+					"columnsFrom": ["project_id", "owner_user_id"],
+					"columnsTo": ["id", "owner_user_id"],
+					"onDelete": "cascade",
+					"onUpdate": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {
+				"ai_sessions_select_member": {
+					"name": "ai_sessions_select_member",
+					"as": "PERMISSIVE",
+					"for": "SELECT",
+					"to": ["public"],
+					"using": "(\n\t\t\"ai_sessions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"ai_sessions\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"ai_sessions\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t)\n\t)"
+				},
+				"ai_sessions_insert_editor": {
+					"name": "ai_sessions_insert_editor",
+					"as": "PERMISSIVE",
+					"for": "INSERT",
+					"to": ["public"],
+					"withCheck": "(\n\t\t\"ai_sessions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"ai_sessions\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"ai_sessions\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				},
+				"ai_sessions_update_editor": {
+					"name": "ai_sessions_update_editor",
+					"as": "PERMISSIVE",
+					"for": "UPDATE",
+					"to": ["public"],
+					"using": "(\n\t\t\"ai_sessions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"ai_sessions\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"ai_sessions\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)",
+					"withCheck": "(\n\t\t\"ai_sessions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"ai_sessions\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"ai_sessions\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				},
+				"ai_sessions_delete_owner": {
+					"name": "ai_sessions_delete_owner",
+					"as": "PERMISSIVE",
+					"for": "DELETE",
+					"to": ["public"],
+					"using": "(\"ai_sessions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				}
+			},
+			"checkConstraints": {
+				"ai_sessions_revision_positive": {
+					"name": "ai_sessions_revision_positive",
+					"value": "\"ai_sessions\".\"revision\" > 0"
+				},
+				"ai_sessions_timestamps_consistent": {
+					"name": "ai_sessions_timestamps_consistent",
+					"value": "(\n\t\t\t\t\"ai_sessions\".\"completed_at\" IS NULL\n\t\t\t\tOR (\n\t\t\t\t\t\"ai_sessions\".\"started_at\" IS NOT NULL\n\t\t\t\t\tAND \"ai_sessions\".\"completed_at\" >= \"ai_sessions\".\"started_at\"\n\t\t\t\t)\n\t\t\t)"
+				},
+				"ai_sessions_request_metadata_safe_json": {
+					"name": "ai_sessions_request_metadata_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"ai_sessions\".\"request_metadata\") = 'object'\n\t\tAND NOT (\n\t\t\t\"ai_sessions\".\"request_metadata\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				}
+			},
+			"isRLSEnabled": true
+		},
+		"public.assets": {
+			"name": "assets",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"project_id": {
+					"name": "project_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"owner_user_id": {
+					"name": "owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_by_user_id": {
+					"name": "created_by_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"kind": {
+					"name": "kind",
+					"type": "asset_kind",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "asset_status",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'pending'"
+				},
+				"source_kind": {
+					"name": "source_kind",
+					"type": "asset_source_kind",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"file_name": {
+					"name": "file_name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"mime_type": {
+					"name": "mime_type",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"byte_size": {
+					"name": "byte_size",
+					"type": "bigint",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"duration_ms": {
+					"name": "duration_ms",
+					"type": "bigint",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"content_fingerprint": {
+					"name": "content_fingerprint",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"storage_reference": {
+					"name": "storage_reference",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"metadata": {
+					"name": "metadata",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'{}'::jsonb"
+				},
+				"revision": {
+					"name": "revision",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 1
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"deleted_at": {
+					"name": "deleted_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"assets_id_project_scope_unique": {
+					"name": "assets_id_project_scope_unique",
+					"columns": [
+						{
+							"expression": "id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "owner_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"assets_project_status_kind_idx": {
+					"name": "assets_project_status_kind_idx",
+					"columns": [
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "kind",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"assets_project_created_idx": {
+					"name": "assets_project_created_idx",
+					"columns": [
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"assets_content_fingerprint_idx": {
+					"name": "assets_content_fingerprint_idx",
+					"columns": [
+						{
+							"expression": "content_fingerprint",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"assets_created_by_user_id_users_id_fk": {
+					"name": "assets_created_by_user_id_users_id_fk",
+					"tableFrom": "assets",
+					"tableTo": "users",
+					"columnsFrom": ["created_by_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "cascade"
+				},
+				"assets_project_scope_fk": {
+					"name": "assets_project_scope_fk",
+					"tableFrom": "assets",
+					"tableTo": "projects",
+					"columnsFrom": ["project_id", "owner_user_id"],
+					"columnsTo": ["id", "owner_user_id"],
+					"onDelete": "cascade",
+					"onUpdate": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {
+				"assets_select_member": {
+					"name": "assets_select_member",
+					"as": "PERMISSIVE",
+					"for": "SELECT",
+					"to": ["public"],
+					"using": "(\n\t\t\"assets\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"assets\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"assets\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t)\n\t)"
+				},
+				"assets_insert_editor": {
+					"name": "assets_insert_editor",
+					"as": "PERMISSIVE",
+					"for": "INSERT",
+					"to": ["public"],
+					"withCheck": "(\n\t\t\"assets\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"assets\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"assets\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				},
+				"assets_update_editor": {
+					"name": "assets_update_editor",
+					"as": "PERMISSIVE",
+					"for": "UPDATE",
+					"to": ["public"],
+					"using": "(\n\t\t\"assets\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"assets\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"assets\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)",
+					"withCheck": "(\n\t\t\"assets\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"assets\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"assets\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				},
+				"assets_delete_editor": {
+					"name": "assets_delete_editor",
+					"as": "PERMISSIVE",
+					"for": "DELETE",
+					"to": ["public"],
+					"using": "(\n\t\t\"assets\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"assets\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"assets\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				}
+			},
+			"checkConstraints": {
+				"assets_revision_positive": {
+					"name": "assets_revision_positive",
+					"value": "\"assets\".\"revision\" > 0"
+				},
+				"assets_byte_size_nonnegative": {
+					"name": "assets_byte_size_nonnegative",
+					"value": "\"assets\".\"byte_size\" >= 0"
+				},
+				"assets_duration_nonnegative": {
+					"name": "assets_duration_nonnegative",
+					"value": "\"assets\".\"duration_ms\" IS NULL OR \"assets\".\"duration_ms\" >= 0"
+				},
+				"assets_fingerprint_sha256": {
+					"name": "assets_fingerprint_sha256",
+					"value": "\"assets\".\"content_fingerprint\" ~ '^[a-f0-9]{64}$'"
+				},
+				"assets_storage_reference_safe_json": {
+					"name": "assets_storage_reference_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"assets\".\"storage_reference\") = 'object'\n\t\tAND NOT (\n\t\t\t\"assets\".\"storage_reference\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				},
+				"assets_metadata_safe_json": {
+					"name": "assets_metadata_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"assets\".\"metadata\") = 'object'\n\t\tAND NOT (\n\t\t\t\"assets\".\"metadata\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				},
+				"assets_deleted_state_consistent": {
+					"name": "assets_deleted_state_consistent",
+					"value": "(\n\t\t\t\t(\"assets\".\"status\" = 'deleted' AND \"assets\".\"deleted_at\" IS NOT NULL)\n\t\t\t\tOR (\"assets\".\"status\" <> 'deleted' AND \"assets\".\"deleted_at\" IS NULL)\n\t\t\t)"
+				}
+			},
+			"isRLSEnabled": true
+		},
+		"public.creator_dna_profiles": {
+			"name": "creator_dna_profiles",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"owner_user_id": {
+					"name": "owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"scope": {
+					"name": "scope",
+					"type": "creator_dna_scope",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'global'"
+				},
+				"project_id": {
+					"name": "project_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"project_owner_user_id": {
+					"name": "project_owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"status": {
+					"name": "status",
+					"type": "creator_dna_status",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'learning'"
+				},
+				"revision": {
+					"name": "revision",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 1
+				},
+				"preferences": {
+					"name": "preferences",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'{}'::jsonb"
+				},
+				"evidence": {
+					"name": "evidence",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'[]'::jsonb"
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"last_learned_at": {
+					"name": "last_learned_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"creator_dna_profiles_global_owner_unique": {
+					"name": "creator_dna_profiles_global_owner_unique",
+					"columns": [
+						{
+							"expression": "owner_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"where": "\"creator_dna_profiles\".\"scope\" = 'global'",
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"creator_dna_profiles_project_owner_unique": {
+					"name": "creator_dna_profiles_project_owner_unique",
+					"columns": [
+						{
+							"expression": "owner_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"where": "\"creator_dna_profiles\".\"scope\" = 'project'",
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"creator_dna_profiles_owner_status_idx": {
+					"name": "creator_dna_profiles_owner_status_idx",
+					"columns": [
+						{
+							"expression": "owner_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"creator_dna_profiles_owner_user_id_users_id_fk": {
+					"name": "creator_dna_profiles_owner_user_id_users_id_fk",
+					"tableFrom": "creator_dna_profiles",
+					"tableTo": "users",
+					"columnsFrom": ["owner_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "cascade"
+				},
+				"creator_dna_profiles_project_scope_fk": {
+					"name": "creator_dna_profiles_project_scope_fk",
+					"tableFrom": "creator_dna_profiles",
+					"tableTo": "projects",
+					"columnsFrom": ["project_id", "project_owner_user_id"],
+					"columnsTo": ["id", "owner_user_id"],
+					"onDelete": "cascade",
+					"onUpdate": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {
+				"creator_dna_profiles_select_owner": {
+					"name": "creator_dna_profiles_select_owner",
+					"as": "PERMISSIVE",
+					"for": "SELECT",
+					"to": ["public"],
+					"using": "(\"creator_dna_profiles\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				},
+				"creator_dna_profiles_insert_owner": {
+					"name": "creator_dna_profiles_insert_owner",
+					"as": "PERMISSIVE",
+					"for": "INSERT",
+					"to": ["public"],
+					"withCheck": "(\"creator_dna_profiles\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				},
+				"creator_dna_profiles_update_owner": {
+					"name": "creator_dna_profiles_update_owner",
+					"as": "PERMISSIVE",
+					"for": "UPDATE",
+					"to": ["public"],
+					"using": "(\"creator_dna_profiles\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))",
+					"withCheck": "(\"creator_dna_profiles\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				},
+				"creator_dna_profiles_delete_owner": {
+					"name": "creator_dna_profiles_delete_owner",
+					"as": "PERMISSIVE",
+					"for": "DELETE",
+					"to": ["public"],
+					"using": "(\"creator_dna_profiles\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				}
+			},
+			"checkConstraints": {
+				"creator_dna_profiles_revision_positive": {
+					"name": "creator_dna_profiles_revision_positive",
+					"value": "\"creator_dna_profiles\".\"revision\" > 0"
+				},
+				"creator_dna_profiles_scope_consistent": {
+					"name": "creator_dna_profiles_scope_consistent",
+					"value": "(\n\t\t\t\t(\n\t\t\t\t\t\"creator_dna_profiles\".\"scope\" = 'global'\n\t\t\t\t\tAND \"creator_dna_profiles\".\"project_id\" IS NULL\n\t\t\t\t\tAND \"creator_dna_profiles\".\"project_owner_user_id\" IS NULL\n\t\t\t\t)\n\t\t\t\tOR (\n\t\t\t\t\t\"creator_dna_profiles\".\"scope\" = 'project'\n\t\t\t\t\tAND \"creator_dna_profiles\".\"project_id\" IS NOT NULL\n\t\t\t\t\tAND \"creator_dna_profiles\".\"project_owner_user_id\" IS NOT NULL\n\t\t\t\t)\n\t\t\t)"
+				},
+				"creator_dna_profiles_preferences_safe_json": {
+					"name": "creator_dna_profiles_preferences_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"creator_dna_profiles\".\"preferences\") = 'object'\n\t\tAND NOT (\n\t\t\t\"creator_dna_profiles\".\"preferences\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				},
+				"creator_dna_profiles_evidence_safe_json": {
+					"name": "creator_dna_profiles_evidence_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"creator_dna_profiles\".\"evidence\") = 'array'\n\t\tAND NOT (\n\t\t\t\"creator_dna_profiles\".\"evidence\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				}
+			},
+			"isRLSEnabled": true
+		},
+		"public.feedback": {
+			"name": "feedback",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"message": {
+					"name": "message",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.project_members": {
+			"name": "project_members",
+			"schema": "",
+			"columns": {
+				"project_id": {
+					"name": "project_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"owner_user_id": {
+					"name": "owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"role": {
+					"name": "role",
+					"type": "project_member_role",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "project_member_status",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'invited'"
+				},
+				"invited_by_user_id": {
+					"name": "invited_by_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"revision": {
+					"name": "revision",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 1
+				},
+				"invited_at": {
+					"name": "invited_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"joined_at": {
+					"name": "joined_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"project_members_user_status_idx": {
+					"name": "project_members_user_status_idx",
+					"columns": [
+						{
+							"expression": "user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"project_members_project_role_idx": {
+					"name": "project_members_project_role_idx",
+					"columns": [
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "role",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"project_members_user_id_users_id_fk": {
+					"name": "project_members_user_id_users_id_fk",
+					"tableFrom": "project_members",
+					"tableTo": "users",
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "cascade"
+				},
+				"project_members_invited_by_user_id_users_id_fk": {
+					"name": "project_members_invited_by_user_id_users_id_fk",
+					"tableFrom": "project_members",
+					"tableTo": "users",
+					"columnsFrom": ["invited_by_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "cascade"
+				},
+				"project_members_project_scope_fk": {
+					"name": "project_members_project_scope_fk",
+					"tableFrom": "project_members",
+					"tableTo": "projects",
+					"columnsFrom": ["project_id", "owner_user_id"],
+					"columnsTo": ["id", "owner_user_id"],
+					"onDelete": "cascade",
+					"onUpdate": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {
+				"project_members_project_user_pk": {
+					"name": "project_members_project_user_pk",
+					"columns": ["project_id", "user_id"]
+				}
+			},
+			"uniqueConstraints": {},
+			"policies": {
+				"project_members_select_participant": {
+					"name": "project_members_select_participant",
+					"as": "PERMISSIVE",
+					"for": "SELECT",
+					"to": ["public"],
+					"using": "(\n\t\t\t\t\"project_members\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tOR \"project_members\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t)"
+				},
+				"project_members_insert_owner": {
+					"name": "project_members_insert_owner",
+					"as": "PERMISSIVE",
+					"for": "INSERT",
+					"to": ["public"],
+					"withCheck": "(\"project_members\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				},
+				"project_members_update_owner": {
+					"name": "project_members_update_owner",
+					"as": "PERMISSIVE",
+					"for": "UPDATE",
+					"to": ["public"],
+					"using": "(\"project_members\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))",
+					"withCheck": "(\"project_members\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				},
+				"project_members_delete_owner": {
+					"name": "project_members_delete_owner",
+					"as": "PERMISSIVE",
+					"for": "DELETE",
+					"to": ["public"],
+					"using": "(\"project_members\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				}
+			},
+			"checkConstraints": {
+				"project_members_revision_positive": {
+					"name": "project_members_revision_positive",
+					"value": "\"project_members\".\"revision\" > 0"
+				},
+				"project_members_owner_role_consistent": {
+					"name": "project_members_owner_role_consistent",
+					"value": "(\n\t\t\t\t(\"project_members\".\"user_id\" = \"project_members\".\"owner_user_id\" AND \"project_members\".\"role\" = 'owner')\n\t\t\t\tOR (\"project_members\".\"user_id\" <> \"project_members\".\"owner_user_id\" AND \"project_members\".\"role\" <> 'owner')\n\t\t\t)"
+				},
+				"project_members_joined_state_consistent": {
+					"name": "project_members_joined_state_consistent",
+					"value": "(\n\t\t\t\t(\"project_members\".\"status\" = 'active' AND \"project_members\".\"joined_at\" IS NOT NULL)\n\t\t\t\tOR (\"project_members\".\"status\" <> 'active')\n\t\t\t)"
+				}
+			},
+			"isRLSEnabled": true
+		},
+		"public.project_versions": {
+			"name": "project_versions",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"project_id": {
+					"name": "project_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"owner_user_id": {
+					"name": "owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"parent_version_id": {
+					"name": "parent_version_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"parent_project_id": {
+					"name": "parent_project_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"parent_owner_user_id": {
+					"name": "parent_owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"source_ai_session_id": {
+					"name": "source_ai_session_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_by_user_id": {
+					"name": "created_by_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"revision": {
+					"name": "revision",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "project_version_status",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'checkpoint'"
+				},
+				"label": {
+					"name": "label",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"state_fingerprint": {
+					"name": "state_fingerprint",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"state": {
+					"name": "state",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"asset_manifest": {
+					"name": "asset_manifest",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'[]'::jsonb"
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"published_at": {
+					"name": "published_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"project_versions_id_project_scope_unique": {
+					"name": "project_versions_id_project_scope_unique",
+					"columns": [
+						{
+							"expression": "id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "owner_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"project_versions_project_revision_unique": {
+					"name": "project_versions_project_revision_unique",
+					"columns": [
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "revision",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"project_versions_project_status_idx": {
+					"name": "project_versions_project_status_idx",
+					"columns": [
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"project_versions_created_by_user_id_users_id_fk": {
+					"name": "project_versions_created_by_user_id_users_id_fk",
+					"tableFrom": "project_versions",
+					"tableTo": "users",
+					"columnsFrom": ["created_by_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "cascade"
+				},
+				"project_versions_project_scope_fk": {
+					"name": "project_versions_project_scope_fk",
+					"tableFrom": "project_versions",
+					"tableTo": "projects",
+					"columnsFrom": ["project_id", "owner_user_id"],
+					"columnsTo": ["id", "owner_user_id"],
+					"onDelete": "cascade",
+					"onUpdate": "cascade"
+				},
+				"project_versions_parent_scope_fk": {
+					"name": "project_versions_parent_scope_fk",
+					"tableFrom": "project_versions",
+					"tableTo": "project_versions",
+					"columnsFrom": [
+						"parent_version_id",
+						"parent_project_id",
+						"parent_owner_user_id"
+					],
+					"columnsTo": ["id", "project_id", "owner_user_id"],
+					"onDelete": "set null",
+					"onUpdate": "cascade"
+				},
+				"project_versions_source_ai_session_fk": {
+					"name": "project_versions_source_ai_session_fk",
+					"tableFrom": "project_versions",
+					"tableTo": "ai_sessions",
+					"columnsFrom": [
+						"source_ai_session_id",
+						"project_id",
+						"owner_user_id"
+					],
+					"columnsTo": ["id", "project_id", "owner_user_id"],
+					"onDelete": "restrict",
+					"onUpdate": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {
+				"project_versions_select_member": {
+					"name": "project_versions_select_member",
+					"as": "PERMISSIVE",
+					"for": "SELECT",
+					"to": ["public"],
+					"using": "(\n\t\t\"project_versions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"project_versions\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"project_versions\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t)\n\t)"
+				},
+				"project_versions_insert_editor": {
+					"name": "project_versions_insert_editor",
+					"as": "PERMISSIVE",
+					"for": "INSERT",
+					"to": ["public"],
+					"withCheck": "(\n\t\t\"project_versions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"project_versions\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"project_versions\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				},
+				"project_versions_update_editor": {
+					"name": "project_versions_update_editor",
+					"as": "PERMISSIVE",
+					"for": "UPDATE",
+					"to": ["public"],
+					"using": "(\n\t\t\"project_versions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"project_versions\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"project_versions\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)",
+					"withCheck": "(\n\t\t\"project_versions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"project_versions\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"project_versions\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				},
+				"project_versions_delete_owner": {
+					"name": "project_versions_delete_owner",
+					"as": "PERMISSIVE",
+					"for": "DELETE",
+					"to": ["public"],
+					"using": "(\"project_versions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				}
+			},
+			"checkConstraints": {
+				"project_versions_revision_positive": {
+					"name": "project_versions_revision_positive",
+					"value": "\"project_versions\".\"revision\" > 0"
+				},
+				"project_versions_parent_scope_consistent": {
+					"name": "project_versions_parent_scope_consistent",
+					"value": "(\n\t\t\t\t(\n\t\t\t\t\t\"project_versions\".\"parent_version_id\" IS NULL\n\t\t\t\t\tAND \"project_versions\".\"parent_project_id\" IS NULL\n\t\t\t\t\tAND \"project_versions\".\"parent_owner_user_id\" IS NULL\n\t\t\t\t)\n\t\t\t\tOR (\n\t\t\t\t\t\"project_versions\".\"parent_version_id\" IS NOT NULL\n\t\t\t\t\tAND \"project_versions\".\"parent_project_id\" = \"project_versions\".\"project_id\"\n\t\t\t\t\tAND \"project_versions\".\"parent_owner_user_id\" = \"project_versions\".\"owner_user_id\"\n\t\t\t\t)\n\t\t\t)"
+				},
+				"project_versions_fingerprint_sha256": {
+					"name": "project_versions_fingerprint_sha256",
+					"value": "\"project_versions\".\"state_fingerprint\" ~ '^[a-f0-9]{64}$'"
+				},
+				"project_versions_published_state_consistent": {
+					"name": "project_versions_published_state_consistent",
+					"value": "(\n\t\t\t\t(\"project_versions\".\"status\" = 'published' AND \"project_versions\".\"published_at\" IS NOT NULL)\n\t\t\t\tOR (\"project_versions\".\"status\" <> 'published' AND \"project_versions\".\"published_at\" IS NULL)\n\t\t\t)"
+				},
+				"project_versions_state_safe_json": {
+					"name": "project_versions_state_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"project_versions\".\"state\") = 'object'\n\t\tAND NOT (\n\t\t\t\"project_versions\".\"state\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				},
+				"project_versions_asset_manifest_safe_json": {
+					"name": "project_versions_asset_manifest_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"project_versions\".\"asset_manifest\") = 'array'\n\t\tAND NOT (\n\t\t\t\"project_versions\".\"asset_manifest\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				}
+			},
+			"isRLSEnabled": true
+		},
+		"public.projects": {
+			"name": "projects",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"owner_user_id": {
+					"name": "owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"status": {
+					"name": "status",
+					"type": "project_status",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'active'"
+				},
+				"visibility": {
+					"name": "visibility",
+					"type": "project_visibility",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'private'"
+				},
+				"revision": {
+					"name": "revision",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 1
+				},
+				"settings": {
+					"name": "settings",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'{}'::jsonb"
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"archived_at": {
+					"name": "archived_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"deleted_at": {
+					"name": "deleted_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"projects_id_owner_scope_unique": {
+					"name": "projects_id_owner_scope_unique",
+					"columns": [
+						{
+							"expression": "id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "owner_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"projects_owner_updated_idx": {
+					"name": "projects_owner_updated_idx",
+					"columns": [
+						{
+							"expression": "owner_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "updated_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"projects_owner_status_idx": {
+					"name": "projects_owner_status_idx",
+					"columns": [
+						{
+							"expression": "owner_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"projects_owner_user_id_users_id_fk": {
+					"name": "projects_owner_user_id_users_id_fk",
+					"tableFrom": "projects",
+					"tableTo": "users",
+					"columnsFrom": ["owner_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "restrict",
+					"onUpdate": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {
+				"projects_select_member": {
+					"name": "projects_select_member",
+					"as": "PERMISSIVE",
+					"for": "SELECT",
+					"to": ["public"],
+					"using": "(\n\t\t\"projects\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"projects\".\"id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"projects\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t)\n\t)"
+				},
+				"projects_insert_owner": {
+					"name": "projects_insert_owner",
+					"as": "PERMISSIVE",
+					"for": "INSERT",
+					"to": ["public"],
+					"withCheck": "(\"projects\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				},
+				"projects_update_owner": {
+					"name": "projects_update_owner",
+					"as": "PERMISSIVE",
+					"for": "UPDATE",
+					"to": ["public"],
+					"using": "(\"projects\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))",
+					"withCheck": "(\"projects\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				},
+				"projects_delete_owner": {
+					"name": "projects_delete_owner",
+					"as": "PERMISSIVE",
+					"for": "DELETE",
+					"to": ["public"],
+					"using": "(\"projects\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				}
+			},
+			"checkConstraints": {
+				"projects_revision_positive": {
+					"name": "projects_revision_positive",
+					"value": "\"projects\".\"revision\" > 0"
+				},
+				"projects_settings_safe_json": {
+					"name": "projects_settings_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"projects\".\"settings\") = 'object'\n\t\tAND NOT (\n\t\t\t\"projects\".\"settings\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				},
+				"projects_lifecycle_consistent": {
+					"name": "projects_lifecycle_consistent",
+					"value": "(\n\t\t\t\t(\"projects\".\"status\" = 'active' AND \"projects\".\"archived_at\" IS NULL AND \"projects\".\"deleted_at\" IS NULL)\n\t\t\t\tOR (\"projects\".\"status\" = 'archived' AND \"projects\".\"archived_at\" IS NOT NULL AND \"projects\".\"deleted_at\" IS NULL)\n\t\t\t\tOR (\"projects\".\"status\" = 'deleted' AND \"projects\".\"deleted_at\" IS NOT NULL)\n\t\t\t)"
+				}
+			},
+			"isRLSEnabled": true
+		},
+		"public.scenes": {
+			"name": "scenes",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"project_id": {
+					"name": "project_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"owner_user_id": {
+					"name": "owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"asset_id": {
+					"name": "asset_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_by_user_id": {
+					"name": "created_by_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"kind": {
+					"name": "kind",
+					"type": "scene_kind",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"title": {
+					"name": "title",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"story_order": {
+					"name": "story_order",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"source_in_ms": {
+					"name": "source_in_ms",
+					"type": "bigint",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"source_out_ms": {
+					"name": "source_out_ms",
+					"type": "bigint",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"timeline_start_ms": {
+					"name": "timeline_start_ms",
+					"type": "bigint",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 0
+				},
+				"duration_ms": {
+					"name": "duration_ms",
+					"type": "bigint",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"metadata": {
+					"name": "metadata",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'{}'::jsonb"
+				},
+				"evidence": {
+					"name": "evidence",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'[]'::jsonb"
+				},
+				"revision": {
+					"name": "revision",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true,
+					"default": 1
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {
+				"scenes_id_project_scope_unique": {
+					"name": "scenes_id_project_scope_unique",
+					"columns": [
+						{
+							"expression": "id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "owner_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"scenes_project_story_order_unique": {
+					"name": "scenes_project_story_order_unique",
+					"columns": [
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "story_order",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"scenes_project_timeline_idx": {
+					"name": "scenes_project_timeline_idx",
+					"columns": [
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "timeline_start_ms",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"scenes_asset_idx": {
+					"name": "scenes_asset_idx",
+					"columns": [
+						{
+							"expression": "asset_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"scenes_created_by_user_id_users_id_fk": {
+					"name": "scenes_created_by_user_id_users_id_fk",
+					"tableFrom": "scenes",
+					"tableTo": "users",
+					"columnsFrom": ["created_by_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "cascade"
+				},
+				"scenes_project_scope_fk": {
+					"name": "scenes_project_scope_fk",
+					"tableFrom": "scenes",
+					"tableTo": "projects",
+					"columnsFrom": ["project_id", "owner_user_id"],
+					"columnsTo": ["id", "owner_user_id"],
+					"onDelete": "cascade",
+					"onUpdate": "cascade"
+				},
+				"scenes_asset_scope_fk": {
+					"name": "scenes_asset_scope_fk",
+					"tableFrom": "scenes",
+					"tableTo": "assets",
+					"columnsFrom": ["asset_id", "project_id", "owner_user_id"],
+					"columnsTo": ["id", "project_id", "owner_user_id"],
+					"onDelete": "restrict",
+					"onUpdate": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {
+				"scenes_select_member": {
+					"name": "scenes_select_member",
+					"as": "PERMISSIVE",
+					"for": "SELECT",
+					"to": ["public"],
+					"using": "(\n\t\t\"scenes\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"scenes\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"scenes\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t)\n\t)"
+				},
+				"scenes_insert_editor": {
+					"name": "scenes_insert_editor",
+					"as": "PERMISSIVE",
+					"for": "INSERT",
+					"to": ["public"],
+					"withCheck": "(\n\t\t\"scenes\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"scenes\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"scenes\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				},
+				"scenes_update_editor": {
+					"name": "scenes_update_editor",
+					"as": "PERMISSIVE",
+					"for": "UPDATE",
+					"to": ["public"],
+					"using": "(\n\t\t\"scenes\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"scenes\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"scenes\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)",
+					"withCheck": "(\n\t\t\"scenes\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"scenes\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"scenes\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				},
+				"scenes_delete_editor": {
+					"name": "scenes_delete_editor",
+					"as": "PERMISSIVE",
+					"for": "DELETE",
+					"to": ["public"],
+					"using": "(\n\t\t\"scenes\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"scenes\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"scenes\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				}
+			},
+			"checkConstraints": {
+				"scenes_revision_positive": {
+					"name": "scenes_revision_positive",
+					"value": "\"scenes\".\"revision\" > 0"
+				},
+				"scenes_story_order_nonnegative": {
+					"name": "scenes_story_order_nonnegative",
+					"value": "\"scenes\".\"story_order\" >= 0"
+				},
+				"scenes_timeline_values_valid": {
+					"name": "scenes_timeline_values_valid",
+					"value": "\"scenes\".\"timeline_start_ms\" >= 0 AND \"scenes\".\"duration_ms\" > 0"
+				},
+				"scenes_source_range_complete": {
+					"name": "scenes_source_range_complete",
+					"value": "(\n\t\t\t\t(\"scenes\".\"asset_id\" IS NULL AND \"scenes\".\"source_in_ms\" IS NULL AND \"scenes\".\"source_out_ms\" IS NULL)\n\t\t\t\tOR (\n\t\t\t\t\t\"scenes\".\"asset_id\" IS NOT NULL\n\t\t\t\t\tAND \"scenes\".\"source_in_ms\" IS NOT NULL\n\t\t\t\t\tAND \"scenes\".\"source_out_ms\" IS NOT NULL\n\t\t\t\t\tAND \"scenes\".\"source_in_ms\" >= 0\n\t\t\t\t\tAND \"scenes\".\"source_out_ms\" > \"scenes\".\"source_in_ms\"\n\t\t\t\t)\n\t\t\t)"
+				},
+				"scenes_metadata_safe_json": {
+					"name": "scenes_metadata_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"scenes\".\"metadata\") = 'object'\n\t\tAND NOT (\n\t\t\t\"scenes\".\"metadata\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				},
+				"scenes_evidence_safe_json": {
+					"name": "scenes_evidence_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"scenes\".\"evidence\") = 'array'\n\t\tAND NOT (\n\t\t\t\"scenes\".\"evidence\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				}
+			},
+			"isRLSEnabled": true
+		},
+		"public.sessions": {
+			"name": "sessions",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"expires_at": {
+					"name": "expires_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"token": {
+					"name": "token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"ip_address": {
+					"name": "ip_address",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"user_agent": {
+					"name": "user_agent",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"user_id": {
+					"name": "user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"sessions_user_id_users_id_fk": {
+					"name": "sessions_user_id_users_id_fk",
+					"tableFrom": "sessions",
+					"tableTo": "users",
+					"columnsFrom": ["user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"sessions_token_unique": {
+					"name": "sessions_token_unique",
+					"nullsNotDistinct": false,
+					"columns": ["token"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": true
+		},
+		"public.story_graph_versions": {
+			"name": "story_graph_versions",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"project_id": {
+					"name": "project_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"owner_user_id": {
+					"name": "owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"parent_version_id": {
+					"name": "parent_version_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"parent_project_id": {
+					"name": "parent_project_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"parent_owner_user_id": {
+					"name": "parent_owner_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_by_user_id": {
+					"name": "created_by_user_id",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"revision": {
+					"name": "revision",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "story_graph_status",
+					"typeSchema": "public",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'draft'"
+				},
+				"graph": {
+					"name": "graph",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"provenance": {
+					"name": "provenance",
+					"type": "jsonb",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'[]'::jsonb"
+				},
+				"content_fingerprint": {
+					"name": "content_fingerprint",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"reviewed_at": {
+					"name": "reviewed_at",
+					"type": "timestamp with time zone",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {
+				"story_graph_versions_id_scope_unique": {
+					"name": "story_graph_versions_id_scope_unique",
+					"columns": [
+						{
+							"expression": "id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "owner_user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"story_graph_versions_project_revision_unique": {
+					"name": "story_graph_versions_project_revision_unique",
+					"columns": [
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "revision",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": true,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				},
+				"story_graph_versions_project_status_idx": {
+					"name": "story_graph_versions_project_status_idx",
+					"columns": [
+						{
+							"expression": "project_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "status",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						},
+						{
+							"expression": "created_at",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
+			"foreignKeys": {
+				"story_graph_versions_created_by_user_id_users_id_fk": {
+					"name": "story_graph_versions_created_by_user_id_users_id_fk",
+					"tableFrom": "story_graph_versions",
+					"tableTo": "users",
+					"columnsFrom": ["created_by_user_id"],
+					"columnsTo": ["id"],
+					"onDelete": "set null",
+					"onUpdate": "cascade"
+				},
+				"story_graph_versions_project_scope_fk": {
+					"name": "story_graph_versions_project_scope_fk",
+					"tableFrom": "story_graph_versions",
+					"tableTo": "projects",
+					"columnsFrom": ["project_id", "owner_user_id"],
+					"columnsTo": ["id", "owner_user_id"],
+					"onDelete": "cascade",
+					"onUpdate": "cascade"
+				},
+				"story_graph_versions_parent_scope_fk": {
+					"name": "story_graph_versions_parent_scope_fk",
+					"tableFrom": "story_graph_versions",
+					"tableTo": "story_graph_versions",
+					"columnsFrom": [
+						"parent_version_id",
+						"parent_project_id",
+						"parent_owner_user_id"
+					],
+					"columnsTo": ["id", "project_id", "owner_user_id"],
+					"onDelete": "set null",
+					"onUpdate": "cascade"
+				}
+			},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {
+				"story_graph_versions_select_member": {
+					"name": "story_graph_versions_select_member",
+					"as": "PERMISSIVE",
+					"for": "SELECT",
+					"to": ["public"],
+					"using": "(\n\t\t\"story_graph_versions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"story_graph_versions\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"story_graph_versions\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t)\n\t)"
+				},
+				"story_graph_versions_insert_editor": {
+					"name": "story_graph_versions_insert_editor",
+					"as": "PERMISSIVE",
+					"for": "INSERT",
+					"to": ["public"],
+					"withCheck": "(\n\t\t\"story_graph_versions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"story_graph_versions\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"story_graph_versions\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				},
+				"story_graph_versions_update_editor": {
+					"name": "story_graph_versions_update_editor",
+					"as": "PERMISSIVE",
+					"for": "UPDATE",
+					"to": ["public"],
+					"using": "(\n\t\t\"story_graph_versions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"story_graph_versions\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"story_graph_versions\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)",
+					"withCheck": "(\n\t\t\"story_graph_versions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\tOR EXISTS (\n\t\t\tSELECT 1\n\t\t\tFROM \"project_members\" AS \"visioncut_member\"\n\t\t\tWHERE \"visioncut_member\".\"project_id\" = \"story_graph_versions\".\"project_id\"\n\t\t\t\tAND \"visioncut_member\".\"owner_user_id\" = \"story_graph_versions\".\"owner_user_id\"\n\t\t\t\tAND \"visioncut_member\".\"user_id\" = nullif(current_setting('app.current_user_id', true), '')\n\t\t\t\tAND \"visioncut_member\".\"status\" = 'active'\n\t\t\t\tAND \"visioncut_member\".\"role\" IN ('owner', 'editor')\n\t\t)\n\t)"
+				},
+				"story_graph_versions_delete_owner": {
+					"name": "story_graph_versions_delete_owner",
+					"as": "PERMISSIVE",
+					"for": "DELETE",
+					"to": ["public"],
+					"using": "(\"story_graph_versions\".\"owner_user_id\" = nullif(current_setting('app.current_user_id', true), ''))"
+				}
+			},
+			"checkConstraints": {
+				"story_graph_versions_revision_positive": {
+					"name": "story_graph_versions_revision_positive",
+					"value": "\"story_graph_versions\".\"revision\" > 0"
+				},
+				"story_graph_versions_parent_scope_consistent": {
+					"name": "story_graph_versions_parent_scope_consistent",
+					"value": "(\n\t\t\t\t(\n\t\t\t\t\t\"story_graph_versions\".\"parent_version_id\" IS NULL\n\t\t\t\t\tAND \"story_graph_versions\".\"parent_project_id\" IS NULL\n\t\t\t\t\tAND \"story_graph_versions\".\"parent_owner_user_id\" IS NULL\n\t\t\t\t)\n\t\t\t\tOR (\n\t\t\t\t\t\"story_graph_versions\".\"parent_version_id\" IS NOT NULL\n\t\t\t\t\tAND \"story_graph_versions\".\"parent_project_id\" = \"story_graph_versions\".\"project_id\"\n\t\t\t\t\tAND \"story_graph_versions\".\"parent_owner_user_id\" = \"story_graph_versions\".\"owner_user_id\"\n\t\t\t\t)\n\t\t\t)"
+				},
+				"story_graph_versions_fingerprint_sha256": {
+					"name": "story_graph_versions_fingerprint_sha256",
+					"value": "\"story_graph_versions\".\"content_fingerprint\" ~ '^[a-f0-9]{64}$'"
+				},
+				"story_graph_versions_graph_safe_json": {
+					"name": "story_graph_versions_graph_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"story_graph_versions\".\"graph\") = 'object'\n\t\tAND NOT (\n\t\t\t\"story_graph_versions\".\"graph\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				},
+				"story_graph_versions_provenance_safe_json": {
+					"name": "story_graph_versions_provenance_safe_json",
+					"value": "(\n\t\tjsonb_typeof(\"story_graph_versions\".\"provenance\") = 'array'\n\t\tAND NOT (\n\t\t\t\"story_graph_versions\".\"provenance\"::text\n\t\t\t~* '\"(api[_-]?key|authorization|session[_-]?byok[_-]?key|token|secret)\"[[:space:]]*:'\n\t\t)\n\t)"
+				}
+			},
+			"isRLSEnabled": true
+		},
+		"public.users": {
+			"name": "users",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"email": {
+					"name": "email",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"email_verified": {
+					"name": "email_verified",
+					"type": "boolean",
+					"primaryKey": false,
+					"notNull": true,
+					"default": false
+				},
+				"image": {
+					"name": "image",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"users_email_unique": {
+					"name": "users_email_unique",
+					"nullsNotDistinct": false,
+					"columns": ["email"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": true
+		},
+		"public.verifications": {
+			"name": "verifications",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"identifier": {
+					"name": "identifier",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"value": {
+					"name": "value",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"expires_at": {
+					"name": "expires_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": true
+		},
+		"public.waitlist": {
+			"name": "waitlist",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "text",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"email": {
+					"name": "email",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {
+				"waitlist_email_unique": {
+					"name": "waitlist_email_unique",
+					"nullsNotDistinct": false,
+					"columns": ["email"]
+				}
+			},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": true
+		}
+	},
+	"enums": {
+		"public.agent_artifact_status": {
+			"name": "agent_artifact_status",
+			"schema": "public",
+			"values": [
+				"candidate",
+				"in_review",
+				"accepted",
+				"rejected",
+				"stale",
+				"failed"
+			]
+		},
+		"public.agent_role": {
+			"name": "agent_role",
+			"schema": "public",
+			"values": [
+				"director",
+				"story",
+				"camera",
+				"editor",
+				"color",
+				"sound",
+				"growth"
+			]
+		},
+		"public.ai_execution_mode": {
+			"name": "ai_execution_mode",
+			"schema": "public",
+			"values": ["local", "byok", "managed_cloud"]
+		},
+		"public.ai_session_status": {
+			"name": "ai_session_status",
+			"schema": "public",
+			"values": [
+				"planning",
+				"running",
+				"awaiting_review",
+				"completed",
+				"failed",
+				"cancelled"
+			]
+		},
+		"public.asset_kind": {
+			"name": "asset_kind",
+			"schema": "public",
+			"values": ["video", "audio", "image", "subtitle", "other"]
+		},
+		"public.asset_source_kind": {
+			"name": "asset_source_kind",
+			"schema": "public",
+			"values": ["local_reference", "managed_object", "generated"]
+		},
+		"public.asset_status": {
+			"name": "asset_status",
+			"schema": "public",
+			"values": ["pending", "ready", "failed", "deleted"]
+		},
+		"public.creator_dna_scope": {
+			"name": "creator_dna_scope",
+			"schema": "public",
+			"values": ["global", "project"]
+		},
+		"public.creator_dna_status": {
+			"name": "creator_dna_status",
+			"schema": "public",
+			"values": ["learning", "active", "paused"]
+		},
+		"public.project_member_role": {
+			"name": "project_member_role",
+			"schema": "public",
+			"values": ["owner", "editor", "reviewer", "viewer"]
+		},
+		"public.project_member_status": {
+			"name": "project_member_status",
+			"schema": "public",
+			"values": ["invited", "active", "suspended"]
+		},
+		"public.project_status": {
+			"name": "project_status",
+			"schema": "public",
+			"values": ["active", "archived", "deleted"]
+		},
+		"public.project_version_status": {
+			"name": "project_version_status",
+			"schema": "public",
+			"values": ["checkpoint", "approved", "published", "archived"]
+		},
+		"public.project_visibility": {
+			"name": "project_visibility",
+			"schema": "public",
+			"values": ["private", "shared"]
+		},
+		"public.scene_kind": {
+			"name": "scene_kind",
+			"schema": "public",
+			"values": ["primary", "b_roll", "audio", "title", "generated"]
+		},
+		"public.story_graph_status": {
+			"name": "story_graph_status",
+			"schema": "public",
+			"values": ["draft", "in_review", "approved", "superseded"]
+		}
+	},
+	"schemas": {},
+	"sequences": {},
+	"roles": {},
+	"policies": {},
+	"views": {},
+	"_meta": {
+		"columns": {},
+		"schemas": {},
+		"tables": {}
+	}
+}

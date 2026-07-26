@@ -18,11 +18,13 @@ import {
 	Download,
 	ExternalLink,
 	Film,
+	FileSearch,
 	FolderOpen,
 	Gauge,
 	Grid3X3,
 	ImagePlus,
 	Images,
+	Import,
 	Layers3,
 	Library,
 	Loader2,
@@ -46,7 +48,7 @@ import {
 	Zap,
 	type LucideIcon,
 } from "lucide-react";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
 	AUTOMATION_RECIPES,
@@ -72,6 +74,8 @@ import {
 import type { StoryGraph } from "@/ai-studio/story-graph-model";
 import type { ExportManifest } from "@/ai-studio/export-manifest";
 import type { AgentOrchestration } from "@/ai-studio/agent-orchestrator";
+import type { MediaIndex } from "@/ai-studio/media-index";
+import type { TimelineTranscriptArtifact } from "@/ai-studio/transcript-artifact";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -91,10 +95,14 @@ import {
 import { VisionCutExportCenter } from "@/components/editor/panels/inspector/visioncut-export-center";
 import { VisionCutVersionHistory } from "@/components/editor/panels/inspector/visioncut-version-history";
 import { VisionCutAgentOrchestration } from "@/components/editor/panels/inspector/visioncut-agent-orchestration";
+import { VisionCutMediaIntelligence } from "@/components/editor/panels/inspector/visioncut-media-intelligence";
+import { useVisionCutWorkspaceStore } from "@/editor/visioncut-workspace-store";
 import { cn } from "@/utils/ui";
 
 type StudioView =
 	| "project"
+	| "analysis"
+	| "chatcut"
 	| "workflows"
 	| "team"
 	| "story"
@@ -112,6 +120,9 @@ interface AIProductStudioProps {
 	storyGraph: StoryGraph;
 	exportManifest: ExportManifest | null;
 	agentOrchestration: AgentOrchestration | null;
+	mediaIndexes: readonly MediaIndex[];
+	transcriptArtifact: TimelineTranscriptArtifact | null;
+	chatCutBridge?: ReactNode;
 	initialIntent?: string;
 	onImportMedia: () => void;
 	onOpenDirector: () => void;
@@ -119,6 +130,10 @@ interface AIProductStudioProps {
 	onOpenNativeExport?: () => void;
 	onModelSelectionChange?: (selection: ModelSelectionSummary) => void;
 	onAgentOrchestrationChange?: (next: AgentOrchestration) => void;
+	onMediaIndexChange?: (change: {
+		readonly assetId: string;
+		readonly index: MediaIndex | null;
+	}) => void;
 	onStoryGraphChange?: (next: StoryGraph) => void;
 	onImportOpenverse: (item: OpenverseSearchItem) => Promise<void>;
 	onUseRecipe: ({
@@ -137,6 +152,8 @@ const STUDIO_VIEWS: Array<{
 	icon: LucideIcon;
 }> = [
 	{ id: "project", label: "项目", icon: ScanSearch },
+	{ id: "analysis", label: "理解", icon: FileSearch },
+	{ id: "chatcut", label: "协作", icon: Import },
 	{ id: "workflows", label: "AI 配方", icon: Sparkles },
 	{ id: "team", label: "制作组", icon: Boxes },
 	{ id: "story", label: "故事图", icon: Route },
@@ -251,10 +268,10 @@ const PRODUCTION_AGENTS: Array<{
 		requiresAssets: false,
 	},
 	{
-		label: "Creator DNA",
-		role: "等待反馈",
-		icon: BrainCircuit,
-		requiresAssets: false,
+		label: "Camera",
+		role: "镜头设计",
+		icon: Aperture,
+		requiresAssets: true,
 	},
 ];
 
@@ -279,7 +296,26 @@ function updateNumberSetting({
 	field: Exclude<keyof StudioProSettings, "fillerHandling">;
 	value: number;
 }): StudioProSettings {
-	return { ...settings, [field]: value };
+	const next = { ...settings, [field]: value };
+	if (
+		field === "silenceThresholdMs" &&
+		next.cutPaddingMs * 2 >= next.silenceThresholdMs
+	) {
+		next.cutPaddingMs = Math.max(
+			0,
+			Math.floor((next.silenceThresholdMs - 10) / 20) * 10,
+		);
+	}
+	if (
+		field === "cutPaddingMs" &&
+		next.cutPaddingMs * 2 >= next.silenceThresholdMs
+	) {
+		next.silenceThresholdMs = Math.min(
+			2_000,
+			Math.ceil((next.cutPaddingMs * 2 + 10) / 10) * 10,
+		);
+	}
+	return next;
 }
 
 function ProSlider({
@@ -431,11 +467,7 @@ function ProductionTeamRail({ assetCount }: { assetCount: number }) {
 				{PRODUCTION_AGENTS.map((agent) => {
 					const Icon = agent.icon;
 					const status =
-						agent.label === "Creator DNA"
-							? "待启用"
-							: agent.requiresAssets && assetCount === 0
-								? "待素材"
-								: "纳入规划";
+						agent.requiresAssets && assetCount === 0 ? "待素材" : "纳入规划";
 					return (
 						<div
 							key={agent.label}
@@ -1506,6 +1538,9 @@ export function AIProductStudio({
 	storyGraph,
 	exportManifest,
 	agentOrchestration,
+	mediaIndexes,
+	transcriptArtifact,
+	chatCutBridge,
 	initialIntent = "",
 	onImportMedia,
 	onOpenDirector,
@@ -1513,6 +1548,7 @@ export function AIProductStudio({
 	onOpenNativeExport,
 	onModelSelectionChange,
 	onAgentOrchestrationChange,
+	onMediaIndexChange,
 	onStoryGraphChange,
 	onImportOpenverse,
 	onUseRecipe,
@@ -1520,7 +1556,10 @@ export function AIProductStudio({
 	const [view, setView] = useState<StudioView>(() =>
 		initialIntent.trim() || assetCount === 0 ? "workflows" : "project",
 	);
-	const [experience, setExperience] = useState<StudioExperience>("guided");
+	const experience = useVisionCutWorkspaceStore((state) => state.experience);
+	const setWorkspaceExperience = useVisionCutWorkspaceStore(
+		(state) => state.setExperience,
+	);
 	const [settings, setSettings] = useState<StudioProSettings>(
 		DEFAULT_STUDIO_PRO_SETTINGS,
 	);
@@ -1538,7 +1577,7 @@ export function AIProductStudio({
 					</div>
 					<div className="min-w-0 flex-1">
 						<p className="truncate text-[12px] font-semibold">VisionCut AI</p>
-						<p className="mt-0.5 text-[8px] text-muted-foreground">
+						<p className="mt-0.5 text-[10px] text-muted-foreground">
 							{assetCount > 0 ? `${assetCount} 个素材在线` : "新创作"}
 						</p>
 					</div>
@@ -1564,7 +1603,12 @@ export function AIProductStudio({
 					</Button>
 				</div>
 				<div className="px-2.5 pb-2.5">
-					<ExperienceSwitch experience={experience} onChange={setExperience} />
+					<ExperienceSwitch
+						experience={experience}
+						onChange={(nextExperience) =>
+							setWorkspaceExperience({ experience: nextExperience })
+						}
+					/>
 				</div>
 				<nav
 					className="scrollbar-hidden flex overflow-x-auto border-t"
@@ -1595,6 +1639,8 @@ export function AIProductStudio({
 						<div>
 							<VisionCutProjectIntelligence
 								snapshot={projectSnapshot}
+								mediaIndexes={mediaIndexes}
+								transcriptArtifact={transcriptArtifact}
 								onImportMedia={onImportMedia}
 								onOpenDirector={onOpenDirector}
 								onOpenModels={openModels}
@@ -1604,6 +1650,23 @@ export function AIProductStudio({
 							) : null}
 						</div>
 					) : null}
+					{view === "analysis" ? (
+						<VisionCutMediaIntelligence
+							projectId={projectId}
+							assets={projectSnapshot.assets}
+							onMediaIndexChange={onMediaIndexChange}
+						/>
+					) : null}
+					{view === "chatcut"
+						? (chatCutBridge ?? (
+								<div className="border-y py-8 text-center">
+									<p className="text-[11px] font-semibold">协作基线尚未就绪</p>
+									<p className="mt-1 text-[9px] text-muted-foreground">
+										项目与时间线加载完成后再创建交接包。
+									</p>
+								</div>
+							))
+						: null}
 					{view === "workflows" ? (
 						<WorkflowView
 							key={initialIntent || "new-creation"}
@@ -1621,6 +1684,10 @@ export function AIProductStudio({
 					{view === "team" && agentOrchestration ? (
 						<VisionCutAgentOrchestration
 							orchestration={agentOrchestration}
+							evidenceSources={{
+								mediaIndexes,
+								transcriptArtifact,
+							}}
 							onChange={(next) => onAgentOrchestrationChange?.(next)}
 						/>
 					) : null}

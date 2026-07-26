@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { transformProjectV27ToV28 } from "../transformers/v27-to-v28";
+import { installMockWasm } from "@/test-utils/mock-wasm";
 import { asRecord, asRecordArray } from "./helpers";
+
+installMockWasm();
+
+const { transformProjectV27ToV28 } = await import("../transformers/v27-to-v28");
 
 describe("V27 to V28 Migration", () => {
 	test("rounds persisted media-time floats back to integer ticks", () => {

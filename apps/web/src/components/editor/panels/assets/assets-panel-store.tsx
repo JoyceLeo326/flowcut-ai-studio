@@ -11,7 +11,6 @@ import {
 	TextIcon,
 	Settings01Icon,
 	SlidersHorizontalIcon,
-	ColorsIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 
@@ -29,11 +28,14 @@ export const TAB_KEYS = [
 
 export type Tab = (typeof TAB_KEYS)[number];
 
-const createHugeiconsIcon =
-	({ icon }: { icon: IconSvgElement }) =>
-	({ className }: { className?: string }) => (
-		<HugeiconsIcon icon={icon} className={className} />
-	);
+function createHugeiconsIcon({ icon }: { icon: IconSvgElement }) {
+	function AssetsPanelTabIcon({ className }: { className?: string }) {
+		return <HugeiconsIcon icon={icon} className={className} />;
+	}
+
+	AssetsPanelTabIcon.displayName = "AssetsPanelTabIcon";
+	return AssetsPanelTabIcon;
+}
 
 export const tabs = {
 	media: {

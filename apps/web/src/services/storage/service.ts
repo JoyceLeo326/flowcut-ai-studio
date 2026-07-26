@@ -23,6 +23,11 @@ import {
 } from "@/services/storage/migrations";
 import type { Bookmark, SceneTracks, TScene } from "@/timeline";
 import { roundMediaTime } from "@/wasm";
+import { resolveMediaMimeType, restoreFileMimeType } from "@/media/mime";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function normalizeBookmarks({ raw }: { raw: unknown }): Bookmark[] {
 	if (!Array.isArray(raw)) return [];
@@ -31,24 +36,37 @@ function normalizeBookmarks({ raw }: { raw: unknown }): Bookmark[] {
 			if (typeof item === "number") {
 				return { time: roundMediaTime({ time: item }) };
 			}
-			const obj = item as Record<string, unknown>;
-			if (
-				typeof obj !== "object" ||
-				obj === null ||
-				typeof obj.time !== "number"
-			) {
+			if (!isRecord(item) || typeof item.time !== "number") {
 				return null;
 			}
 			return {
-				time: roundMediaTime({ time: obj.time }),
-				...(typeof obj.note === "string" && { note: obj.note }),
-				...(typeof obj.color === "string" && { color: obj.color }),
-				...(typeof obj.duration === "number" && {
-					duration: roundMediaTime({ time: obj.duration }),
+				time: roundMediaTime({ time: item.time }),
+				...(typeof item.note === "string" && { note: item.note }),
+				...(typeof item.color === "string" && { color: item.color }),
+				...(typeof item.duration === "number" && {
+					duration: roundMediaTime({ time: item.duration }),
 				}),
 			};
 		})
 		.filter((b): b is Bookmark => b !== null);
+}
+
+function deserializeScenes({
+	scenes,
+}: {
+	scenes: readonly SerializedScene[] | undefined;
+}): TScene[] {
+	return (
+		scenes?.map((scene) => ({
+			id: scene.id,
+			name: scene.name,
+			isMain: scene.isMain,
+			tracks: scene.tracks,
+			bookmarks: normalizeBookmarks({ raw: scene.bookmarks }),
+			createdAt: new Date(scene.createdAt),
+			updatedAt: new Date(scene.updatedAt),
+		})) ?? []
+	);
 }
 
 class StorageService {
@@ -190,16 +208,7 @@ class StorageService {
 			return null;
 		}
 
-		const scenes =
-			serializedProject.scenes?.map((scene) => ({
-				id: scene.id,
-				name: scene.name,
-				isMain: scene.isMain,
-				tracks: scene.tracks,
-				bookmarks: normalizeBookmarks({ raw: scene.bookmarks }),
-				createdAt: new Date(scene.createdAt),
-				updatedAt: new Date(scene.updatedAt),
-			})) ?? [];
+		const scenes = deserializeScenes({ scenes: serializedProject.scenes });
 
 		const project: TProject = {
 			metadata: {
@@ -267,7 +276,9 @@ class StorageService {
 					time:
 						serializedProject.metadata.duration ??
 						getProjectDurationFromScenes({
-							scenes: (serializedProject.scenes ?? []) as unknown as TScene[],
+							scenes: deserializeScenes({
+								scenes: serializedProject.scenes,
+							}),
 						}),
 				}),
 				createdAt: new Date(serializedProject.metadata.createdAt),
@@ -298,11 +309,18 @@ class StorageService {
 			id: mediaAsset.id,
 			name: mediaAsset.name,
 			type: mediaAsset.type,
+			mimeType: resolveMediaMimeType({
+				name: mediaAsset.name,
+				mediaType: mediaAsset.type,
+				declaredType: mediaAsset.file.type,
+			}),
 			size: mediaAsset.file.size,
 			lastModified: mediaAsset.file.lastModified,
 			width: mediaAsset.width,
 			height: mediaAsset.height,
 			duration: mediaAsset.duration,
+			fps: mediaAsset.fps,
+			hasAudio: mediaAsset.hasAudio,
 			thumbnailUrl: mediaAsset.thumbnailUrl,
 			ephemeral: mediaAsset.ephemeral,
 		};
@@ -349,33 +367,45 @@ class StorageService {
 		]);
 
 		if (!file || !metadata) return null;
+		const restoredFile = restoreFileMimeType({
+			file,
+			name: metadata.name,
+			mediaType: metadata.type,
+			storedMimeType: metadata.mimeType,
+			lastModified: metadata.lastModified,
+		});
 
 		let url: string;
-		if (metadata.type === "image" && (!file.type || file.type === "")) {
+		if (
+			metadata.type === "image" &&
+			restoredFile.type === "image/svg+xml"
+		) {
 			try {
-				const text = await file.text();
+				const text = await restoredFile.text();
 				if (text.trim().startsWith("<svg")) {
 					const svgBlob = new Blob([text], { type: "image/svg+xml" });
 					url = URL.createObjectURL(svgBlob);
 				} else {
-					url = URL.createObjectURL(file);
+					url = URL.createObjectURL(restoredFile);
 				}
 			} catch {
-				url = URL.createObjectURL(file);
+				url = URL.createObjectURL(restoredFile);
 			}
 		} else {
-			url = URL.createObjectURL(file);
+			url = URL.createObjectURL(restoredFile);
 		}
 
 		return {
 			id: metadata.id,
 			name: metadata.name,
 			type: metadata.type,
-			file,
+			file: restoredFile,
 			url,
 			width: metadata.width,
 			height: metadata.height,
 			duration: metadata.duration,
+			fps: metadata.fps,
+			hasAudio: metadata.hasAudio,
 			thumbnailUrl: metadata.thumbnailUrl,
 			ephemeral: metadata.ephemeral,
 		};

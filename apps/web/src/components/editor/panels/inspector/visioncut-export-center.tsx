@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
 	AlertTriangle,
+	Ban,
 	CheckCircle2,
 	ChevronDown,
 	CircleAlert,
@@ -10,21 +11,39 @@ import {
 	FileJson2,
 	FileText,
 	FileVideo2,
+	Gauge,
+	HardDriveDownload,
 	Image as ImageIcon,
 	Info,
+	ListChecks,
+	LoaderCircle,
 	MonitorUp,
 	PackageCheck,
+	RotateCcw,
 	ShieldCheck,
 	Subtitles,
+	UploadCloud,
 	Volume2,
+	XCircle,
 	type LucideIcon,
 } from "lucide-react";
 import {
+	EXPORT_MAX_STUDIO_OUTPUT_COUNT,
 	serializeExportManifest,
 	type ExportIssue,
 	type ExportManifest,
 } from "@/ai-studio/export-manifest";
+import type { ExportJobQueue, ExportVariantJob } from "@/ai-studio/export-job";
+import {
+	downloadExportArtifact,
+	exportJobStore,
+} from "@/ai-studio/export-job-store";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import {
+	requestVisionCutExportQueue,
+	requestVisionCutExportQueueCancel,
+} from "@/editor/navigation-events";
 import { cn } from "@/utils/ui";
 
 export interface VisionCutExportCenterProps {
@@ -92,14 +111,57 @@ function formatDuration(seconds: number): string {
 }
 
 function formatBytes(bytes: number): string {
-	if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-	const units = ["B", "KB", "MB", "GB", "TB"];
-	const exponent = Math.min(
-		Math.floor(Math.log(bytes) / Math.log(1024)),
-		units.length - 1,
+	if (bytes < 1024) return `${bytes} B`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+const JOB_STATUS_LABELS: Record<ExportVariantJob["status"], string> = {
+	queued: "排队中",
+	rendering: "渲染中",
+	completed: "已完成",
+	failed: "失败",
+	cancelled: "已取消",
+};
+
+function useExportJobQueue(projectId: string): ExportJobQueue | null {
+	const [queue, setQueue] = useState<ExportJobQueue | null>(() =>
+		exportJobStore.getProject(projectId),
 	);
-	const value = bytes / 1024 ** exponent;
-	return `${value >= 10 || exponent === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[exponent]}`;
+
+	useEffect(() => {
+		const sync = () => setQueue(exportJobStore.getProject(projectId));
+		const unsubscribe = exportJobStore.subscribe(sync);
+		void exportJobStore.loadProject(projectId).then(sync);
+		return unsubscribe;
+	}, [projectId]);
+
+	return queue?.projectId === projectId ? queue : null;
+}
+
+function JobStatusIcon({ job }: { job: ExportVariantJob }) {
+	if (job.status === "rendering") {
+		return (
+			<LoaderCircle
+				className="size-3.5 animate-spin motion-reduce:animate-none"
+				aria-hidden="true"
+			/>
+		);
+	}
+	if (job.status === "completed") {
+		return <CheckCircle2 className="size-3.5" aria-hidden="true" />;
+	}
+	if (job.status === "failed") {
+		return job.capability.state === "rejected" ? (
+			<Ban className="size-3.5" aria-hidden="true" />
+		) : (
+			<XCircle className="size-3.5" aria-hidden="true" />
+		);
+	}
+	if (job.status === "cancelled") {
+		return <XCircle className="size-3.5" aria-hidden="true" />;
+	}
+	return <ListChecks className="size-3.5" aria-hidden="true" />;
 }
 
 function formatSubtitleRequirement(
@@ -232,6 +294,122 @@ function RequirementRow({
 	);
 }
 
+function VariantExecutionState({ job }: { job: ExportVariantJob | undefined }) {
+	if (!job) {
+		return (
+			<div className="flex items-start gap-2 border-t pt-3 text-[10px] text-muted-foreground">
+				<ListChecks className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+				<p>尚未启动本地 renderer。</p>
+			</div>
+		);
+	}
+	const isRejected = job.capability.state === "rejected";
+
+	return (
+		<div className="border-t pt-3">
+			<div className="flex min-w-0 items-start gap-2">
+				<div
+					className={cn(
+						"flex size-7 shrink-0 items-center justify-center rounded-[6px] border",
+						job.status === "completed" &&
+							"border-emerald-500/30 text-emerald-700 dark:text-emerald-300",
+						job.status === "rendering" && "border-primary/30 text-primary",
+						job.status === "failed" && "border-destructive/30 text-destructive",
+						(job.status === "queued" || job.status === "cancelled") &&
+							"text-muted-foreground",
+					)}
+				>
+					<JobStatusIcon job={job} />
+				</div>
+				<div className="min-w-0 flex-1">
+					<div className="flex items-center justify-between gap-2">
+						<p className="text-[10px] font-medium">
+							{isRejected ? "能力拒绝" : JOB_STATUS_LABELS[job.status]}
+						</p>
+						<span className="text-[10px] text-muted-foreground">
+							{Math.round(job.progress * 100)}%
+						</span>
+					</div>
+					{job.status === "rendering" && (
+						<Progress value={job.progress * 100} className="mt-2 h-1" />
+					)}
+					{job.failure && (
+						<p className="mt-1.5 text-[10px] leading-relaxed text-destructive">
+							{job.failure.message}
+						</p>
+					)}
+					{job.artifact && job.measurements && (
+						<div className="mt-2">
+							<p className="break-all text-[10px] font-medium">
+								{job.artifact.fileName}
+							</p>
+							<p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+								实测 {formatBytes(job.artifact.byteLength)} · 渲染{" "}
+								{(job.measurements.renderElapsedMs / 1000).toFixed(1)}s · LUFS
+								未测量 · 编码后时长未探测
+							</p>
+							<Button
+								type="button"
+								variant="outline"
+								className="mt-2 min-h-11 w-full rounded-[6px]"
+								onClick={() => {
+									if (job.artifact) downloadExportArtifact(job.artifact);
+								}}
+							>
+								<Download aria-hidden="true" />
+								下载已渲染文件
+							</Button>
+						</div>
+					)}
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function DeliveryStateRow({
+	icon: Icon,
+	label,
+	value,
+	detail,
+	tone,
+}: {
+	icon: LucideIcon;
+	label: string;
+	value: string;
+	detail: string;
+	tone: "available" | "review" | "blocked" | "unavailable";
+}) {
+	return (
+		<div
+			className="flex min-w-0 items-start gap-2.5 border-t px-3 py-3 first:border-t-0 sm:border-l sm:border-t-0 sm:first:border-l-0 sm:px-4"
+			data-delivery-state={tone}
+		>
+			<div
+				className={cn(
+					"flex size-7 shrink-0 items-center justify-center rounded-[6px] border",
+					tone === "available" &&
+						"border-emerald-500/30 bg-emerald-500/8 text-emerald-700 dark:text-emerald-300",
+					tone === "review" &&
+						"border-amber-500/30 bg-amber-500/8 text-amber-700 dark:text-amber-300",
+					tone === "blocked" &&
+						"border-destructive/30 bg-destructive/8 text-destructive",
+					tone === "unavailable" && "bg-muted/40 text-muted-foreground",
+				)}
+			>
+				<Icon className="size-3.5" aria-hidden="true" />
+			</div>
+			<div className="min-w-0">
+				<p className="text-[9px] text-muted-foreground">{label}</p>
+				<p className="mt-0.5 text-[11px] font-medium">{value}</p>
+				<p className="mt-0.5 text-[9px] leading-relaxed text-muted-foreground">
+					{detail}
+				</p>
+			</div>
+		</div>
+	);
+}
+
 function downloadManifestJson({ manifest }: { manifest: ExportManifest }) {
 	const json = serializeExportManifest({ manifest, space: 2 });
 	const artifact = manifest.localCapabilityBoundary.availableArtifacts.find(
@@ -262,8 +440,31 @@ export function VisionCutExportCenter({
 }: VisionCutExportCenterProps) {
 	const [downloadError, setDownloadError] = useState<string | null>(null);
 	const { preflight, project, sourceEvidence } = exportManifest;
+	const storedQueue = useExportJobQueue(project.id);
+	const activeQueue =
+		storedQueue?.manifestId === exportManifest.manifestId ? storedQueue : null;
+	const queueIsActive =
+		activeQueue?.status === "queued" || activeQueue?.status === "rendering";
 	const isReadyForHandoff = preflight.readyForVideoRenderHandoff;
-	const canOpenNativeExport = isReadyForHandoff && Boolean(onOpenNativeExport);
+	const canStartLocalQueue =
+		Boolean(onOpenNativeExport) &&
+		exportManifest.intent.variants.length >= 1 &&
+		exportManifest.intent.variants.length <= EXPORT_MAX_STUDIO_OUTPUT_COUNT;
+	const reviewCount = preflight.warnings.length;
+	const completedCount =
+		activeQueue?.jobs.filter((job) => job.status === "completed").length ?? 0;
+	const failedCount =
+		activeQueue?.jobs.filter((job) => job.status === "failed").length ?? 0;
+	const cancelledCount =
+		activeQueue?.jobs.filter((job) => job.status === "cancelled").length ?? 0;
+	const captionEvidence = sourceEvidence.timeline;
+	const deliveryLoudness = exportManifest.intent.deliveryContract.loudness;
+	const loudnessLabel =
+		deliveryLoudness.defaultTargetIntegratedLufs !== null
+			? `目标 ${deliveryLoudness.defaultTargetIntegratedLufs} LUFS · 未测`
+			: deliveryLoudness.variantTargets.length > 0
+				? "按变体设目标 · 未测"
+				: "未指定";
 	const hasLivePlatformPolicy = exportManifest.intent.variants.every(
 		(variant) => variant.platformConstraint.livePlatformPolicyChecked,
 	);
@@ -279,9 +480,14 @@ export function VisionCutExportCenter({
 		}
 	}
 
-	function handleNativeExport() {
-		if (!isReadyForHandoff || !onOpenNativeExport) return;
-		onOpenNativeExport();
+	function handleStartQueue() {
+		if (!canStartLocalQueue || queueIsActive) return;
+		requestVisionCutExportQueue({ manifest: exportManifest });
+	}
+
+	function handleCancelQueue() {
+		if (!activeQueue || !queueIsActive) return;
+		requestVisionCutExportQueueCancel({ queueId: activeQueue.queueId });
 	}
 
 	return (
@@ -300,11 +506,78 @@ export function VisionCutExportCenter({
 						</div>
 						<p className="mt-1 truncate text-xs">{project.name}</p>
 						<p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-							从真实项目快照生成交付预检与文件计划，不代替视频渲染。
+							从项目快照预检后，明确启动本地 renderer
+							逐项执行；不自动上传，也不把目标响度当成实测。
 						</p>
 					</div>
 				</div>
 			</header>
+
+			<section
+				className="grid border-b sm:grid-cols-3"
+				aria-label="交付能力状态"
+			>
+				<DeliveryStateRow
+					icon={HardDriveDownload}
+					label="本地成片"
+					value={activeQueue ? `${completedCount} 个可下载` : "尚未启动队列"}
+					detail={
+						activeQueue
+							? "Blob 保存在本机浏览器存储"
+							: "点击下方按钮后才会调用 renderer"
+					}
+					tone={completedCount > 0 ? "available" : "unavailable"}
+				/>
+				<DeliveryStateRow
+					icon={ListChecks}
+					label="执行结果"
+					value={
+						activeQueue
+							? `${failedCount} 失败 · ${cancelledCount} 取消`
+							: `${reviewCount} 项预检提醒`
+					}
+					detail={
+						failedCount > 0
+							? "不可靠规格已拒绝或 renderer 失败"
+							: "拒绝项不会伪造成文件"
+					}
+					tone={
+						failedCount > 0
+							? "blocked"
+							: reviewCount > 0
+								? "review"
+								: "available"
+					}
+				/>
+				<DeliveryStateRow
+					icon={MonitorUp}
+					label="本地队列"
+					value={
+						activeQueue
+							? `${JOB_STATUS_LABELS[activeQueue.status]} · ${Math.round(activeQueue.progress * 100)}%`
+							: canStartLocalQueue
+								? "可明确启动"
+								: "导出器未接入"
+					}
+					detail={
+						activeQueue
+							? "逐项执行，不自动上传"
+							: canStartLocalQueue
+								? "支持 1-6 个清单变体"
+								: "当前只能保存制作清单"
+					}
+					tone={
+						activeQueue?.status === "completed"
+							? "available"
+							: activeQueue?.status === "failed"
+								? "blocked"
+								: activeQueue?.status === "queued" ||
+									  activeQueue?.status === "rendering"
+									? "review"
+									: "unavailable"
+					}
+				/>
+			</section>
 
 			<section className="border-b" aria-labelledby="export-preflight-title">
 				<div className="flex items-start gap-3 px-3 py-3.5 sm:px-4">
@@ -328,18 +601,26 @@ export function VisionCutExportCenter({
 						</h3>
 						<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
 							{isReadyForHandoff
-								? `没有阻塞项；仍有 ${preflight.warnings.length} 条提醒需要在正式交付前复核。`
-								: `${preflight.blockers.length} 个阻塞项必须处理后，才能把任务交给现有导出器。`}
+								? `没有清单阻塞项；仍有 ${preflight.warnings.length} 条提醒需要在正式交付前复核。`
+								: `${preflight.blockers.length} 个阻塞项会让相关变体被队列明确拒绝，不会生成假文件。`}
 						</p>
 					</div>
 				</div>
 
 				<dl className="grid grid-cols-2 border-t sm:grid-cols-4">
 					{[
-						["交付变体", `${exportManifest.intent.variants.length}`],
+						[
+							"交付变体",
+							`${exportManifest.intent.deliveryContract.outputVariants.count}`,
+						],
+						[
+							"字幕轨",
+							captionEvidence.captionTrackState === "present"
+								? `存在 · ${captionEvidence.captionElementCount} 条`
+								: "不存在",
+						],
+						["目标响度", loudnessLabel],
 						["源时长", formatDuration(project.sourceDurationSeconds)],
-						["时间线元素", `${sourceEvidence.timeline.elementCount}`],
-						["已知素材", formatBytes(sourceEvidence.media.totalKnownBytes)],
 					].map(([label, value], index) => (
 						<div
 							key={label}
@@ -365,7 +646,7 @@ export function VisionCutExportCenter({
 							交付变体
 						</h3>
 						<p className="mt-1 text-[10px] text-muted-foreground">
-							文件名均为预计结果，当前尚未生成视频。
+							清单文件名是计划；只有带“已完成”的条目才有真实 Blob 产物。
 						</p>
 					</div>
 					<span className="shrink-0 text-[10px] text-muted-foreground">
@@ -375,6 +656,9 @@ export function VisionCutExportCenter({
 
 				<div className="mt-3 overflow-hidden rounded-[8px] border">
 					{exportManifest.intent.variants.map((variant, index) => {
+						const executionJob = activeQueue?.jobs.find(
+							(job) => job.variantId === variant.id,
+						);
 						const plannedFiles: Array<{
 							icon: LucideIcon;
 							label: string;
@@ -407,6 +691,9 @@ export function VisionCutExportCenter({
 						const variantIssueCount =
 							variant.preflight.blockers.length +
 							variant.preflight.warnings.length;
+						const variantHasBlockers = variant.preflight.blockers.length > 0;
+						const variantNeedsReview =
+							!variantHasBlockers && variant.preflight.warnings.length > 0;
 
 						return (
 							<details
@@ -417,15 +704,19 @@ export function VisionCutExportCenter({
 									<div
 										className={cn(
 											"flex size-7 shrink-0 items-center justify-center rounded-[6px] border",
-											variant.preflight.readyForRenderHandoff
-												? "text-emerald-700 dark:text-emerald-300"
-												: "text-destructive",
+											variantHasBlockers
+												? "border-destructive/30 text-destructive"
+												: variantNeedsReview
+													? "border-amber-500/30 text-amber-700 dark:text-amber-300"
+													: "border-emerald-500/30 text-emerald-700 dark:text-emerald-300",
 										)}
 									>
-										{variant.preflight.readyForRenderHandoff ? (
-											<CheckCircle2 className="size-3.5" aria-hidden="true" />
-										) : (
+										{variantHasBlockers ? (
 											<CircleAlert className="size-3.5" aria-hidden="true" />
+										) : variantNeedsReview ? (
+											<AlertTriangle className="size-3.5" aria-hidden="true" />
+										) : (
+											<CheckCircle2 className="size-3.5" aria-hidden="true" />
 										)}
 									</div>
 									<div className="min-w-0 flex-1">
@@ -435,6 +726,29 @@ export function VisionCutExportCenter({
 											</p>
 											<span className="text-[10px] text-muted-foreground">
 												{PLATFORM_LABELS[variant.platform]}
+											</span>
+											<span
+												className={cn(
+													"text-[9px]",
+													executionJob?.status === "failed" ||
+														variantHasBlockers
+														? "text-destructive"
+														: executionJob?.status === "completed"
+															? "text-emerald-700 dark:text-emerald-300"
+															: variantNeedsReview
+																? "text-amber-700 dark:text-amber-300"
+																: "text-emerald-700 dark:text-emerald-300",
+												)}
+											>
+												{executionJob
+													? executionJob.capability.state === "rejected"
+														? "已拒绝"
+														: JOB_STATUS_LABELS[executionJob.status]
+													: variantHasBlockers
+														? "阻塞"
+														: variantNeedsReview
+															? "待审阅"
+															: "可交接"}
 											</span>
 										</div>
 										<p className="mt-1 text-[10px] text-muted-foreground">
@@ -481,7 +795,9 @@ export function VisionCutExportCenter({
 									</div>
 
 									<div className="mt-3 border-t pt-3">
-										<p className="text-[10px] font-medium">预计文件 · 未生成</p>
+										<p className="text-[10px] font-medium">
+											{executionJob?.artifact ? "实际视频文件" : "计划文件"}
+										</p>
 										<ul className="mt-1.5 space-y-1.5">
 											{plannedFiles.map((file) => {
 												const FileIcon = file.icon;
@@ -503,6 +819,9 @@ export function VisionCutExportCenter({
 											})}
 										</ul>
 									</div>
+									<div className="mt-3">
+										<VariantExecutionState job={executionJob} />
+									</div>
 								</div>
 							</details>
 						);
@@ -517,7 +836,7 @@ export function VisionCutExportCenter({
 							预检问题
 						</h3>
 						<p className="mt-1 text-[10px] text-muted-foreground">
-							阻塞项会禁止导出器交接，提醒项不会自动忽略。
+							阻塞项会让对应队列任务被明确拒绝，提醒项不会自动忽略。
 						</p>
 					</div>
 					<span className="shrink-0 text-[10px] text-muted-foreground">
@@ -573,14 +892,49 @@ export function VisionCutExportCenter({
 					</div>
 					<div className="min-w-0 flex-1">
 						<h3 id="export-boundary-title" className="text-xs font-semibold">
-							本地能力边界
+							真实执行边界
 						</h3>
 						<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-							这份模型只生成项目
-							JSON、制作清单与预检结果。视频渲染状态为“未执行”，预计文件名不代表文件已经生成；真正的视频需要现有渲染引擎或外部
-							Worker 完成。
+							清单仍是声明；本地队列只对与当前画布和完整时长完全一致的变体执行现有浏览器
+							renderer。异画幅、改时长、外挂字幕和独立封面会被拒绝，不会永久改动时间线。
 						</p>
 					</div>
+				</div>
+
+				<div className="mt-3 grid border-y sm:grid-cols-3">
+					{[
+						{
+							icon: MonitorUp,
+							label: "视频渲染",
+							value: activeQueue
+								? `${JOB_STATUS_LABELS[activeQueue.status]} · ${completedCount} 个文件`
+								: "未执行",
+						},
+						{
+							icon: Gauge,
+							label: "响度测量",
+							value: "未测量",
+						},
+						{
+							icon: UploadCloud,
+							label: "平台上传",
+							value: "未执行 · 不自动上传",
+						},
+					].map(({ icon: StateIcon, label, value }) => (
+						<div
+							key={label}
+							className="flex min-w-0 items-center gap-2 border-t px-2.5 py-2.5 first:border-t-0 sm:border-l sm:border-t-0 sm:first:border-l-0"
+						>
+							<StateIcon
+								className="size-3.5 shrink-0 text-muted-foreground"
+								aria-hidden="true"
+							/>
+							<div className="min-w-0">
+								<p className="text-[9px] text-muted-foreground">{label}</p>
+								<p className="mt-0.5 text-[10px] font-medium">{value}</p>
+							</div>
+						</div>
+					))}
 				</div>
 
 				<div className="mt-3 border-y">
@@ -605,40 +959,71 @@ export function VisionCutExportCenter({
 							</div>
 						),
 					)}
+					{activeQueue?.jobs
+						.filter((job) => job.artifact)
+						.map((job) => (
+							<div
+								key={job.variantId}
+								className="flex min-w-0 items-start gap-2.5 border-t py-2.5"
+							>
+								<FileVideo2
+									className="mt-0.5 size-3.5 shrink-0 text-emerald-700 dark:text-emerald-300"
+									aria-hidden="true"
+								/>
+								<div className="min-w-0 flex-1">
+									<p className="text-[10px] font-medium">
+										真实本地成片 · {job.label}
+									</p>
+									<code className="mt-0.5 block break-all font-sans text-[10px] text-muted-foreground">
+										{job.artifact?.fileName}
+									</code>
+								</div>
+							</div>
+						))}
 				</div>
 			</section>
 
 			<div className="space-y-2 px-3 pt-4 sm:px-4">
 				<Button
 					className="min-h-11 w-full rounded-[6px]"
-					disabled={!canOpenNativeExport}
-					onClick={handleNativeExport}
-					title={
-						!isReadyForHandoff
-							? "先处理全部预检阻塞项"
-							: onOpenNativeExport
-								? "打开现有视频导出器"
-								: "当前界面尚未连接现有导出器"
-					}
+					onClick={handleManifestDownload}
 				>
-					<MonitorUp aria-hidden="true" />
-					交给现有导出器
+					<HardDriveDownload aria-hidden="true" />
+					导出本地制作清单 JSON
 				</Button>
 				<Button
 					variant="outline"
 					className="min-h-11 w-full rounded-[6px]"
-					onClick={handleManifestDownload}
+					disabled={!canStartLocalQueue}
+					onClick={queueIsActive ? handleCancelQueue : handleStartQueue}
+					title={
+						!canStartLocalQueue
+							? "本地交付队列未接入，或清单超过 6 个变体"
+							: queueIsActive
+								? "取消当前任务并取消尚未开始的任务"
+								: "逐项调用现有浏览器 renderer"
+					}
 				>
-					<Download aria-hidden="true" />
-					下载制作清单 JSON
+					{queueIsActive ? (
+						<XCircle aria-hidden="true" />
+					) : activeQueue ? (
+						<RotateCcw aria-hidden="true" />
+					) : (
+						<MonitorUp aria-hidden="true" />
+					)}
+					{queueIsActive
+						? "取消本地交付队列"
+						: activeQueue
+							? "重新启动本地交付队列"
+							: "启动本地多规格交付"}
 				</Button>
 
 				<p className="text-[10px] leading-relaxed text-muted-foreground">
-					{!isReadyForHandoff
-						? "现有导出器入口已锁定：请先解决上方阻塞项。"
-						: onOpenNativeExport
-							? "预检已通过，可以把项目交给现有导出器；此处不会伪造渲染进度。"
-							: "预检已通过，但当前界面尚未接入现有导出器回调。"}
+					{queueIsActive
+						? "关闭此面板不会取消；只有上方取消按钮会中止当前 renderer，并把未开始任务标为已取消。"
+						: canStartLocalQueue
+							? "启动后按清单顺序处理 1-6 个变体。支持项生成可下载 Blob；不可靠规格保留拒绝原因。"
+							: "当前界面未连接本地队列，或清单变体数量超出 1-6 个执行边界。"}
 				</p>
 				{downloadError && (
 					<div

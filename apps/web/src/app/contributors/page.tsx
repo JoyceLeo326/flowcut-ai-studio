@@ -27,6 +27,30 @@ interface Contributor {
 	type: string;
 }
 
+function isContributor(value: unknown): value is Contributor {
+	if (typeof value !== "object" || value === null) {
+		return false;
+	}
+
+	const id: unknown = Reflect.get(value, "id");
+	const login: unknown = Reflect.get(value, "login");
+	const avatarUrl: unknown = Reflect.get(value, "avatar_url");
+	const htmlUrl: unknown = Reflect.get(value, "html_url");
+	const contributions: unknown = Reflect.get(value, "contributions");
+	const type: unknown = Reflect.get(value, "type");
+
+	return (
+		typeof id === "number" &&
+		Number.isInteger(id) &&
+		typeof login === "string" &&
+		typeof avatarUrl === "string" &&
+		typeof htmlUrl === "string" &&
+		typeof contributions === "number" &&
+		Number.isFinite(contributions) &&
+		typeof type === "string"
+	);
+}
+
 async function getContributors(): Promise<Contributor[]> {
 	try {
 		const response = await fetch(
@@ -45,9 +69,13 @@ async function getContributors(): Promise<Contributor[]> {
 			return [];
 		}
 
-		const contributors = (await response.json()) as Contributor[];
+		const payload: unknown = await response.json();
+		if (!Array.isArray(payload) || !payload.every(isContributor)) {
+			console.error("GitHub returned an invalid contributors payload");
+			return [];
+		}
 
-		const filteredContributors = contributors.filter(
+		const filteredContributors = payload.filter(
 			(contributor) => contributor.type === "User",
 		);
 

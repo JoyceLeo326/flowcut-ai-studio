@@ -1,4 +1,10 @@
-import { type ComponentProps, forwardRef, useEffect, useRef, useState } from "react";
+import {
+	type ComponentProps,
+	forwardRef,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { cn } from "@/utils/ui";
 import { Input } from "./input";
 import {
@@ -40,6 +46,12 @@ const CHECKERBOARD_STYLE = {
 	backgroundColor: "#fff",
 } as const;
 
+function isColorFormat(value: string): value is ColorFormat {
+	return (
+		value === "hex" || value === "rgb" || value === "hsl" || value === "hsv"
+	);
+}
+
 interface ColorPickerContentProps {
 	value?: string;
 	onChange?: (value: string) => void;
@@ -59,8 +71,18 @@ function ColorPickerContent({
 		"saturation" | "hue" | "opacity" | null
 	>(null);
 	const [internalHue, setInternalHue] = useState(0);
-	const [inputValue, setInputValue] = useState(value);
 	const [colorFormat, setColorFormat] = useState<ColorFormat>("hex");
+	const formattedInputValue = formatColorValue({
+		hex: value,
+		format: colorFormat,
+	});
+	const inputSource = `${value}:${colorFormat}`;
+	const [inputDraft, setInputDraft] = useState(() => ({
+		source: inputSource,
+		value: formattedInputValue,
+	}));
+	const inputValue =
+		inputDraft.source === inputSource ? inputDraft.value : formattedInputValue;
 
 	const saturationRef = useRef<HTMLButtonElement>(null);
 	const hueRef = useRef<HTMLButtonElement>(null);
@@ -76,10 +98,6 @@ function ColorPickerContent({
 	const hueDiff = Math.abs(h - internalHue);
 	const isSameHueWrapped = hueDiff < 1 || Math.abs(hueDiff - 360) < 1;
 	const displayHue = s === 0 || isSameHueWrapped ? internalHue : h;
-
-	useEffect(() => {
-		setInputValue(formatColorValue({ hex: value, format: colorFormat }));
-	}, [value, colorFormat]);
 
 	useEffect(() => {
 		const handleMouseMove = (event: MouseEvent) => {
@@ -171,8 +189,14 @@ function ColorPickerContent({
 		if (!saturationElement) return;
 		setIsDragging("saturation");
 		const rect = saturationElement.getBoundingClientRect();
-		const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-		const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+		const x = Math.max(
+			0,
+			Math.min(1, (event.clientX - rect.left) / rect.width),
+		);
+		const y = Math.max(
+			0,
+			Math.min(1, (event.clientY - rect.top) / rect.height),
+		);
 		const newHex = appendAlpha({
 			rgbHex: hsvToHex({ h: displayHue, s: x, v: 1 - y }),
 			alpha,
@@ -187,7 +211,10 @@ function ColorPickerContent({
 		if (!hueElement) return;
 		setIsDragging("hue");
 		const rect = hueElement.getBoundingClientRect();
-		const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+		const x = Math.max(
+			0,
+			Math.min(1, (event.clientX - rect.left) / rect.width),
+		);
 		const newH = x * 360;
 		setInternalHue(newH);
 		if (s > 0) {
@@ -206,18 +233,21 @@ function ColorPickerContent({
 		if (!opacityElement) return;
 		setIsDragging("opacity");
 		const rect = opacityElement.getBoundingClientRect();
-		const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+		const x = Math.max(
+			0,
+			Math.min(1, (event.clientX - rect.left) / rect.width),
+		);
 		const newHex = appendAlpha({ rgbHex: rgbValue, alpha: x });
 		latestDragColorRef.current = newHex;
 		onChange?.(newHex);
 	};
 
 	const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-		setInputValue(
+		const nextValue =
 			colorFormat === "hex"
 				? event.target.value.replace("#", "")
-				: event.target.value,
-		);
+				: event.target.value;
+		setInputDraft({ source: inputSource, value: nextValue });
 	};
 
 	const commitInputValue = () => {
@@ -353,7 +383,10 @@ function ColorPickerContent({
 					type="button"
 					onMouseDown={handleOpacityMouseDown}
 				>
-					<div className="absolute inset-0 dark:invert" style={CHECKERBOARD_STYLE} />
+					<div
+						className="absolute inset-0 dark:invert"
+						style={CHECKERBOARD_STYLE}
+					/>
 					<div
 						className="absolute inset-0 rounded-lg"
 						style={{
@@ -372,9 +405,11 @@ function ColorPickerContent({
 				<div className="flex items-center gap-2">
 					<Select
 						value={colorFormat}
-						onValueChange={(selectedFormat) =>
-							setColorFormat(selectedFormat as ColorFormat)
-						}
+						onValueChange={(selectedFormat) => {
+							if (isColorFormat(selectedFormat)) {
+								setColorFormat(selectedFormat);
+							}
+						}}
 					>
 						<SelectTrigger variant="outline" className="min-w-18 max-w-18">
 							<SelectValue />
@@ -429,11 +464,11 @@ const ColorPicker = forwardRef<HTMLDivElement, ColorPickerProps>(
 	) => {
 		const { alpha } = parseHexAlpha({ hex: value });
 
-		const [inputValue, setInputValue] = useState(value);
-
-		useEffect(() => {
-			setInputValue(value);
-		}, [value]);
+		const [inputDraft, setInputDraft] = useState(() => ({
+			source: value,
+			value,
+		}));
+		const inputValue = inputDraft.source === value ? inputDraft.value : value;
 
 		const commitInputValue = (raw: string) => {
 			const input = raw.replace("#", "");
@@ -456,7 +491,10 @@ const ColorPicker = forwardRef<HTMLDivElement, ColorPickerProps>(
 		};
 
 		const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-			setInputValue(event.target.value.replace("#", ""));
+			setInputDraft({
+				source: value,
+				value: event.target.value.replace("#", ""),
+			});
 		};
 
 		const handleInputBlur = () => commitInputValue(inputValue);

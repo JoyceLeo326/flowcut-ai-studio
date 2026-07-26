@@ -1,6 +1,10 @@
 import type { ParamDefinition } from "@/params";
 import { applyAlignedStroke } from "../stroke";
-import { STROKE_ALIGN_PARAM, type GraphicStrokeAlign } from "./shared";
+import {
+	resolveGraphicStrokeAlign,
+	STROKE_ALIGN_PARAM,
+	type GraphicStrokeAlign,
+} from "./shared";
 import type { GraphicDefinition } from "../types";
 
 interface Point {
@@ -132,10 +136,16 @@ function traceRoundedPolygonPath({
 			y: next.y - current.y,
 		});
 		const angle = Math.acos(
-			Math.max(-1, Math.min(1, toPrevious.x * toNext.x + toPrevious.y * toNext.y)),
+			Math.max(
+				-1,
+				Math.min(1, toPrevious.x * toNext.x + toPrevious.y * toNext.y),
+			),
 		);
 		const maxOffset =
-			Math.min(distance({ a: previous, b: current }), distance({ a: current, b: next })) / 2;
+			Math.min(
+				distance({ a: previous, b: current }),
+				distance({ a: current, b: next }),
+			) / 2;
 		const tangentOffset = Math.min(radius / Math.tan(angle / 2), maxOffset);
 		const start = {
 			x: current.x + toPrevious.x * tangentOffset,
@@ -152,13 +162,7 @@ function traceRoundedPolygonPath({
 			path.lineTo(start.x, start.y);
 		}
 
-		path.arcTo(
-			current.x,
-			current.y,
-			end.x,
-			end.y,
-			Math.min(radius, maxOffset),
-		);
+		path.arcTo(current.x, current.y, end.x, end.y, Math.min(radius, maxOffset));
 	}
 
 	path.closePath();
@@ -173,14 +177,17 @@ export const polygonGraphicDefinition: GraphicDefinition = {
 		const fill = String(params.fill ?? "#ffffff");
 		const stroke = String(params.stroke ?? "#000000");
 		const strokeWidth = Math.max(0, Number(params.strokeWidth ?? 0));
-		const strokeAlign = (params.strokeAlign ?? "center") as GraphicStrokeAlign;
-		const sides = Math.max(3, Math.min(12, Math.round(Number(params.sides ?? 5))));
+		const strokeAlign = resolveGraphicStrokeAlign(params.strokeAlign);
+		const sides = Math.max(
+			3,
+			Math.min(12, Math.round(Number(params.sides ?? 5))),
+		);
 		const inset = strokeAlign === "center" ? strokeWidth / 2 : 0;
 		const radius = Math.max(1, Math.min(width, height) / 2 - inset);
 		const maxCornerRadius = radius * Math.sin(Math.PI / sides);
 		const cornerRadiusPercent = Math.max(0, Number(params.cornerRadius ?? 0));
 		const cornerRadius =
-			maxCornerRadius * Math.min(cornerRadiusPercent, 50) / 50;
+			(maxCornerRadius * Math.min(cornerRadiusPercent, 50)) / 50;
 		const vertices = buildPolygonVertices({
 			centerX: width / 2,
 			centerY: height / 2,

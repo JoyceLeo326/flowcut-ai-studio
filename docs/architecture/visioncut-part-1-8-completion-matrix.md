@@ -1,112 +1,112 @@
-# VisionCut Part 1-8 Completion Matrix
+# VisionCut AI PART 1-8 完整性矩阵
 
-Updated: 2026-07-23
+更新日期：2026-07-26
 
-This document is the release truth source for the eight-part VisionCut product specification.
-UI presence is not implementation evidence. A capability is complete only when its user path,
-state transition, persistence, failure behavior, tests, and delivery evidence are all present.
+本文是当前版本的发布真相源。八份文档同时包含产品原则、首版需求、90 天目标和五年愿景，因此“遵循八部分规范”不等于把五年路线图伪装成一次发布。只有具备真实入口、状态变化、持久化、失败处理、测试与用户可见证据的能力，才标记为已实现。
 
-## Status Rules
+## 状态定义
 
-- **Implemented**: real end-to-end behavior exists and is covered by automated or browser tests.
-- **Prototype**: a truthful interaction or domain contract exists, but a production dependency or execution path is incomplete.
-- **Missing**: the required behavior is not present.
+- **已实现**：当前浏览器版本存在可执行闭环，并有自动化或浏览器验证。
+- **受限实现**：真实契约和部分执行已存在，但仍受浏览器、外部服务或生产后端限制。
+- **后续阶段**：属于云服务、团队商业化或长期生态，不在本地优先首版中冒充完成。
 
-## Part 1 - Product Strategy
+## PART 1：产品战略与原则
 
-| Requirement                         | Status      | Current evidence                                                                   | Completion gate                                                                |
-| ----------------------------------- | ----------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Intent-first creation               | Implemented | Home intent entry, project-scoped `IntentSpec`, editor recovery                    | Browser test covering create, refresh, and edit revision                       |
-| Human direction before AI execution | Implemented | Review gate, step selection, explicit local apply, batch undo                      | Per-operation preview and evidence before all destructive edits                |
-| AI creative partner                 | Prototype   | Local director rules and optional BYOK director review                             | Real media-grounded recommendations with evidence citations                    |
-| Creator DNA                         | Prototype   | Explicit confirmation only, pause/edit/export/delete, local IndexedDB              | Apply learned preferences to new plans with user-visible provenance            |
-| AI production team                  | Prototype   | Six-role DAG, evidence gates, human approval, failure/retry and reviewable outputs | Persist runs, connect model/media executors, resolve conflicts and expose logs |
+| 要求 | 状态 | 当前证据与边界 |
+| --- | --- | --- |
+| 意图优先 | 已实现 | Home Studio 自然语言入口、项目级 `IntentSpec` 修订、刷新恢复、导演蓝图 |
+| 人类导演、AI 执行 | 已实现 | 所有实际切口和 Agent 任务都需人工批准；执行器支持原子应用、撤销与重做 |
+| AI 创作伙伴 | 受限实现 | 本地规则与可选 BYOK 都读取版本化证据包；没有证据时明确拒绝人物、物体、情绪等主张 |
+| Creator DNA | 受限实现 | 本地、可暂停/编辑/导出/删除；只从用户明确确认的行为学习，不保存原片或 Key |
+| AI 制作团队 | 已实现 | PART 4 规定的 7 个角色：Director、Story、Camera、Editor、Color、Sound、Growth；含 DAG、证据门槛、审批、失败阻断、重试与会话记录 |
 
-## Part 2 - Product Requirements
+## PART 2：PRD 与功能模块
 
-| Requirement            | Status      | Current evidence                                                                       | Completion gate                                                   |
-| ---------------------- | ----------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Home Studio            | Implemented | Intent, starter flows, direct multi-file drop, project creation                        | Large-file recovery and browser compatibility testing             |
-| Project Intelligence   | Implemented | Real metadata, timeline counts, unused media, project warnings                         | Codec-level validation and render readiness checks                |
-| Chat Cut               | Prototype   | Natural-language plan, BYOK advice, explicit external handoff                          | Transcript-linked edit operations and result import protocol      |
-| Open Cut / Story Graph | Prototype   | Evidence-derived nodes, full local editing, IndexedDB history and conflict protection  | Synchronize graph selection and edits with preview/timeline       |
-| Automatic rough cut    | Prototype   | Local arrange and aspect operations are real; unsafe fixed trim removed                | ASR/VAD/scene evidence and per-cut comparison before conform      |
-| Style Studio           | Prototype   | Visual worlds and professional controls                                                | Parameters must drive real render or plan fields                  |
-| Viral Intelligence     | Missing     | No evidence-backed retention or distribution model                                     | Platform-specific analysis with model version and confidence      |
-| Export Center          | Prototype   | Browser renderer plus multi-variant manifest, platform profiles and evidence preflight | Render every planned variant; add captions, thumbnails and resume |
-| Collaboration          | Missing     | Local single-user project model                                                        | Shared project, comments, permissions, conflict strategy          |
+| 模块 | 状态 | 当前证据与边界 |
+| --- | --- | --- |
+| Home Studio | 已实现 | 意图、创作配方、多文件拖放、项目创建、指导/专业模式 |
+| 素材接入 | 已实现 | 所有文件选择、粘贴、时间线拖放统一经过 4 GiB/文件、12 GiB/批、20 文件、文件头、格式、容器、编解码与存储预检 |
+| Project Intelligence | 已实现 | 真实素材、时长、轨道、未使用素材、分析状态与风险提示 |
+| Chat Cut | 受限实现 | v2 标准交接、基线指纹、结果 schema、原子导入、撤销/重做和审计回执；外部 ChatCut 提交仍需用户显式操作 |
+| Open Cut / Creative Canvas | 已实现 | Story Graph 是主要结构面；可拖动、连接、缩放、持久化、冲突检查，并经审阅同步时间线 |
+| 自动粗剪 | 已实现 | 多素材 MediaIndex、证据候选、逐切口预检/批准、原子应用和撤销；不把亮度或音量信号冒充语义理解 |
+| 自动剪口播 | 受限实现 | 本地 Whisper/导入字幕、段级时间码、静音候选与切口审阅已接入；词级时间码、说话人分离和口头禅语义仍未宣称可用 |
+| Style Studio | 受限实现 | 停顿、切点、场景灵敏度、B-roll、字幕、推近、LUFS、版本数等参数驱动规划和证据门槛；并非所有风格都已有像素级渲染器 |
+| Viral Intelligence | 后续阶段 | 当前不提供虚构的留存、爆款或传播评分；需要真实平台数据、模型版本与置信度 |
+| Export Center | 受限实现 | MP4/WebM 浏览器导出真实可用；支持 1-6 个同画幅、同全长且无需外部字幕/封面的版本顺序渲染、取消、持久化与下载。需要重构图、缩短时长、烧录字幕或生成封面的版本会被阻断；上传仍明确显示未执行 |
+| Collaboration | 后续阶段 | PostgreSQL/RLS 数据模型已建立；实时多人、评论、权限和云同步尚未接入运行时 |
 
-## Part 3 - UI and UX
+## PART 3：UI/UX 设计系统
 
-| Requirement                   | Status      | Current evidence                                                | Completion gate                                                    |
-| ----------------------------- | ----------- | --------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Guided and Pro modes          | Implemented | Experience switch and progressive controls                      | User testing with first-time and professional editors              |
-| Modern product language       | Implemented | Quiet surfaces, hairline borders, max 8px radii, icon controls  | Cross-browser visual regression suite                              |
-| Story Graph as a real surface | Prototype   | Evidence graph replaces fictional scores and canned story nodes | Make graph the central desktop canvas and timeline optional        |
-| Mobile and tablet             | Prototype   | Responsive navigation and 44px primary controls                 | Real-device large media, background recovery, weak network, export |
-| Accessibility                 | Prototype   | Labels, live plan region, keyboard buttons                      | Automated audit plus full keyboard and screen-reader verification  |
+| 要求 | 状态 | 当前证据与边界 |
+| --- | --- | --- |
+| AI 原生入口 | 已实现 | 首屏直接进入创作，不使用营销落地页或传统按钮墙 |
+| Guided / Pro | 已实现 | 同一项目内渐进展开专业阈值，时间线在指导模式下降级为可选精修工具 |
+| Creative Canvas | 已实现 | 桌面以故事结构和审阅为中心，时间线不是唯一核心 |
+| 现代产品语言 | 已实现 | 克制色彩、细边框、最大 8px 圆角、Lucide 图标、明确状态和真实空态 |
+| 手机与平板 | 已实现 | 触屏/≤1199px 进入移动工作面，粗指针目标至少 44px；桌面细指针保持紧凑密度 |
+| 无障碍 | 受限实现 | 标签、焦点、键盘按钮、状态文本和减少动效已覆盖核心路径；完整屏幕阅读器矩阵仍属于发布后持续验证 |
 
-## Part 4 - Multi-Agent System
+## PART 4：Multi-Agent 系统
 
-| Requirement            | Status    | Current evidence                                                                                      | Completion gate                                                    |
-| ---------------------- | --------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Director orchestration | Prototype | Deterministic six-role DAG, dependencies, evidence blockers, approvals, retries and output references | Persist runs and connect independent executors with a merge policy |
-| Editor agent           | Prototype | Real local arrange/aspect executor                                                                    | Evidence-based cuts, transcript edits, preview diff                |
-| Story agent            | Prototype | Story Graph domain and local intent planning                                                          | Media-grounded story proposals with citations                      |
-| Color agent            | Prototype | Evidence-gated color task, approval flow and plan output boundary                                     | Shot matching and reversible grade operations                      |
-| Sound agent            | Prototype | Evidence-gated sound task, approval flow and plan output boundary                                     | VAD, cleanup, ducking, loudness and evidence report                |
-| Growth agent           | Prototype | Publication/performance evidence gate and reviewable packaging task                                   | Real packaging execution and measurable recommendation output      |
-| Agent memory           | Prototype | IntentSpec, Creator DNA, project versions and Story Graph history                                     | Persistent orchestration/session traces and preference provenance  |
+| 能力 | 状态 | 当前证据与边界 |
+| --- | --- | --- |
+| Director 编排 | 已实现 | 7 角色 DAG、依赖、证据要求、审批、冲突、重试、持久会话 |
+| 角色证据解析 | 已实现 | MediaIndex 与段级转写按角色投影，带版本、指纹、来源、字符预算和限制声明 |
+| Local 模式 | 已实现 | 不调用模型，只整理证据与生成可审阅计划，不制造语义结论 |
+| BYOK 模式 | 已实现 | OpenAI/Anthropic/Gemini Key 只存在当前标签页；固定官方上游，响应限额和超时 |
+| Camera 合约 | 已实现 | Camera 是正式角色，依赖 Story，仅以场景/视觉证据提出构图与覆盖计划 |
+| Editor 执行 | 受限实现 | 证据切口可进入严格执行器；Color、Sound、Growth 等输出目前主要是计划，不能绕过审阅直接修改媒体 |
+| Agent Memory | 已实现 | 会话 revision、产物 digest、依赖产物、重试历史与项目聚合版本快照 |
 
-## Part 5 - Technical Architecture
+## PART 5：技术架构
 
-| Requirement                 | Status      | Current evidence                                                     | Completion gate                                                     |
-| --------------------------- | ----------- | -------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Next.js web application     | Implemented | Next 16 application, local editor and deployed web build             | Continued build and browser regression coverage                     |
-| Secure BYOK                 | Implemented | Session-only keys, fixed official upstreams, SSRF protection, limits | Production route verification and key-lifecycle browser test        |
-| Local free mode             | Implemented | Default local mode, no automatic paid calls                          | Clean-profile network trace from import through 1080p export        |
-| Video intelligence pipeline | Missing     | Metadata extraction only                                             | Timestamped ASR, scenes, speakers, people, quality and confidence   |
-| API and worker services     | Missing     | Route handlers only                                                  | Queue, worker isolation, retry, observability and cancellation      |
-| Cloud storage and render    | Missing     | Browser IndexedDB/OPFS and local render                              | Object storage, resumable upload, cloud render and lifecycle policy |
-| Security and observability  | Prototype   | Headers, validation, no-store, normalized provider errors            | Authz, audit trail, rate limits, metrics, traces and alerts         |
+| 要求 | 状态 | 当前证据与边界 |
+| --- | --- | --- |
+| Next.js / React / TypeScript | 已实现 | Next 16、React 19、本地编辑器、Vercel 构建路径 |
+| 本地免费模式 | 已实现 | 默认不登录、不用 Key、不调用付费服务，媒体留在浏览器本地 |
+| Video Intelligence | 受限实现 | 时间戳帧差、亮度、RMS、Peak、音频活动候选、段级转写与来源指纹真实可用；人物/物体/情绪未伪造 |
+| 安全 BYOK | 已实现 | session-only Key、同源、固定域名、请求/响应大小、超时、错误归一化；生产缺少分布式限流时代理自动关闭 |
+| PostgreSQL | 受限实现 | 领域 schema、约束、RLS 与迁移已实现并测试；当前 Vercel 首版仍以 IndexedDB/OPFS 为运行时真相 |
+| API / Worker / Queue | 后续阶段 | 长时分析、云渲染、重试队列、观测和取消需要独立生产基础设施 |
+| 云对象存储与渲染 | 后续阶段 | 当前不自动上传原片，不把清单状态冒充云渲染完成 |
 
-## Part 6 - Data and Engineering
+## PART 6：数据与工程
 
-| Requirement                    | Status      | Current evidence                                                                      | Completion gate                                                    |
-| ------------------------------ | ----------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Modular frontend               | Implemented | Separate AI edit, AI studio, timeline and storage domains                             | Maintain dependency boundaries in CI                               |
-| Project-scoped intent versions | Implemented | Validated IndexedDB `IntentSpec` revision history                                     | Editable target fields and migration policy                        |
-| Reviewable edit plan           | Prototype   | Immutable operation review, project version references, apply and undo ledger entries | Bind every approved operation to a real editor command             |
-| Automation run records         | Prototype   | Validated lifecycle, retry, failure, result and approval contract                     | Persistent project run ledger and UI logs                          |
-| Project database schema        | Missing     | Server DB does not yet model Project/Asset/Scene/Version/AgentRun/DNA                 | Migrations, repository layer, tenancy and deletion semantics       |
-| Required monorepo services     | Missing     | Current repo remains web/desktop focused                                              | Add API/worker/packages only when their real execution paths exist |
-| Evaluation                     | Missing     | Unit and browser tests, no AI evaluation harness                                      | Golden media set, quality metrics and regression thresholds        |
+| 要求 | 状态 | 当前证据与边界 |
+| --- | --- | --- |
+| 模块化工程 | 已实现 | AI Edit、AI Studio、时间线、媒体、存储、数据库与 UI 边界分离 |
+| IntentSpec | 已实现 | 项目级、连续 revision、校验、IndexedDB 持久化 |
+| MediaIndex / Transcript | 已实现 | 不可变指纹、来源、限制、历史修订和按时间证据 |
+| EditPlan / Executor | 已实现 | 逐操作审阅、适用性检查、原子命令、审计回执、撤销/重做 |
+| Story Graph | 已实现 | 版本历史、乐观并发、结构校验、Canvas/时间线同步 |
+| ProjectVersion | 已实现 | 项目、时间线和创作 sidecar 聚合快照，完整性摘要、素材指纹、恢复失败回滚、撤销/重做 |
+| 数据库模型 | 已实现 | User、Project、Member、Asset、Scene、StoryGraphVersion、AISession、AgentArtifact、ProjectVersion、CreatorDNA |
+| 测试 | 已实现 | AI Studio 组合随机顺序稳定；全仓测试无失败；新增代码目标 ESLint 与 TypeScript 通过 |
 
-## Part 7 - Business and Growth
+## PART 7：商业与增长
 
-| Requirement           | Status      | Current evidence                                   | Completion gate                                               |
-| --------------------- | ----------- | -------------------------------------------------- | ------------------------------------------------------------- |
-| Free acquisition path | Implemented | Local default without account, key or paid service | Public onboarding and privacy documentation                   |
-| BYOK creator path     | Implemented | OpenAI, Anthropic and Gemini session connections   | Usage visibility and provider-specific troubleshooting        |
-| Paid plans            | Deferred    | Intentionally excluded from the initial product    | Revisit only after the free creation loop is reliable         |
-| Team and enterprise   | Missing     | No collaboration or private deployment product     | Permissions, billing boundary, admin, audit and support model |
-| Marketplace/community | Missing     | No marketplace runtime                             | Trust, licensing, moderation, versioning and revenue rules    |
+| 要求 | 状态 | 当前处理 |
+| --- | --- | --- |
+| Free 路径 | 已实现 | 无账号即可完成本地创作闭环 |
+| Creator BYOK | 已实现 | 用户自带模型账号，可随时回到免费本地模式 |
+| 付费套餐 | 后续阶段 | 首版不接入收费，不把商业计划提前写成产品权限墙 |
+| Business / Enterprise | 后续阶段 | 团队权限、账单、私有部署、审计和 SLA 需独立版本 |
+| Marketplace / Community | 后续阶段 | 需先解决许可、审核、版本与收益分配 |
 
-## Part 8 - Execution and Acceptance
+## PART 8：执行与验收
 
-| MVP acceptance item | Status      | Evidence still required                                                |
-| ------------------- | ----------- | ---------------------------------------------------------------------- |
-| User system         | Prototype   | Complete sign-up/sign-in/recovery/profile UI and tenancy tests         |
-| Video upload        | Implemented | Stress and recovery tests for large inputs                             |
-| AI analysis         | Missing     | Real timestamped MediaIndex output                                     |
-| Chat Cut            | Prototype   | Transcript-driven edit execution and result conform                    |
-| Automatic rough cut | Prototype   | Evidence-based cuts with operation-level review                        |
-| Creative Canvas     | Prototype   | Central graph workspace, persisted versions and conflict-safe recovery |
-| Story Graph         | Prototype   | Preview/timeline synchronization and richer evidence inspection        |
-| Video export        | Implemented | Delivery QC, multi-version and resume behavior                         |
+| 首版验收项 | 状态 | 当前结果 |
+| --- | --- | --- |
+| 用户入口 | 受限实现 | 本地免账号可用；云账号注册、找回和跨设备租户仍属于云阶段 |
+| 视频上传 | 已实现 | 所有入口统一预检、错误反馈和存储检查 |
+| AI 分析 | 受限实现 | 已有真实时间戳 MediaIndex、转写与证据解析；高级人物/情绪等分析未虚构 |
+| Chat Cut | 受限实现 | 完整手工桥接与结果 conform；未内嵌外部账号授权和任务轮询 |
+| 自动粗剪 | 已实现 | 多素材分析、候选、逐项批准、应用、撤销 |
+| Creative Canvas | 已实现 | 主要 Story Graph 工作面、持久化、冲突与版本恢复 |
+| Story Graph | 已实现 | 与素材、场景和时间线证据绑定，可审阅同步 |
+| 视频导出 | 已实现 | 基础 MP4/WebM 导出与受支持多版本本地队列真实可用；每项记录排队、渲染、完成、失败或取消状态，超出浏览器当前能力的版本不会伪装完成 |
 
-## Release Policy
+## 发布判定
 
-The product must not be described as fully compliant with Part 1-8 while any P0 execution
-dependency remains in Prototype or Missing. Each release should update this matrix, link the
-relevant tests, and include browser evidence for desktop, tablet, and mobile.
+当前版本达到“本地优先、证据约束、可审阅、可撤销”的首版产品闭环。它不应被描述为已经完成五年商业路线中的云端视频操作系统。以下能力必须继续保持诚实标记：实时多人协作、云队列与渲染、自动发布、词级/人物/情绪理解、留存预测，以及需要智能重构图、内容缩编、字幕烧录或封面生成的交付变体。

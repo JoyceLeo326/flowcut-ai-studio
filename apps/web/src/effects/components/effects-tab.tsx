@@ -3,7 +3,11 @@
 import { useState } from "react";
 import type { ParamValues } from "@/params";
 import type { Effect } from "@/effects/types";
-import type { EffectElement, VisualElement } from "@/timeline";
+import {
+	isVisualElement,
+	type EffectElement,
+	type VisualElement,
+} from "@/timeline";
 import { effectsRegistry } from "@/effects";
 import { useEditor } from "@/editor/use-editor";
 import { useElementPreview } from "@/timeline/hooks/use-element-preview";
@@ -39,6 +43,7 @@ export function StandaloneEffectTab({
 		elementId: element.id,
 		fallback: element,
 	});
+	const liveElement = renderElement.type === "effect" ? renderElement : element;
 
 	const effect: Effect = {
 		id: element.id,
@@ -49,7 +54,7 @@ export function StandaloneEffectTab({
 
 	const previewParam = (key: string) => (value: number | string | boolean) => {
 		previewUpdates({
-			params: { ...(renderElement as EffectElement).params, [key]: value },
+			params: { ...liveElement.params, [key]: value },
 		});
 	};
 
@@ -60,7 +65,7 @@ export function StandaloneEffectTab({
 			</div>
 			<EffectSection
 				effect={effect}
-				renderParams={(renderElement as EffectElement).params}
+				renderParams={liveElement.params}
 				previewParam={previewParam}
 				onCommit={commit}
 			/>
@@ -83,13 +88,13 @@ export function ClipEffectsTab({
 		elementId: element.id,
 		fallback: element,
 	});
+	const liveElement = isVisualElement(renderElement) ? renderElement : element;
 
 	const effects: Effect[] = element.effects ?? [];
 
 	const getRenderParams = ({ effectId }: { effectId: string }): ParamValues => {
 		return (
-			(renderElement as VisualElement).effects?.find((ef) => ef.id === effectId)
-				?.params ??
+			liveElement.effects?.find((ef) => ef.id === effectId)?.params ??
 			effects.find((ef) => ef.id === effectId)?.params ??
 			{}
 		);
@@ -99,9 +104,7 @@ export function ClipEffectsTab({
 		(effectId: string) =>
 		(key: string) =>
 		(value: number | string | boolean) => {
-			const updatedEffects = (
-				(renderElement as VisualElement).effects ?? []
-			).map((existing) =>
+			const updatedEffects = (liveElement.effects ?? []).map((existing) =>
 				existing.id !== effectId
 					? existing
 					: { ...existing, params: { ...existing.params, [key]: value } },

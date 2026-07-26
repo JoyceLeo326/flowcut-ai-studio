@@ -171,7 +171,6 @@ export class PlaybackManager {
 
 		if (timeChanged) {
 			this.notifySeek(this.currentTime);
-			this.dispatchSeekEvent(this.currentTime);
 		}
 	}
 
@@ -227,31 +226,17 @@ export class PlaybackManager {
 			this.pause();
 			this.currentTime = maxTime;
 			this.notify();
-		this.notifySeek(maxTime);
-		this.dispatchSeekEvent(maxTime);
-		return;
+			this.notifySeek(maxTime);
+			return;
 		}
 
 		this.currentTime = newTime;
 		this.notifyUpdate(newTime);
-		this.dispatchUpdateEvent(newTime);
 		this.playbackTimer = requestAnimationFrame(this.updateTime);
 	};
 
 	private clampTimeToTimeline(time: MediaTime): MediaTime {
 		const maxTime = this.editor.timeline.getTotalDuration();
 		return clampMediaTime({ time, min: ZERO_MEDIA_TIME, max: maxTime });
-	}
-
-	private dispatchSeekEvent(time: MediaTime): void {
-		if (typeof window === "undefined") {
-			return;
-		}
-	}
-
-	private dispatchUpdateEvent(time: MediaTime): void {
-		if (typeof window === "undefined") {
-			return;
-		}
 	}
 }

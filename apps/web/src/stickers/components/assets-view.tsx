@@ -15,7 +15,7 @@ import {
 	buildGraphicElement,
 	buildStickerElement,
 } from "@/timeline/element-utils";
-import { STICKER_CATEGORIES } from "@/stickers/categories";
+import { isStickerCategory, STICKER_CATEGORIES } from "@/stickers/categories";
 import { getRegionLabel, resolveQueryToRegions } from "@/stickers";
 import { parseShapeStickerId } from "@/stickers/providers/shapes";
 import type { TimelineDragData } from "@/timeline/drag";
@@ -26,9 +26,7 @@ import type {
 } from "@/stickers";
 import { useStickersStore } from "@/stickers/stickers-store";
 import { cn } from "@/utils/ui";
-import {
-	HappyIcon,
-} from "@hugeicons/core-free-icons";
+import { HappyIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
 export function StickersView() {
@@ -74,7 +72,9 @@ export function StickersView() {
 			<Tabs
 				value={selectedCategory}
 				onValueChange={(value) => {
-					setSelectedCategory({ category: value as StickerCategory });
+					if (isStickerCategory(value)) {
+						setSelectedCategory({ category: value });
+					}
 				}}
 				variant="underline"
 				className="mt-2 flex min-h-0 flex-1 flex-col"
@@ -269,6 +269,7 @@ function StickerSection({
 }) {
 	const hasHeader =
 		Boolean(section.title) || section.id === "recent" || section.action;
+	const actionCategory = section.action?.category;
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -292,13 +293,13 @@ function StickerSection({
 							</Button>
 						)}
 
-						{section.action?.type === "see-all" && section.action.category && (
+						{section.action?.type === "see-all" && actionCategory && (
 							<Button
 								variant="text"
 								size="sm"
 								className="h-auto gap-1 p-0 text-xs text-primary"
 								onClick={() => {
-									onSeeAll(section.action?.category as StickerCategory);
+									onSeeAll(actionCategory);
 								}}
 							>
 								See all
@@ -331,19 +332,14 @@ function StickerItem({
 	const editor = useEditor();
 	const { addToRecentStickers } = useStickersStore();
 	const [isAdding, setIsAdding] = useState(false);
-	const [hasImageError, setHasImageError] = useState(false);
-
-	useEffect(() => {
-		if (!item.id) {
-			return;
-		}
-
-		setHasImageError(false);
-	}, [item.id]);
+	const [failedImageId, setFailedImageId] = useState<string | null>(null);
+	const hasImageError = failedImageId === item.id;
 
 	const displayName = item.name;
 	const shapePreset =
-		item.provider === "shapes" ? parseShapeStickerId({ stickerId: item.id }) : null;
+		item.provider === "shapes"
+			? parseShapeStickerId({ stickerId: item.id })
+			: null;
 
 	const handleAdd = async () => {
 		setIsAdding(true);
@@ -407,7 +403,7 @@ function StickerItem({
 								}
 							: undefined
 					}
-					onError={() => setHasImageError(true)}
+					onError={() => setFailedImageId(item.id)}
 					loading="lazy"
 					unoptimized
 				/>

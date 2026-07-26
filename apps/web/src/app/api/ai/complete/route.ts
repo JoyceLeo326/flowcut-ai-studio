@@ -18,6 +18,7 @@ export const MAX_AI_RESPONSE_BYTES = 1024 * 1024;
 export const AI_UPSTREAM_TIMEOUT_MS = 20_000;
 
 export type ModelProviderFetch = typeof fetch;
+export type AiProxyRateLimitCheck = typeof checkRateLimit;
 
 const PRIVATE_RESPONSE_HEADERS = {
 	"Cache-Control": "private, no-store, max-age=0",
@@ -68,6 +69,30 @@ function errorResponse({ error }: { error: ModelProxyError }): Response {
 		headers: PRIVATE_RESPONSE_HEADERS,
 		status: error.status,
 	});
+}
+
+function assertSameOrigin({ request }: { request: Request }): void {
+	const requestOrigin = new URL(request.url).origin;
+	const originHeader = request.headers.get("origin");
+	const fetchSite = request.headers.get("sec-fetch-site");
+	const sameOrigin =
+		originHeader !== null
+			? (() => {
+					try {
+						return new URL(originHeader).origin === requestOrigin;
+					} catch {
+						return false;
+					}
+				})()
+			: fetchSite === "same-origin";
+	if (!sameOrigin) {
+		throw new ModelProxyError({
+			code: "invalid_request",
+			message: "请求来源无效，请从当前 VisionCut 页面重新发起",
+			retryable: false,
+			status: 403,
+		});
+	}
 }
 
 function parseContentLength({
@@ -341,14 +366,29 @@ async function proxyCompletion({
 }
 
 export async function handleAiCompletion({
+	checkRateLimitImpl = checkRateLimit,
+	environment = process.env.NODE_ENV,
 	fetchImpl = fetch,
 	request,
 }: {
+	checkRateLimitImpl?: AiProxyRateLimitCheck;
+	environment?: string;
 	fetchImpl?: ModelProviderFetch;
 	request: Request;
 }): Promise<Response> {
 	try {
-		const { limited } = await checkRateLimit({ request });
+		assertSameOrigin({ request });
+		const rateLimit = await checkRateLimitImpl({ request });
+		if (environment === "production" && !rateLimit.configured) {
+			throw new ModelProxyError({
+				code: "upstream_unavailable",
+				message:
+					"公网模型代理尚未配置分布式限流，请使用本地免费模式或联系部署管理员",
+				retryable: false,
+				status: 503,
+			});
+		}
+		const { limited } = rateLimit;
 		if (limited) {
 			return Response.json(
 				{

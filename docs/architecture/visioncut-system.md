@@ -8,25 +8,27 @@
 
 | 能力 | 当前实现 | 明确边界 |
 | --- | --- | --- |
-| 意图入口 | Home Studio 接收自然语言意图，创建项目并把意图带入编辑器 | 意图仅在浏览器会话内传递，不是服务端 Intent 记录 |
-| AI 创作工作台 | Guided/Pro 两层体验、任务配方、推荐、专业参数和可审阅执行队列 | 推荐和队列由前端类型化规则生成，不是真实模型推理或分布式调度 |
-| 导演蓝图 | 可生成结构化创作方向、步骤、交付版本和 ChatCut 交接数据 | 当前主要是确定性规划器；ChatCut 是显式交接，不是内嵌 Agent 服务 |
-| Story Graph | 可查看、选择、拖动和缩放故事节点 | 当前是创作规划界面，不是持久化的语义图数据库，也没有自动素材证据绑定 |
-| 局部执行 | 部分计划可以作用于现有编辑器，并阻止同一计划重复应用 | 不是完整执行 DAG；尚无服务端事务、审批流和跨设备恢复 |
-| 媒体处理 | 浏览器导入、预览、时间线编辑、本地存储和现有导出能力 | 大文件、后台上传、云端代理文件和服务端渲染尚未实现 |
+| 意图入口 | Home Studio 创建项目级 `IntentSpec`，保留连续修订并可在编辑器恢复 | 当前持久化在浏览器 IndexedDB，不是跨设备服务端记录 |
+| AI 创作工作台 | Guided/Pro、创作配方、真实专业参数、证据分析、逐操作审阅和本地可逆执行 | 本地规则不等同于通用视觉语义模型 |
+| 导演蓝图 | 结构化方向、MediaIndex/转写证据、切口候选、交付版本和 ChatCut v2 交接 | 外部 ChatCut 仍需用户显式提交，不静默上传原片 |
+| Story Graph | 主 Canvas 支持拖动、连接、缩放、持久化、乐观并发和审阅后同步时间线 | 图中只显示已有素材/时间线/人工证据，不虚构故事分析 |
+| Multi-Agent | Director、Story、Camera、Editor、Color、Sound、Growth 七角色 DAG，审批、证据包、BYOK/本地运行、失败与重试、会话持久化 | 专业 Agent 生成提案；除严格 Editor 执行器外不能直接修改媒体 |
+| 局部执行 | 多素材粗剪支持逐切口适用性检查、批准、原子应用、撤销/重做和审计回执 | 不以固定百分比裁切冒充 AI 判断 |
+| 媒体处理 | 所有入口统一预检；本地帧差、亮度、RMS、Peak、音频活动、段级转写、时间线编辑和浏览器导出 | 人物、物体、情绪、词级时间码、后台云分析仍未宣称可用 |
 | 开放素材 | Openverse 搜索、安全缩略图代理、许可与来源信息传递 | 仅是素材连接器；用户仍需遵守具体许可和署名要求 |
-| 数据基础 | 项目媒体主要使用 IndexedDB/OPFS；仓库已有 PostgreSQL/Drizzle 的认证、会话和反馈表 | 尚无 Project、Asset、Scene、Version、AgentRun 或 CreatorDNA 的生产表 |
-| 响应式体验 | 手机和平板可进入 AI、素材、预览和时间线视图 | 复杂多轨精修仍以桌面端为主，移动端尚无断点续传和后台任务通知 |
+| 数据基础 | IndexedDB/OPFS 是首版运行时；PostgreSQL 已包含 Project、Member、Asset、Scene、StoryGraphVersion、AISession、Artifact、ProjectVersion 和 CreatorDNA schema/RLS | 数据库迁移尚未成为当前公开首版的运行时依赖 |
+| 项目版本 | 项目、时间线、意图、蓝图、Story Graph、Agent 状态和转写修订进入同一聚合快照，带素材指纹、完整性摘要和失败回滚 | 原始媒体不复制到版本账本 |
+| 响应式体验 | 手机/平板提供 AI、素材、预览、故事与时间线工作面；触屏/粗指针控件至少 44px | 大型媒体后台续传和系统通知需要云 worker |
 
 ### 1.2 生产级目标架构尚未实现
 
 以下能力均不得在产品、文档或演示中表述为“已上线”：
 
-- 真实 ASR、说话人分离、镜头切分、人物/物体识别、情绪理解和留存预测。
-- 可持久化的 Director、Story、Editor、Visual/Camera、Color、Sound、Growth 多 Agent 编排。
-- 项目记忆、跨项目 Creator DNA 学习、向量检索及可解释偏好更新。
+- 词级 ASR、说话人分离、人物/物体识别、情绪理解和留存预测。
+- 不经证据约束和人工审阅就自动修改媒体的 Agent。
+- 训练个人模型权重、跨用户学习、向量检索或自动把一次提示变成永久偏好。
 - 云端对象存储、分片上传、代理媒体、异步视频分析、服务端渲染和发布连接器。
-- VisionCut 项目域的 PostgreSQL 数据模型、不可变版本账本、协作权限和审计日志。
+- PostgreSQL 运行时云同步、多人协作权限与生产审计服务。
 - 独立 API、worker、队列、失败重试、死信队列、成本预算和生产可观测性。
 
 ## 2. 产品不变量
@@ -60,14 +62,14 @@ flowchart LR
 
 | 阶段 | 必须产物 | 当前 MVP | 生产完成条件 |
 | --- | --- | --- | --- |
-| 意图 | `IntentSpec`：受众、平台、目标、时长、风格、约束 | 前端意图和创意简报 | 服务端持久化、版本化、可追踪来源 |
-| 理解 | `MediaIndex`：时间码、转录、镜头、人物、质量、证据 | 浏览器媒体元数据 | 分析 worker 产出带模型版本和置信度的索引 |
-| 蓝图 | `DirectorBlueprint`：叙事、节奏、视听策略、交付版本 | 确定性结构化计划 | Director 基于意图、素材证据和预算生成并通过 schema 校验 |
-| Agent 提案 | 各领域 `AgentProposal` | UI 展示角色和规则队列 | Agent 独立运行、并行化、可重试且不能直接写项目 |
-| 审阅 | 操作差异、理由、证据、预计时长和成本 | 可查看计划与局部执行状态 | 支持逐项接受、拒绝、修改和批量审批 |
-| 执行 | 有依赖关系的 `EditOperation[]` | 少量浏览器本地操作和 ChatCut 交接 | 幂等执行 DAG、检查点、补偿操作和完整日志 |
-| 版本 | `ProjectVersion`、预览代理和比较结果 | 编辑器本地撤销/项目状态 | 不可变版本、分支、比较、回滚和跨设备恢复 |
-| 导出 | `RenderJob`、QC 报告、交付文件 | 现有浏览器导出路径 | 服务端渲染、质量检查、多比例批量输出和发布记录 |
+| 意图 | `IntentSpec`：受众、平台、目标、时长、风格、约束 | IndexedDB 连续修订和聚合版本快照 | 云端租户持久化与跨设备恢复 |
+| 理解 | `MediaIndex`：时间码、转录、画面/音频信号、来源、限制 | 本地时间戳帧差、亮度、RMS/Peak、活动候选和段级转写 | worker 增加经授权的高级视觉/语音模型与置信度 |
+| 蓝图 | `DirectorBlueprint`：叙事、节奏、视听策略、交付版本 | 证据约束的本地计划和可选 BYOK 建议 | 云端预算、模型路由和系统评估 |
+| Agent 提案 | 各领域 `AgentProposal` | 七角色并行 DAG、按角色证据包、审批、冲突、重试、会话持久化 | 分布式调度与成本观测 |
+| 审阅 | 操作差异、理由、证据、预计时长和成本 | 逐操作接受/拒绝、切口适用性与风险 | 代理视频 A/B 比较 |
+| 执行 | 有依赖关系的 `EditOperation[]` | 本地严格执行器、原子命令、撤销/重做和 ChatCut conform | 云端幂等 DAG、检查点和补偿事务 |
+| 版本 | `ProjectVersion`、预览代理和比较结果 | 本地聚合快照、素材指纹、完整性校验、回滚 | 分支、云端比较和跨设备恢复 |
+| 导出 | `RenderJob`、QC 报告、交付文件 | 浏览器 MP4/WebM；受支持的同画幅、同全长多版本顺序队列，含取消、持久化与下载；能力外任务明确阻断 | 服务端智能重构图、多规格渲染、实测 QC、断点续传与发布 |
 
 ## 4. 模块边界
 
@@ -128,7 +130,7 @@ flowchart LR
 | Director | 意图、素材覆盖、项目记忆、预算 | 蓝图、任务 DAG、冲突裁决、验收目标 | 直接生成不可审阅的最终修改 |
 | Story | 转录、场景、角色、情绪证据 | 叙事弧、段落、开场、高潮、结尾建议 | 推断素材中不存在的事实 |
 | Editor | 镜头、节奏、平台和时长 | 选段、排序、裁切、转场和 B-roll 操作 | 擅自改写品牌或事实信息 |
-| Visual/Camera | 构图、清晰度、主体、素材缺口 | 重构图、景别、补拍/生成建议 | 把生成画面伪装成真实记录 |
+| Camera | 构图、清晰度、素材覆盖和已有视觉信号 | 重构图、景别、补拍/生成建议 | 在没有人物或物体证据时声称已经识别主体 |
 | Color | 色彩空间、曝光、风格目标 | 可参数化调色操作和镜头匹配 | 破坏肤色、广播范围或源色彩管理 |
 | Sound | 语音、音乐、噪声、响度目标 | 清理、混音、音效、ducking 和响度操作 | 使用许可不明音乐 |
 | Growth | 平台、受众、发布目标 | Hook 变体、封面、标题、比例和版本建议 | 以误导性承诺替代内容质量 |
@@ -169,32 +171,24 @@ Director 合并提案时按“事实与安全 > 用户硬约束 > 故事连贯 >
 
 每个分析产物记录算法/模型版本、输入哈希、参数、置信度和生成时间。情绪、留存等主观预测必须标为“推断”，不可包装成事实。
 
-## 8. PostgreSQL 建议实体
+## 8. PostgreSQL 领域模型
 
-对象存储保存二进制文件，PostgreSQL 保存关系、状态和引用。所有项目域表包含 `workspace_id`，使用行级权限隔离。
+仓库已经提供 Drizzle schema、SQL 迁移、关系约束、JSON 安全检查和项目级 RLS；它是云阶段的数据契约，但尚未取代当前公开版本的 IndexedDB/OPFS 运行时。二进制媒体不进入 PostgreSQL，数据库只保存关系、状态、指纹、证据和存储引用。
 
-| 实体 | 关键字段 | 说明 |
+| 已实现实体 | 关键字段 | 当前契约 |
 | --- | --- | --- |
-| `users`, `workspaces`, `workspace_members` | identity、role、status | 复用并扩展当前认证基础 |
-| `projects` | owner、title、status、active_version_id | 项目根记录 |
-| `intents` | project_id、version、prompt、spec_jsonb | 可版本化用户意图 |
-| `assets` | object_key、hash、media_type、duration、status | 原片与许可元数据 |
-| `asset_derivatives` | asset_id、kind、object_key、spec_jsonb | 代理、波形、关键帧、转录 |
-| `scenes` | asset_id、start_ms、end_ms、evidence_jsonb | 可追溯镜头/场景索引 |
-| `story_graphs`, `story_nodes`, `story_edges` | version、kind、order、payload | 语义故事结构，不等同时间线 |
-| `director_blueprints` | intent_id、schema_version、payload、status | 审阅前的导演方案 |
-| `ai_sessions` | project_id、model_policy、started_at | 一次可追踪的 AI 会话 |
-| `agent_runs` | agent、input_ref、model、prompt_version、status、cost | Agent 执行记录 |
-| `agent_proposals` | run_id、operations_jsonb、evidence_jsonb、confidence | 不直接修改项目的提案 |
-| `project_versions` | parent_id、snapshot_ref、created_by、reason | 不可变版本和分支关系 |
-| `edit_operations` | version_id、type、payload、inverse_payload、order | 可验证、可逆的标准操作 |
-| `creator_profiles`, `creator_preferences` | key、value_jsonb、confidence、sample_count | 可解释 Creator DNA |
-| `preference_events` | preference_id、source_version_id、decision | 偏好学习证据 |
-| `jobs`, `job_attempts` | type、state、progress、idempotency_key、error | 异步任务真相 |
-| `render_jobs`, `exports` | version_id、preset、artifact_ref、qc_jsonb | 渲染与交付记录 |
-| `audit_events` | actor、action、resource、metadata | 安全与协作审计 |
+| `users` | identity、email、verification | 认证主体 |
+| `projects` | owner、status、visibility、revision、settings | 项目根记录和乐观并发版本 |
+| `project_members` | role、status、inviter、revision | owner/editor/reviewer/viewer 项目权限 |
+| `assets` | kind、status、fingerprint、storage_reference、metadata | 原片引用、大小、时长和内容指纹 |
+| `scenes` | asset、source range、timeline range、story order、evidence | 可追溯场景和时间线证据 |
+| `story_graph_versions` | parent、revision、status、graph、provenance、fingerprint | 不可变 Story Graph 版本 |
+| `ai_sessions` | mode、intent、provider、model、status、revision | 可追踪 Agent 会话 |
+| `agent_artifacts` | role、status、input fingerprint、digest、payload、evidence | 七角色版本化产物 |
+| `project_versions` | parent、revision、status、state fingerprint、asset manifest | 项目聚合快照与恢复链 |
+| `creator_dna_profiles` | scope、status、revision、preferences、evidence | 可解释、可暂停的本地/云端偏好契约 |
 
-向量检索可使用 `pgvector`，但向量只是检索索引；原始事实、权限和版本关系仍以关系表为准。版本快照可放对象存储，数据库保留哈希和引用。
+所有项目域关系同时绑定 `project_id` 与 `owner_user_id`，防止跨项目引用；JSON 字段拒绝 Key、token、secret 等敏感字段。当前迁移没有伪造尚未运行的 `jobs`、`render_jobs` 或对象存储表，这些将在云 worker 阶段随运行时一起增加。
 
 ## 9. API、worker 与队列边界
 
@@ -327,9 +321,9 @@ Director 合并提案时按“事实与安全 > 用户硬约束 > 故事连贯 >
 
 在生产目标完成前，产品统一使用以下表述：
 
-- 当前规划器称为“浏览器导演蓝图”或“规则辅助规划”，不称为已训练 AI 导演。
-- 当前角色队列称为“Agent 工作流预览”，不称为多个 Agent 已在云端完成分析。
-- 当前 Story Graph 称为“可编辑故事草案”，不称为自动理解出的事实结构。
-- 当前 Creator DNA 称为“规划中的个性化能力”或“等待用户反馈”，不声称已经跨项目学习。
-- 只有拿到真实 worker 产物、模型版本、证据和持久化记录后，步骤才可显示“AI 已分析/已完成”。
-
+- 本地 Director 称为“证据约束的导演蓝图”；只有用户启用 BYOK 并得到有效模型回执时，才说明该建议来自对应模型。
+- 七角色制作组称为“本地证据编排”或“BYOK Agent 会话”；不得声称云端 Agent 已处理未上传的原片。
+- Story Graph 中来自时间线、素材或转写的节点标明来源；用户创建的人物、情绪、声音节点明确标为“草稿”。
+- Creator DNA 称为“明确决策账本驱动的偏好”；只记录批准、拒绝、应用、撤销和确认交付等显式动作，不声称训练了个人模型。
+- 浏览器帧差、亮度、RMS、Peak、音频活动和段级转写可以显示为“本地分析”；人物、物体、说话人、情绪和留存结论必须等待对应的真实证据与模型版本。
+- 导出清单、排队、渲染完成和上传完成是不同状态；只有实际生成可下载媒体后才能显示“视频已导出”。

@@ -7,7 +7,7 @@ import {
 	searchStickers as searchStickersFromProviders,
 } from "@/stickers";
 import type { StickerBrowseResult, StickerSearchResult } from "@/stickers";
-import { STICKER_CATEGORIES } from "@/stickers/categories";
+import { isStickerCategory } from "@/stickers/categories";
 import type { StickerCategory } from "@/stickers/types";
 import { registerDefaultStickerProviders } from "@/stickers/providers";
 import { stickersRegistry } from "@/stickers/registry";
@@ -93,20 +93,20 @@ export const useStickersStore = create<StickersStore>()(
 
 			setSearchQuery: ({ query }) => set({ searchQuery: query }),
 
-		setSelectedCategory: ({ category }) => {
-			set({
-				selectedCategory: category in STICKER_CATEGORIES ? category : "all",
-				browseContent: null,
-			});
+			setSelectedCategory: ({ category }) => {
+				set({
+					selectedCategory: category,
+					browseContent: null,
+				});
 
-			const query = get().searchQuery.trim();
-			if (query) {
-				void get().searchStickers({ query });
-				return;
-			}
+				const query = get().searchQuery.trim();
+				if (query) {
+					void get().searchStickers({ query });
+					return;
+				}
 
-			void get().browseStickers();
-		},
+				void get().browseStickers();
+			},
 
 			searchStickers: async ({ query }: { query: string }) => {
 				const trimmedQuery = query.trim();
@@ -116,9 +116,7 @@ export const useStickersStore = create<StickersStore>()(
 					return;
 				}
 
-				const category = get().selectedCategory;
-				const selectedCategory =
-					category in STICKER_CATEGORIES ? category : "all";
+				const selectedCategory = get().selectedCategory;
 
 				set({ isSearching: true, viewMode: "search" });
 				try {
@@ -141,58 +139,56 @@ export const useStickersStore = create<StickersStore>()(
 				}
 			},
 
-		browseStickers: async () => {
-			const version = ++browseRequestVersion;
-			const category = get().selectedCategory;
-			const selectedCategory =
-				category in STICKER_CATEGORIES ? category : "all";
+			browseStickers: async () => {
+				const version = ++browseRequestVersion;
+				const selectedCategory = get().selectedCategory;
 
-			set({ isBrowsing: true, viewMode: "browse" });
-			try {
-				const browseContent =
-					selectedCategory === "all"
-						? await browseAll({
-								recentStickers: get().recentStickers,
-							})
-						: await browseCategory({
-								category: selectedCategory,
-							});
+				set({ isBrowsing: true, viewMode: "browse" });
+				try {
+					const browseContent =
+						selectedCategory === "all"
+							? await browseAll({
+									recentStickers: get().recentStickers,
+								})
+							: await browseCategory({
+									category: selectedCategory,
+								});
 
-				if (version !== browseRequestVersion) return;
-				set({ browseContent });
-			} catch (error) {
-				if (version !== browseRequestVersion) return;
-				console.error("Browse failed:", error);
-				set({ browseContent: null });
-			} finally {
-				if (version === browseRequestVersion) {
-					set({ isBrowsing: false });
+					if (version !== browseRequestVersion) return;
+					set({ browseContent });
+				} catch (error) {
+					if (version !== browseRequestVersion) return;
+					console.error("Browse failed:", error);
+					set({ browseContent: null });
+				} finally {
+					if (version === browseRequestVersion) {
+						set({ isBrowsing: false });
+					}
 				}
-			}
-		},
+			},
 
-		addToRecentStickers: ({ stickerId }: { stickerId: string }) => {
-			const sanitizedStickerIds = sanitizeRecentStickers({
-				recentStickers: [stickerId],
-			});
-			if (sanitizedStickerIds.length === 0) {
-				return;
-			}
+			addToRecentStickers: ({ stickerId }: { stickerId: string }) => {
+				const sanitizedStickerIds = sanitizeRecentStickers({
+					recentStickers: [stickerId],
+				});
+				if (sanitizedStickerIds.length === 0) {
+					return;
+				}
 
-			set((state) => {
-				const recent = [
-					sanitizedStickerIds[0],
-					...state.recentStickers.filter((s) => s !== sanitizedStickerIds[0]),
-				];
-				return {
-					recentStickers: recent.slice(0, MAX_RECENT_STICKERS),
-				};
-			});
+				set((state) => {
+					const recent = [
+						sanitizedStickerIds[0],
+						...state.recentStickers.filter((s) => s !== sanitizedStickerIds[0]),
+					];
+					return {
+						recentStickers: recent.slice(0, MAX_RECENT_STICKERS),
+					};
+				});
 
-			if (get().viewMode === "browse" && get().selectedCategory === "all") {
-				void get().browseStickers();
-			}
-		},
+				if (get().viewMode === "browse" && get().selectedCategory === "all") {
+					void get().browseStickers();
+				}
+			},
 
 			clearRecentStickers: () => {
 				set({ recentStickers: [] });
@@ -206,24 +202,13 @@ export const useStickersStore = create<StickersStore>()(
 			name: "stickers-settings",
 			version: 1,
 			migrate: (persistedState) => {
-				if (
-					typeof persistedState === "object" &&
-					persistedState !== null &&
-					"selectedCategory" in persistedState
-				) {
-					const typedState = persistedState as {
-						selectedCategory?: string;
-						recentStickers?: string[];
-					};
-					const category = typedState.selectedCategory ?? "all";
+				if (typeof persistedState === "object" && persistedState !== null) {
+					const category = Reflect.get(persistedState, "selectedCategory");
+					const recentStickers = Reflect.get(persistedState, "recentStickers");
 					return {
-						...typedState,
-						selectedCategory:
-							category in STICKER_CATEGORIES
-								? (category as StickerCategory)
-								: "all",
+						selectedCategory: isStickerCategory(category) ? category : "all",
 						recentStickers: sanitizeRecentStickers({
-							recentStickers: typedState.recentStickers ?? [],
+							recentStickers,
 						}),
 					};
 				}

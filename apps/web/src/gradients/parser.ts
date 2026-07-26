@@ -332,15 +332,17 @@ const matchCircle = (): Shape | undefined => {
 		type: "shape",
 		pattern: /^(circle)/i,
 		captureIndex: 0,
-	}) as Shape | undefined;
+	});
 
 	if (!circle) {
 		return undefined;
 	}
 
-	circle.style = matchLength() || matchExtentKeyword();
-	circle.value = "circle";
-	return circle;
+	return {
+		type: "shape",
+		value: "circle",
+		style: matchLength() || matchExtentKeyword(),
+	};
 };
 
 const matchEllipse = (): Shape | undefined => {
@@ -348,15 +350,17 @@ const matchEllipse = (): Shape | undefined => {
 		type: "shape",
 		pattern: /^(ellipse)/i,
 		captureIndex: 0,
-	}) as Shape | undefined;
+	});
 
 	if (!ellipse) {
 		return undefined;
 	}
 
-	ellipse.style = matchPositioning() || matchDistance() || matchExtentKeyword();
-	ellipse.value = "ellipse";
-	return ellipse;
+	return {
+		type: "shape",
+		value: "ellipse",
+		style: matchPositioning() || matchDistance() || matchExtentKeyword(),
+	};
 };
 
 const matchExtentKeyword = (): ExtentKeyword | undefined =>

@@ -8,11 +8,12 @@ import type {
 } from "@/actions";
 import { bindAction, unbindAction } from "@/actions";
 
-// eslint-disable-next-line opencut/prefer-object-params -- action subscriptions read best as (action, handler, isActive).
 export function useActionHandler<A extends TAction>(
-	action: A,
-	handler: TActionFunc<A>,
-	isActive: TActionHandlerOptions,
+	...[action, handler, isActive]: [
+		action: A,
+		handler: TActionFunc<A>,
+		isActive: TActionHandlerOptions,
+	]
 ) {
 	const handlerRef = useRef<TActionFunc<A>>(handler);
 	const isBoundRef = useRef(false);
@@ -21,16 +22,12 @@ export function useActionHandler<A extends TAction>(
 		handlerRef.current = handler;
 	}, [handler]);
 
-	const stableHandler = useCallback(
-		(...parameters: [TArgOfAction<A>, TInvocationTrigger?]) => {
-			(
-				handlerRef.current as (
-					...handlerParameters: [TArgOfAction<A>, TInvocationTrigger?]
-				) => void
-			)(...parameters);
+	const stableHandler = useCallback<TActionFunc<A>>(
+		(arg: TArgOfAction<A>, trigger?: TInvocationTrigger) => {
+			handlerRef.current(arg, trigger);
 		},
 		[],
-	) as TActionFunc<A>;
+	);
 
 	useEffect(() => {
 		const shouldBind =

@@ -28,14 +28,15 @@ export type TArgOfAction<A extends TAction> = A extends TActionWithArgs
 	? TActionArgsMap[A]
 	: undefined;
 
-export type TActionFunc<A extends TAction> = A extends TActionWithArgs
-	? (arg: TArgOfAction<A>, trigger?: TInvocationTrigger) => void
-	: (_?: undefined, trigger?: TInvocationTrigger) => void;
+export type TActionFunc<A extends TAction> = (
+	arg: TArgOfAction<A>,
+	trigger?: TInvocationTrigger,
+) => void;
 
 export type TInvocationTrigger = "keypress" | "mouseclick";
 
 export type TBoundActionList = {
-	[A in TAction]?: Array<TActionFunc<A>>;
+	[A in TAction]: Array<TActionFunc<A>>;
 };
 
 export type TActionHandlerOptions =

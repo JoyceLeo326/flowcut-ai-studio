@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
 	EXPORT_ASPECT_RATIOS,
+	EXPORT_MAX_VARIANT_COUNT,
+	EXPORT_MAX_STUDIO_OUTPUT_COUNT,
+	EXPORT_MIN_VARIANT_COUNT,
 	ExportManifestInvariantError,
 	assertExportManifestInvariants,
 	createExportManifest,
@@ -153,6 +156,9 @@ describe("VisionCut Export Center manifest", () => {
 			trackCount: 2,
 			elementCount: 2,
 			activeVisualElementCount: 2,
+			captionTrackState: "present",
+			captionTrackCount: 1,
+			captionTrackIds: ["captions"],
 			captionElementCount: 1,
 			hasAudioSource: true,
 		});
@@ -174,6 +180,28 @@ describe("VisionCut Export Center manifest", () => {
 			performedByThisModel: false,
 			executorRequirement: "existing-render-engine-or-external-worker",
 			renderedFiles: [],
+		});
+		expect(first.localCapabilityBoundary.deliveryUpload).toEqual({
+			state: "not-executed",
+			performedByThisModel: false,
+			executorRequirement: "publisher-or-external-worker",
+			uploadedFiles: [],
+		});
+		expect(first.localCapabilityBoundary.loudnessAnalysis).toEqual({
+			state: "not-executed",
+			performedByThisModel: false,
+			measuredIntegratedLufs: null,
+		});
+		expect(first.intent.deliveryContract).toMatchObject({
+			outputVariants: { count: 2, source: "explicit-variants" },
+			loudness: {
+				unit: "LUFS",
+				defaultTargetIntegratedLufs: null,
+				measurement: {
+					state: "not-executed",
+					measuredIntegratedLufs: null,
+				},
+			},
 		});
 		expect(first.localCapabilityBoundary.notice).toContain("JSON only");
 		expect(first.localCapabilityBoundary.notice).toContain(
@@ -209,6 +237,165 @@ describe("VisionCut Export Center manifest", () => {
 			{ width: 1080, height: 1080 },
 			{ width: 1080, height: 1350 },
 		]);
+	});
+
+	test("accepts the StudioProSettings delivery subset and applies its loudness as a deterministic default", () => {
+		const input = completeInput();
+		const first = createExportManifest({
+			...input,
+			studioProSettings: { targetLufs: -16, outputCount: 2 },
+		});
+		const second = createExportManifest({
+			...completeInput(),
+			studioProSettings: { targetLufs: -16, outputCount: 2 },
+		});
+
+		expect(first).toEqual(second);
+		expect(first.manifestId).toBe(second.manifestId);
+		expect(first.intent.deliveryContract).toEqual({
+			outputVariants: { count: 2, source: "studio-pro-settings" },
+			loudness: {
+				unit: "LUFS",
+				defaultTargetIntegratedLufs: -16,
+				variantTargets: [
+					{
+						variantId: "landscape",
+						targetIntegratedLufs: -14,
+						source: "variant-intent",
+					},
+					{
+						variantId: "vertical",
+						targetIntegratedLufs: -16,
+						source: "studio-pro-settings",
+					},
+				],
+				measurement: {
+					state: "not-executed",
+					measuredIntegratedLufs: null,
+				},
+			},
+		});
+		expect(
+			first.intent.variants[1].requirements.audio.mode === "include"
+				? first.intent.variants[1].requirements.audio.targetLoudnessLufs
+				: undefined,
+		).toBe(-16);
+		expect(
+			createExportManifest({
+				...input,
+				studioProSettings: { targetLufs: -15, outputCount: 2 },
+			}).manifestId,
+		).not.toBe(first.manifestId);
+	});
+
+	test("supports one through six Studio outputs while preserving the legacy eight-variant API boundary", () => {
+		const input = completeInput();
+		const makeVariants = (count: number) =>
+			Array.from({ length: count }, (_, index) => ({
+				id: `variant-${index + 1}`,
+				label: `Variant ${index + 1}`,
+				platform: "generic" as const,
+				aspectRatio: "16:9" as const,
+				audio: { mode: "include" as const, required: false },
+			}));
+
+		for (const outputCount of [
+			EXPORT_MIN_VARIANT_COUNT,
+			EXPORT_MAX_STUDIO_OUTPUT_COUNT,
+		]) {
+			const manifest = createExportManifest({
+				...input,
+				variants: makeVariants(outputCount),
+				studioProSettings: { targetLufs: -24, outputCount },
+			});
+			expect(manifest.intent.variants).toHaveLength(outputCount);
+			expect(manifest.intent.deliveryContract.outputVariants.count).toBe(
+				outputCount,
+			);
+		}
+
+		const legacyMaximum = createExportManifest({
+			...input,
+			variants: makeVariants(EXPORT_MAX_VARIANT_COUNT),
+		});
+		expect(legacyMaximum.intent.variants).toHaveLength(
+			EXPORT_MAX_VARIANT_COUNT,
+		);
+		expect(() =>
+			createExportManifest({
+				...input,
+				variants: makeVariants(EXPORT_MAX_VARIANT_COUNT + 1),
+			}),
+		).toThrow("between 1 and 8 variants");
+		expect(() =>
+			createExportManifest({
+				...input,
+				studioProSettings: { targetLufs: -14, outputCount: 1 },
+			}),
+		).toThrow("must match");
+		for (const outputCount of [0, 1.5, EXPORT_MAX_STUDIO_OUTPUT_COUNT + 1]) {
+			expect(() =>
+				createExportManifest({
+					...input,
+					studioProSettings: { targetLufs: -14, outputCount },
+				}),
+			).toThrow("integer between 1 and 6");
+		}
+		for (const targetLufs of [-24.01, -5.99, Number.NaN]) {
+			expect(() =>
+				createExportManifest({
+					...input,
+					studioProSettings: { targetLufs, outputCount: 2 },
+				}),
+			).toThrow("between -24 and -6 LUFS");
+		}
+		expect(() =>
+			createExportManifest({
+				...input,
+				studioProSettings: { targetLufs: -6, outputCount: 2 },
+			}),
+		).not.toThrow();
+	});
+
+	test("reports caption-track existence separately from active caption cues", () => {
+		const input = completeInput();
+		const emptyCaptionTrack = createExportManifest({
+			...input,
+			timeline: {
+				...input.timeline,
+				tracks: input.timeline.tracks.map((track) =>
+					track.id === "captions"
+						? { ...track, hidden: true, elements: [] }
+						: track,
+				),
+			},
+		});
+		const absentCaptionTrack = createExportManifest({
+			...input,
+			timeline: {
+				...input.timeline,
+				tracks: input.timeline.tracks.filter(
+					(track) => track.id !== "captions",
+				),
+			},
+			variants: input.variants.map((variant) => ({
+				...variant,
+				subtitles: { mode: "none" as const },
+			})),
+		});
+
+		expect(emptyCaptionTrack.sourceEvidence.timeline).toMatchObject({
+			captionTrackState: "present",
+			captionTrackCount: 1,
+			captionTrackIds: ["captions"],
+			captionElementCount: 0,
+		});
+		expect(absentCaptionTrack.sourceEvidence.timeline).toMatchObject({
+			captionTrackState: "absent",
+			captionTrackCount: 0,
+			captionTrackIds: [],
+			captionElementCount: 0,
+		});
 	});
 
 	test("blocks profile-incompatible platform combinations and labels defaults as non-live policy", () => {
@@ -377,6 +564,9 @@ describe("VisionCut Export Center manifest", () => {
 		expect(serialized).not.toContain("createdAt");
 		expect(serialized).not.toContain("blob:");
 		expect(serialized).not.toContain('rendered":true');
+		expect(serialized).toContain('"deliveryUpload"');
+		expect(serialized).toContain('"state": "not-executed"');
+		expect(serialized).toContain('"measuredIntegratedLufs": null');
 	});
 
 	test("blocks an empty project while still allowing an honest JSON manifest", () => {

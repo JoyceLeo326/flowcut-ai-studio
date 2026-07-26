@@ -65,10 +65,9 @@ export function EditorProvider({ projectId, children }: EditorProviderProps) {
 						setIsLoading(false);
 					}
 				} else {
-					const wasmPanic = (window as Window & { __wasmPanic?: string })
-						.__wasmPanic;
-					if (wasmPanic) {
-						delete (window as Window & { __wasmPanic?: string }).__wasmPanic;
+					const wasmPanic: unknown = Reflect.get(window, "__wasmPanic");
+					if (typeof wasmPanic === "string" && wasmPanic.length > 0) {
+						Reflect.deleteProperty(window, "__wasmPanic");
 						setError(wasmPanic);
 					} else {
 						setError(
@@ -134,14 +133,14 @@ function EditorRuntimeBindings() {
 	);
 
 	useEffect(() => {
-		editor.command.isRippleEnabled = rippleEditingEnabled;
-	}, [editor, rippleEditingEnabled]);
+		EditorCore.getInstance().command.isRippleEnabled = rippleEditingEnabled;
+	}, [rippleEditingEnabled]);
 
 	useEffect(() => {
 		const handleBeforeUnload = (event: BeforeUnloadEvent) => {
 			if (!editor.save.getIsDirty()) return;
 			event.preventDefault();
-			(event as unknown as { returnValue: string }).returnValue = "";
+			event.returnValue = "";
 		};
 
 		window.addEventListener("beforeunload", handleBeforeUnload);

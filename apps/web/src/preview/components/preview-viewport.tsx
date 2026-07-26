@@ -4,7 +4,6 @@ import {
 	createContext,
 	useCallback,
 	useContext,
-	useEffect,
 	useMemo,
 	useRef,
 	useState,
@@ -97,11 +96,32 @@ interface PreviewViewportStateOptions {
 }
 
 interface PanSession {
+	canvasHeight: number;
+	canvasWidth: number;
 	centerX: number;
 	centerY: number;
 	clientX: number;
 	clientY: number;
 	pointerId: number;
+}
+
+interface ViewportTransform {
+	center: {
+		x: number;
+		y: number;
+	};
+	zoom: number;
+}
+
+interface ViewportTransformState extends ViewportTransform {
+	canvasHeight: number;
+	canvasWidth: number;
+}
+
+interface PanningState {
+	canvasHeight: number;
+	canvasWidth: number;
+	isPanning: boolean;
 }
 
 function getClampedCenterAxis({
@@ -213,14 +233,22 @@ export function usePreviewViewportState({
 	viewportRef,
 	viewportWidth,
 }: PreviewViewportStateOptions): PreviewViewportContextValue {
-	const [zoom, setZoomState] = useState(1);
-	const [center, setCenter] = useState(() => ({
-		x: canvasWidth / 2,
-		y: canvasHeight / 2,
+	const [viewportTransform, setViewportTransform] =
+		useState<ViewportTransformState>(() => ({
+			canvasHeight,
+			canvasWidth,
+			center: {
+				x: canvasWidth / 2,
+				y: canvasHeight / 2,
+			},
+			zoom: 1,
+		}));
+	const [panningState, setPanningState] = useState<PanningState>(() => ({
+		canvasHeight,
+		canvasWidth,
+		isPanning: false,
 	}));
-	const [isPanning, setIsPanning] = useState(false);
 	const panSessionRef = useRef<PanSession | null>(null);
-	const centerRef = useCommittedRef(center);
 
 	const fitScale = useMemo(
 		() =>
@@ -232,7 +260,43 @@ export function usePreviewViewportState({
 			}),
 		[canvasHeight, canvasWidth, viewportHeight, viewportWidth],
 	);
+	const hasCurrentCanvas =
+		viewportTransform.canvasHeight === canvasHeight &&
+		viewportTransform.canvasWidth === canvasWidth;
+	const zoom = hasCurrentCanvas ? viewportTransform.zoom : 1;
 	const viewportScale = fitScale * zoom;
+	const unclampedCenter = hasCurrentCanvas
+		? viewportTransform.center
+		: {
+				x: canvasWidth / 2,
+				y: canvasHeight / 2,
+			};
+	const center = useMemo(
+		() =>
+			clampViewportCenter({
+				canvasHeight,
+				canvasWidth,
+				centerX: unclampedCenter.x,
+				centerY: unclampedCenter.y,
+				scale: viewportScale,
+				viewportHeight,
+				viewportWidth,
+			}),
+		[
+			canvasHeight,
+			canvasWidth,
+			unclampedCenter.x,
+			unclampedCenter.y,
+			viewportHeight,
+			viewportScale,
+			viewportWidth,
+		],
+	);
+	const centerRef = useCommittedRef(center);
+	const isPanning =
+		panningState.canvasHeight === canvasHeight &&
+		panningState.canvasWidth === canvasWidth &&
+		panningState.isPanning;
 	const geometry = useMemo(
 		() => ({
 			canvasHeight,
@@ -254,13 +318,56 @@ export function usePreviewViewportState({
 		],
 	);
 
-	const scaleZoom = useCallback(({ factor }: { factor: number }) => {
-		setZoomState((previousZoom) =>
-			getClampedZoom({
-				zoom: previousZoom * factor,
-			}),
-		);
-	}, []);
+	const updateViewportTransform = useCallback(
+		(updater: (current: ViewportTransform) => ViewportTransform) => {
+			setViewportTransform((previous) => {
+				const isCurrentCanvas =
+					previous.canvasHeight === canvasHeight &&
+					previous.canvasWidth === canvasWidth;
+				const currentZoom = isCurrentCanvas ? previous.zoom : 1;
+				const currentCenter = clampViewportCenter({
+					canvasHeight,
+					canvasWidth,
+					centerX: isCurrentCanvas ? previous.center.x : canvasWidth / 2,
+					centerY: isCurrentCanvas ? previous.center.y : canvasHeight / 2,
+					scale: fitScale * currentZoom,
+					viewportHeight,
+					viewportWidth,
+				});
+				const next = updater({
+					center: currentCenter,
+					zoom: currentZoom,
+				});
+				const nextZoom = getClampedZoom({ zoom: next.zoom });
+
+				return {
+					canvasHeight,
+					canvasWidth,
+					center: clampViewportCenter({
+						canvasHeight,
+						canvasWidth,
+						centerX: next.center.x,
+						centerY: next.center.y,
+						scale: fitScale * nextZoom,
+						viewportHeight,
+						viewportWidth,
+					}),
+					zoom: nextZoom,
+				};
+			});
+		},
+		[canvasHeight, canvasWidth, fitScale, viewportHeight, viewportWidth],
+	);
+
+	const scaleZoom = useCallback(
+		({ factor }: { factor: number }) => {
+			updateViewportTransform((current) => ({
+				...current,
+				zoom: current.zoom * factor,
+			}));
+		},
+		[updateViewportTransform],
+	);
 
 	const panByScreenDelta = useCallback(
 		({ deltaX, deltaY }: { deltaX: number; deltaY: number }) => {
@@ -268,74 +375,68 @@ export function usePreviewViewportState({
 				return;
 			}
 
-			setCenter((previousCenter) =>
-				clampViewportCenter({
-					canvasHeight,
-					canvasWidth,
-					centerX: previousCenter.x + deltaX / viewportScale,
-					centerY: previousCenter.y + deltaY / viewportScale,
-					scale: viewportScale,
-					viewportHeight,
-					viewportWidth,
-				}),
-			);
+			updateViewportTransform((current) => ({
+				...current,
+				center: {
+					x: current.center.x + deltaX / viewportScale,
+					y: current.center.y + deltaY / viewportScale,
+				},
+			}));
 		},
-		[
-			canvasHeight,
-			canvasWidth,
-			viewportHeight,
-			viewportScale,
-			viewportWidth,
-			zoom,
-		],
+		[updateViewportTransform, viewportScale, zoom],
 	);
 
 	const resetPan = useCallback(() => {
-		setCenter({
-			x: canvasWidth / 2,
-			y: canvasHeight / 2,
-		});
-	}, [canvasHeight, canvasWidth]);
+		updateViewportTransform((current) => ({
+			...current,
+			center: {
+				x: canvasWidth / 2,
+				y: canvasHeight / 2,
+			},
+		}));
+	}, [canvasHeight, canvasWidth, updateViewportTransform]);
 
 	const fitToScreen = useCallback(() => {
-		setZoomState(1);
-		setCenter({
-			x: canvasWidth / 2,
-			y: canvasHeight / 2,
-		});
-	}, [canvasHeight, canvasWidth]);
+		updateViewportTransform(() => ({
+			center: {
+				x: canvasWidth / 2,
+				y: canvasHeight / 2,
+			},
+			zoom: 1,
+		}));
+	}, [canvasHeight, canvasWidth, updateViewportTransform]);
 
 	const zoomIn = useCallback(() => {
-		setZoomState((previousZoom) =>
-			getClampedZoom({
-				zoom: previousZoom * PREVIEW_ZOOM.step,
-			}),
-		);
-	}, []);
+		updateViewportTransform((current) => ({
+			...current,
+			zoom: current.zoom * PREVIEW_ZOOM.step,
+		}));
+	}, [updateViewportTransform]);
 
 	const zoomOut = useCallback(() => {
-		setZoomState((previousZoom) =>
-			getClampedZoom({
-				zoom: previousZoom / PREVIEW_ZOOM.step,
-			}),
-		);
-	}, []);
+		updateViewportTransform((current) => ({
+			...current,
+			zoom: current.zoom / PREVIEW_ZOOM.step,
+		}));
+	}, [updateViewportTransform]);
 
 	const setActualSize = useCallback(() => {
 		const actualSizeZoom = fitScale > 0 ? 1 / fitScale : 1;
-		setZoomState(
-			getClampedZoom({
-				zoom: actualSizeZoom,
-			}),
-		);
-	}, [fitScale]);
+		updateViewportTransform((current) => ({
+			...current,
+			zoom: actualSizeZoom,
+		}));
+	}, [fitScale, updateViewportTransform]);
 
 	const setViewportPercent = useCallback(
 		({ percent }: { percent: number }) => {
 			const targetZoom = fitScale > 0 ? percent / 100 / fitScale : 1;
-			setZoomState(getClampedZoom({ zoom: targetZoom }));
+			updateViewportTransform((current) => ({
+				...current,
+				zoom: targetZoom,
+			}));
 		},
-		[fitScale],
+		[fitScale, updateViewportTransform],
 	);
 
 	const getViewportRect = useCallback(
@@ -402,23 +503,33 @@ export function usePreviewViewportState({
 			event.stopPropagation();
 
 			panSessionRef.current = {
+				canvasHeight,
+				canvasWidth,
 				centerX: centerRef.current.x,
 				centerY: centerRef.current.y,
 				clientX: event.clientX,
 				clientY: event.clientY,
 				pointerId: event.pointerId,
 			};
-			setIsPanning(true);
+			setPanningState({
+				canvasHeight,
+				canvasWidth,
+				isPanning: true,
+			});
 			event.currentTarget.setPointerCapture(event.pointerId);
 			return true;
 		},
-		[centerRef, zoom],
+		[canvasHeight, canvasWidth, centerRef, zoom],
 	);
 
 	const handlePanPointerMove = useCallback(
 		({ event }: { event: React.PointerEvent }) => {
 			const panSession = panSessionRef.current;
-			if (!panSession) {
+			if (
+				!panSession ||
+				panSession.canvasHeight !== canvasHeight ||
+				panSession.canvasWidth !== canvasWidth
+			) {
 				return false;
 			}
 
@@ -437,10 +548,20 @@ export function usePreviewViewportState({
 				viewportWidth,
 			});
 
-			setCenter(nextCenter);
+			updateViewportTransform((current) => ({
+				...current,
+				center: nextCenter,
+			}));
 			return true;
 		},
-		[canvasHeight, canvasWidth, viewportHeight, viewportScale, viewportWidth],
+		[
+			canvasHeight,
+			canvasWidth,
+			updateViewportTransform,
+			viewportHeight,
+			viewportScale,
+			viewportWidth,
+		],
 	);
 
 	const handlePanPointerUp = useCallback(
@@ -450,42 +571,20 @@ export function usePreviewViewportState({
 				return false;
 			}
 
-			if (
-				event.currentTarget.hasPointerCapture(panSession.pointerId)
-			) {
+			if (event.currentTarget.hasPointerCapture(panSession.pointerId)) {
 				event.currentTarget.releasePointerCapture(panSession.pointerId);
 			}
 
 			panSessionRef.current = null;
-			setIsPanning(false);
-			return true;
-		},
-		[],
-	);
-
-	useEffect(() => {
-		setZoomState(1);
-		setCenter({
-			x: canvasWidth / 2,
-			y: canvasHeight / 2,
-		});
-		panSessionRef.current = null;
-		setIsPanning(false);
-	}, [canvasHeight, canvasWidth]);
-
-	useEffect(() => {
-		setCenter((previousCenter) =>
-			clampViewportCenter({
+			setPanningState({
 				canvasHeight,
 				canvasWidth,
-				centerX: previousCenter.x,
-				centerY: previousCenter.y,
-				scale: viewportScale,
-				viewportHeight,
-				viewportWidth,
-			}),
-		);
-	}, [canvasHeight, canvasWidth, viewportHeight, viewportScale, viewportWidth]);
+				isPanning: false,
+			});
+			return true;
+		},
+		[canvasHeight, canvasWidth],
+	);
 
 	const sceneWidth = canvasWidth * viewportScale;
 	const sceneHeight = canvasHeight * viewportScale;

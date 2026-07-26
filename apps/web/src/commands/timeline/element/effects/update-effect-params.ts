@@ -66,8 +66,10 @@ export class UpdateClipEffectParamsCommand extends Command {
 			elementId: this.elementId,
 			elementPredicate: isVisualElement,
 			update: (element) => {
+				if (!isVisualElement(element)) return element;
+
 				return updateEffectParamsOnElement({
-					element: element as VisualElement,
+					element,
 					effectId: this.effectId,
 					params: this.params,
 				});

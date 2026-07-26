@@ -1,4 +1,4 @@
-import type { SceneTracks, TimelineElement, TimelineTrack } from "@/timeline/types";
+import type { SceneTracks, TimelineElement } from "@/timeline/types";
 import type { RippleAdjustment } from "./apply";
 
 interface Interval {

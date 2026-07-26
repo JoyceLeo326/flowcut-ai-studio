@@ -157,13 +157,14 @@ const ACTIONS_WITH_REQUIRED_ARGS: ReadonlySet<TAction> = new Set([
 	"remove-media-assets",
 ]);
 
+function isAction(value: string): value is TAction {
+	return Object.hasOwn(ACTIONS, value);
+}
+
 export function isActionWithOptionalArgs(
 	value: string,
 ): value is TActionWithOptionalArgs {
-	return (
-		Object.hasOwn(ACTIONS, value) &&
-		!ACTIONS_WITH_REQUIRED_ARGS.has(value as TAction)
-	);
+	return isAction(value) && !ACTIONS_WITH_REQUIRED_ARGS.has(value);
 }
 
 const ACTION_DEFAULT_SHORTCUTS = [

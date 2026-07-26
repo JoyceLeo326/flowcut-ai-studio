@@ -23,6 +23,8 @@ import { CanvasRenderer } from "./canvas-renderer";
 type ExportParams = {
 	width: number;
 	height: number;
+	outputWidth?: number;
+	outputHeight?: number;
 	fps: FrameRate;
 	format: ExportFormat;
 	quality: ExportQuality;
@@ -50,12 +52,16 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 	private quality: ExportQuality;
 	private shouldIncludeAudio: boolean;
 	private audioBuffer?: AudioBuffer;
+	private outputCanvas: HTMLCanvasElement | null = null;
+	private outputContext: CanvasRenderingContext2D | null = null;
 
 	private isCancelled = false;
 
 	constructor({
 		width,
 		height,
+		outputWidth,
+		outputHeight,
 		fps,
 		format,
 		quality,
@@ -68,6 +74,17 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 			height,
 			fps,
 		});
+		const encodedWidth = outputWidth ?? width;
+		const encodedHeight = outputHeight ?? height;
+		if (encodedWidth !== width || encodedHeight !== height) {
+			this.outputCanvas = document.createElement("canvas");
+			this.outputCanvas.width = encodedWidth;
+			this.outputCanvas.height = encodedHeight;
+			this.outputContext = this.outputCanvas.getContext("2d");
+			if (!this.outputContext) {
+				throw new Error("Failed to create the temporary export canvas.");
+			}
+		}
 
 		this.format = format;
 		this.quality = quality;
@@ -99,10 +116,13 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 			target: new BufferTarget(),
 		});
 
-		const videoSource = new CanvasSource(this.renderer.getOutputCanvas(), {
-			codec: this.format === "webm" ? "vp9" : "avc",
-			bitrate: qualityMap[this.quality],
-		});
+		const videoSource = new CanvasSource(
+			this.outputCanvas ?? this.renderer.getOutputCanvas(),
+			{
+				codec: this.format === "webm" ? "vp9" : "avc",
+				bitrate: qualityMap[this.quality],
+			},
+		);
 
 		output.addVideoTrack(videoSource, { frameRate: fpsFloat });
 
@@ -144,6 +164,21 @@ export class SceneExporter extends EventEmitter<SceneExporterEvents> {
 			const timeTicks = i * ticksPerFrame;
 			const timeSeconds = mediaTimeToSeconds({ time: timeTicks });
 			await this.renderer.render({ node: rootNode, time: timeTicks });
+			if (this.outputCanvas && this.outputContext) {
+				this.outputContext.clearRect(
+					0,
+					0,
+					this.outputCanvas.width,
+					this.outputCanvas.height,
+				);
+				this.outputContext.drawImage(
+					this.renderer.getOutputCanvas(),
+					0,
+					0,
+					this.outputCanvas.width,
+					this.outputCanvas.height,
+				);
+			}
 			await videoSource.add(timeSeconds, 1 / fpsFloat);
 
 			this.emit("progress", i / frameCount);

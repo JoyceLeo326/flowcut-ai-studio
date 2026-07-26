@@ -1,6 +1,8 @@
 import type { ParamDefinition } from "@/params";
 import type {
 	MaskDefinition,
+	MaskSnapArgs,
+	MaskSnapResult,
 	MaskParamUpdateArgs,
 	TextMask,
 	TextMaskParams,
@@ -20,10 +22,7 @@ import {
 	getBoxMaskRectOverlay,
 } from "@/masks/handle-positions";
 import { computeFeatherUpdate } from "@/masks/param-update";
-import {
-	setMaskLocalCenter,
-	toGlobalMaskSnapLines,
-} from "@/masks/geometry";
+import { setMaskLocalCenter, toGlobalMaskSnapLines } from "@/masks/geometry";
 import {
 	snapPosition,
 	snapRotation,
@@ -134,6 +133,96 @@ function getScalePreferredEdges({
 	return {
 		right: true,
 		bottom: true,
+	};
+}
+
+export function snapTextMaskInteraction({
+	handleId,
+	proposedParams,
+	bounds,
+	canvasSize,
+	snapThreshold,
+	measurement,
+}: Omit<MaskSnapArgs<TextMaskParams>, "startParams"> & {
+	measurement: {
+		intrinsicWidth: number;
+		intrinsicHeight: number;
+	};
+}): MaskSnapResult<TextMaskParams> {
+	const position = {
+		x: proposedParams.centerX * bounds.width,
+		y: proposedParams.centerY * bounds.height,
+	};
+
+	if (handleId.kind === "position") {
+		const { snappedPosition, activeLines } = snapPosition({
+			proposedPosition: position,
+			canvasSize: bounds,
+			elementSize: {
+				width: measurement.intrinsicWidth * proposedParams.scale,
+				height: measurement.intrinsicHeight * proposedParams.scale,
+			},
+			rotation: proposedParams.rotation,
+			snapThreshold,
+		});
+
+		return {
+			params: {
+				...proposedParams,
+				...setMaskLocalCenter({
+					center: snappedPosition,
+					bounds,
+				}),
+			},
+			activeLines: toGlobalMaskSnapLines({
+				lines: activeLines,
+				bounds,
+				canvasSize,
+			}),
+		};
+	}
+
+	if (handleId.kind === "rotation") {
+		const { snappedRotation } = snapRotation({
+			proposedRotation: proposedParams.rotation,
+		});
+		return {
+			params: {
+				...proposedParams,
+				rotation: snappedRotation,
+			},
+			activeLines: [],
+		};
+	}
+
+	if (handleId.kind === "scale") {
+		const { snappedScale, activeLines } = snapScale({
+			proposedScale: proposedParams.scale,
+			position,
+			baseWidth: measurement.intrinsicWidth,
+			baseHeight: measurement.intrinsicHeight,
+			rotation: proposedParams.rotation,
+			canvasSize: bounds,
+			snapThreshold,
+			preferredEdges: getScalePreferredEdges({ handleId }),
+		});
+
+		return {
+			params: {
+				...proposedParams,
+				scale: Math.max(0.01, snappedScale),
+			},
+			activeLines: toGlobalMaskSnapLines({
+				lines: activeLines,
+				bounds,
+				canvasSize,
+			}),
+		};
+	}
+
+	return {
+		params: proposedParams,
+		activeLines: [],
 	};
 }
 
@@ -265,81 +354,17 @@ export const textMaskDefinition: MaskDefinition<"text"> = {
 				params: startParams,
 				height: bounds.height,
 			});
-			const position = {
-				x: proposedParams.centerX * bounds.width,
-				y: proposedParams.centerY * bounds.height,
-			};
-
-			if (handleId.kind === "position") {
-				const { snappedPosition, activeLines } = snapPosition({
-					proposedPosition: position,
-					canvasSize: bounds,
-					elementSize: {
-						width: intrinsicWidth * proposedParams.scale,
-						height: intrinsicHeight * proposedParams.scale,
-					},
-					rotation: proposedParams.rotation,
-					snapThreshold,
-				});
-
-				return {
-					params: {
-						...proposedParams,
-						...setMaskLocalCenter({
-							center: snappedPosition,
-							bounds,
-						}),
-					},
-					activeLines: toGlobalMaskSnapLines({
-						lines: activeLines,
-						bounds,
-						canvasSize,
-					}),
-				};
-			}
-
-			if (handleId.kind === "rotation") {
-				const { snappedRotation } = snapRotation({
-					proposedRotation: proposedParams.rotation,
-				});
-				return {
-					params: {
-						...proposedParams,
-						rotation: snappedRotation,
-					},
-					activeLines: [],
-				};
-			}
-
-			if (handleId.kind === "scale") {
-				const { snappedScale, activeLines } = snapScale({
-					proposedScale: proposedParams.scale,
-					position,
-					baseWidth: intrinsicWidth,
-					baseHeight: intrinsicHeight,
-					rotation: proposedParams.rotation,
-					canvasSize: bounds,
-					snapThreshold,
-					preferredEdges: getScalePreferredEdges({ handleId }),
-				});
-
-				return {
-					params: {
-						...proposedParams,
-						scale: Math.max(0.01, snappedScale),
-					},
-					activeLines: toGlobalMaskSnapLines({
-						lines: activeLines,
-						bounds,
-						canvasSize,
-					}),
-				};
-			}
-
-			return {
-				params: proposedParams,
-				activeLines: [],
-			};
+			return snapTextMaskInteraction({
+				handleId,
+				proposedParams,
+				bounds,
+				canvasSize,
+				snapThreshold,
+				measurement: {
+					intrinsicWidth,
+					intrinsicHeight,
+				},
+			});
 		},
 	},
 	buildDefault(): Omit<TextMask, "id"> {

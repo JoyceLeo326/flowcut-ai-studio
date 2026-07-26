@@ -5,62 +5,98 @@ import type {
 	TActionWithOptionalArgs,
 	TActionArgsMap,
 	TArgOfAction,
+	TBoundActionList,
 	TInvocationTrigger,
 } from "./types";
 
-type ActionHandler = (arg: unknown, trigger?: TInvocationTrigger) => void;
-const boundActions: Partial<Record<TAction, ActionHandler[]>> = {};
+const boundActions: TBoundActionList = {
+	"toggle-play": [],
+	"stop-playback": [],
+	"seek-forward": [],
+	"seek-backward": [],
+	"frame-step-forward": [],
+	"frame-step-backward": [],
+	"jump-forward": [],
+	"jump-backward": [],
+	"goto-start": [],
+	"goto-end": [],
+	split: [],
+	"split-left": [],
+	"split-right": [],
+	"delete-selected": [],
+	"copy-selected": [],
+	"paste-copied": [],
+	"toggle-snapping": [],
+	"toggle-ripple-editing": [],
+	"toggle-source-audio": [],
+	"select-all": [],
+	"cancel-interaction": [],
+	"deselect-all": [],
+	"duplicate-selected": [],
+	"toggle-elements-muted-selected": [],
+	"toggle-elements-visibility-selected": [],
+	"toggle-bookmark": [],
+	undo: [],
+	redo: [],
+	"remove-media-asset": [],
+	"remove-media-assets": [],
+};
 
-// eslint-disable-next-line opencut/prefer-object-params -- action registries read best as (action, handler).
 export function bindAction<A extends TAction>(
-	action: A,
-	handler: TActionFunc<A>,
+	...[action, handler]: [action: A, handler: TActionFunc<A>]
 ) {
 	const handlers = boundActions[action];
-	const typedHandler = handler as ActionHandler;
-	if (handlers) {
-		handlers.push(typedHandler);
-	} else {
-		boundActions[action] = [typedHandler];
-	}
+	handlers.push(handler);
 }
 
-// eslint-disable-next-line opencut/prefer-object-params -- action registries read best as (action, handler).
 export function unbindAction<A extends TAction>(
-	action: A,
-	handler: TActionFunc<A>,
+	...[action, handler]: [action: A, handler: TActionFunc<A>]
 ) {
 	const handlers = boundActions[action];
-	if (!handlers) return;
-
-	const typedHandler = handler as ActionHandler;
-	boundActions[action] = handlers.filter((h) => h !== typedHandler);
-
-	if (boundActions[action]?.length === 0) {
-		delete boundActions[action];
+	const handlerIndex = handlers.indexOf(handler);
+	if (handlerIndex >= 0) {
+		handlers.splice(handlerIndex, 1);
 	}
 }
 
-type InvokeActionFunc = {
-	(
+function dispatchAction<A extends TAction>({
+	action,
+	args,
+	trigger,
+}: {
+	action: A;
+	args: TArgOfAction<A>;
+	trigger?: TInvocationTrigger;
+}): void {
+	boundActions[action].forEach((handler) => {
+		handler(args, trigger);
+	});
+}
+
+export function invokeAction(
+	...[action, args, trigger]: [
 		action: TActionWithOptionalArgs,
 		args?: undefined,
 		trigger?: TInvocationTrigger,
-	): void;
-	<A extends TActionWithArgs>(
+	]
+): void;
+export function invokeAction<A extends TActionWithArgs>(
+	...[action, args, trigger]: [
 		action: A,
 		args: TActionArgsMap[A],
 		trigger?: TInvocationTrigger,
-	): void;
-};
-
-// eslint-disable-next-line opencut/prefer-object-params -- dispatchers conventionally separate action, payload, and trigger.
-export const invokeAction: InvokeActionFunc = <A extends TAction>(
-	action: A,
-	args?: TArgOfAction<A>,
-	trigger?: TInvocationTrigger,
-) => {
-	boundActions[action]?.forEach((handler) => {
-		handler(args, trigger);
+	]
+): void;
+export function invokeAction(
+	...[action, args, trigger]: [
+		action: TAction,
+		args?: TArgOfAction<TAction>,
+		trigger?: TInvocationTrigger,
+	]
+): void {
+	dispatchAction({
+		action,
+		args,
+		trigger,
 	});
-};
+}

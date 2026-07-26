@@ -1,6 +1,8 @@
-import type { EditorCore } from "@/core";
 import type { Command, CommandResult } from "@/commands";
-import type { EditorSelectionSnapshot } from "@/selection/editor-selection";
+import type {
+	EditorSelectionPatch,
+	EditorSelectionSnapshot,
+} from "@/selection/editor-selection";
 import { applyRippleAdjustments, computeRippleAdjustments } from "@/ripple";
 import type { SceneTracks } from "@/timeline/types";
 
@@ -10,18 +12,41 @@ interface CommandHistoryEntry {
 	selectionOverride?: EditorSelectionSnapshot;
 }
 
+export interface CommandManagerEditor {
+	readonly scenes: {
+		getActiveSceneOrNull(): { readonly tracks: SceneTracks } | null;
+	};
+	readonly selection: {
+		getSnapshot(): EditorSelectionSnapshot;
+		applySelectionPatch({
+			patch,
+		}: {
+			patch: EditorSelectionPatch;
+		}): EditorSelectionSnapshot;
+		restoreSnapshot({
+			snapshot,
+		}: {
+			snapshot: EditorSelectionSnapshot;
+		}): void;
+	};
+	readonly timeline: {
+		updateTracks(tracks: SceneTracks): void;
+	};
+}
+
 export class CommandManager {
 	public isRippleEnabled = false;
 	private history: CommandHistoryEntry[] = [];
 	private redoStack: CommandHistoryEntry[] = [];
 	private reactors: Array<() => void> = [];
 
-	constructor(private editor: EditorCore) {}
+	constructor(private editor: CommandManagerEditor) {}
 
 	execute({ command }: { command: Command }): Command {
-		const beforeTracks = this.isRippleEnabled
-			? (this.editor.scenes.getActiveSceneOrNull()?.tracks ?? null)
-			: null;
+		const beforeTracks =
+			this.isRippleEnabled && !command.handlesRipple
+				? (this.editor.scenes.getActiveSceneOrNull()?.tracks ?? null)
+				: null;
 		const previousSelection = this.getSelectionSnapshot();
 		const result = command.execute();
 		this.applyRippleIfEnabled({ beforeTracks });
@@ -50,9 +75,10 @@ export class CommandManager {
 
 	undo(): void {
 		if (this.history.length === 0) return;
-		const entry = this.history.pop();
-		entry?.command.undo();
+		const entry = this.history.at(-1);
 		if (entry) {
+			entry.command.undo();
+			this.history.pop();
 			// Only restore selection for commands that explicitly changed it.
 			// Commands without selection intent leave selection untouched,
 			// preserving any UI-driven selection changes (clicks, box select)
@@ -69,19 +95,21 @@ export class CommandManager {
 
 	redo(): void {
 		if (this.redoStack.length === 0) return;
-		const entry = this.redoStack.pop();
+		const entry = this.redoStack.at(-1);
 		if (!entry) {
 			return;
 		}
 
-		const beforeTracks = this.isRippleEnabled
-			? (this.editor.scenes.getActiveSceneOrNull()?.tracks ?? null)
-			: null;
+		const beforeTracks =
+			this.isRippleEnabled && !entry.command.handlesRipple
+				? (this.editor.scenes.getActiveSceneOrNull()?.tracks ?? null)
+				: null;
 		const previousSelection = this.getSelectionSnapshot();
 		const result = entry.command.redo();
 		this.applyRippleIfEnabled({ beforeTracks });
 		const selectionOverride = this.applySelectionOverride(result);
 		this.runReactors();
+		this.redoStack.pop();
 
 		this.history.push({
 			command: entry.command,
@@ -96,6 +124,14 @@ export class CommandManager {
 
 	canRedo(): boolean {
 		return this.redoStack.length > 0;
+	}
+
+	isLatest(command: Command): boolean {
+		return this.history.at(-1)?.command === command;
+	}
+
+	isNextRedo(command: Command): boolean {
+		return this.redoStack.at(-1)?.command === command;
 	}
 
 	clear(): void {
