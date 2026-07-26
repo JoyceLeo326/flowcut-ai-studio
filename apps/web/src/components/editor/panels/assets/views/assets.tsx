@@ -30,6 +30,7 @@ import { mediaTimeFromSeconds, type MediaTime } from "@/wasm";
 import { useEditor } from "@/editor/use-editor";
 import { useFileUpload } from "@/media/use-file-upload";
 import { invokeAction } from "@/actions";
+import { prepareMediaImport } from "@/media/import-service";
 import { processMediaAssets } from "@/media/processing";
 import { showMediaUploadToast } from "@/media/upload-toast";
 import {
@@ -88,11 +89,14 @@ export function MediaView() {
 		setIsProcessing(true);
 		setProgress(0);
 		try {
+			const preparedImport = await prepareMediaImport({ files });
+			if (preparedImport.files.length === 0) return;
+
 			await showMediaUploadToast({
-				filesCount: files.length,
+				filesCount: preparedImport.files.length,
 				promise: async () => {
 					const processedAssets = await processMediaAssets({
-						files,
+						preparedImport,
 						onProgress: (progress: { progress: number }) =>
 							setProgress(progress.progress),
 					});

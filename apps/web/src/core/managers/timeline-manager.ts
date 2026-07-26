@@ -714,19 +714,23 @@ export class TimelineManager {
 	}): void {
 		let changedOverlayCount = 0;
 		for (const { elementId, updates: elementUpdates } of updates) {
+			if ("id" in elementUpdates || "type" in elementUpdates) {
+				throw new Error("Preview updates cannot change an element id or type");
+			}
 			const existingOverlay = this.previewOverlay.get(elementId);
 			const changed = Object.entries(elementUpdates).some(([key, value]) => {
 				return !Object.is(
-					existingOverlay?.[key as keyof TimelineElement],
+					existingOverlay ? Reflect.get(existingOverlay, key) : undefined,
 					value,
 				);
 			});
 			if (changed) {
 				changedOverlayCount += 1;
-				const mergedOverlay = {
-					...existingOverlay,
-					...elementUpdates,
-				} as Partial<TimelineElement>;
+				const mergedOverlay = Object.assign(
+					{},
+					existingOverlay,
+					elementUpdates,
+				);
 				this.previewOverlay.set(elementId, mergedOverlay);
 			}
 		}
@@ -769,6 +773,13 @@ export class TimelineManager {
 	private applyPreviewOverlay(tracks: SceneTracks): SceneTracks {
 		if (this.previewOverlay.size === 0) return tracks;
 
+		const applyElementOverlay = <TElement extends TimelineElement>(
+			element: TElement,
+		): TElement => {
+			const overlay = this.previewOverlay.get(element.id);
+			return overlay ? Object.assign({}, element, overlay) : element;
+		};
+
 		const applyTrackOverlay = <TTrack extends TimelineTrack>(
 			track: TTrack,
 		): TTrack => {
@@ -779,14 +790,11 @@ export class TimelineManager {
 				return track;
 			}
 
-			const nextElements = track.elements.map((element) => {
-				const overlay = this.previewOverlay.get(element.id);
-				return overlay
-					? ({ ...element, ...overlay } as TimelineElement)
-					: element;
-			});
+			const nextElements = track.elements.map((element) =>
+				applyElementOverlay(element),
+			);
 
-			return { ...track, elements: nextElements } as TTrack;
+			return Object.assign({}, track, { elements: nextElements });
 		};
 
 		return {
@@ -841,7 +849,9 @@ export class TimelineManager {
 	}): void {
 		const shouldMute = elements.some(({ trackId, elementId }) => {
 			const element = this.getElementByRef({ trackId, elementId });
-			return element && canElementHaveAudio(element) && !isElementMuted({ element });
+			return (
+				element && canElementHaveAudio(element) && !isElementMuted({ element })
+			);
 		});
 
 		const nextUpdates = elements.flatMap(({ trackId, elementId }) => {

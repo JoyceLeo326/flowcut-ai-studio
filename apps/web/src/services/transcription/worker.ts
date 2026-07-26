@@ -57,55 +57,59 @@ async function handleInit({ modelId }: { modelId: string }) {
 	fileBytes.clear();
 
 	try {
-		transcriber = (await pipeline("automatic-speech-recognition", modelId, {
-			dtype: "q4",
-			device: "auto",
-			progress_callback: (progressInfo: {
-				status?: string;
-				file?: string;
-				loaded?: number;
-				total?: number;
-			}) => {
-				const file = progressInfo.file;
-				if (!file) return;
+		transcriber = await pipeline<"automatic-speech-recognition">(
+			"automatic-speech-recognition",
+			modelId,
+			{
+				dtype: "q4",
+				device: "auto",
+				progress_callback: (progressInfo: {
+					status?: string;
+					file?: string;
+					loaded?: number;
+					total?: number;
+				}) => {
+					const file = progressInfo.file;
+					if (!file) return;
 
-				const loaded = progressInfo.loaded ?? 0;
-				const total = progressInfo.total ?? 0;
+					const loaded = progressInfo.loaded ?? 0;
+					const total = progressInfo.total ?? 0;
 
-				if (progressInfo.status === "progress" && total > 0) {
-					fileBytes.set(file, { loaded, total });
-				} else if (progressInfo.status === "done") {
-					const existing = fileBytes.get(file);
-					if (existing) {
-						fileBytes.set(file, {
-							loaded: existing.total,
-							total: existing.total,
-						});
+					if (progressInfo.status === "progress" && total > 0) {
+						fileBytes.set(file, { loaded, total });
+					} else if (progressInfo.status === "done") {
+						const existing = fileBytes.get(file);
+						if (existing) {
+							fileBytes.set(file, {
+								loaded: existing.total,
+								total: existing.total,
+							});
+						}
 					}
-				}
 
-				// sum all bytes
-				let totalLoaded = 0;
-				let totalSize = 0;
-				for (const { loaded, total } of fileBytes.values()) {
-					totalLoaded += loaded;
-					totalSize += total;
-				}
+					// sum all bytes
+					let totalLoaded = 0;
+					let totalSize = 0;
+					for (const { loaded, total } of fileBytes.values()) {
+						totalLoaded += loaded;
+						totalSize += total;
+					}
 
-				if (totalSize === 0) return;
+					if (totalSize === 0) return;
 
-				const overallProgress = (totalLoaded / totalSize) * 100;
-				const roundedProgress = Math.floor(overallProgress);
+					const overallProgress = (totalLoaded / totalSize) * 100;
+					const roundedProgress = Math.floor(overallProgress);
 
-				if (roundedProgress !== lastReportedProgress) {
-					lastReportedProgress = roundedProgress;
-					self.postMessage({
-						type: "init-progress",
-						progress: roundedProgress,
-					} satisfies WorkerResponse);
-				}
+					if (roundedProgress !== lastReportedProgress) {
+						lastReportedProgress = roundedProgress;
+						self.postMessage({
+							type: "init-progress",
+							progress: roundedProgress,
+						} satisfies WorkerResponse);
+					}
+				},
 			},
-		})) as unknown as AutomaticSpeechRecognitionPipeline;
+		);
 
 		self.postMessage({ type: "init-complete" } satisfies WorkerResponse);
 	} catch (error) {

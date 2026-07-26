@@ -141,17 +141,17 @@ export function applyElementUpdate({
 	patch: Partial<TimelineElement>;
 	context: ElementUpdateContext;
 }): TimelineElement {
-	let nextElement = {
-		...element,
-		...patch,
+	const mutablePatch = { ...patch };
+	delete mutablePatch.id;
+	delete mutablePatch.type;
+
+	let nextElement: TimelineElement = Object.assign({}, element, mutablePatch, {
 		params: {
 			...element.params,
-			...(patch.params ?? {}),
+			...(mutablePatch.params ?? {}),
 		},
-	} as TimelineElement;
-	const changedFields = new Set(
-		Object.keys(patch) as ElementUpdateField[],
-	);
+	});
+	const changedFields = new Set<ElementUpdateField>(Object.keys(mutablePatch));
 
 	for (const rule of deriveRules) {
 		if (!shouldApplyRule({ rule, changedFields })) {

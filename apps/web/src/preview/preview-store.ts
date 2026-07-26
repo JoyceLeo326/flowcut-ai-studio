@@ -1,19 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { isGuideId, type GuideId } from "@/guides";
-import { DEFAULT_GRID_CONFIG } from "@/guides/grid";
+import { DEFAULT_GRID_CONFIG, GRID_MAX, GRID_MIN } from "@/guides/grid";
 import type { GridConfig } from "@/guides/types";
 
 type PreviewOverlaysState = Record<string, boolean>;
-
-interface PersistedPreviewState {
-	activeGuide?: string | null;
-	layoutGuide?: {
-		platform?: string | null;
-	};
-	overlays?: PreviewOverlaysState;
-	gridConfig?: GridConfig;
-}
 
 interface PreviewState {
 	activeGuide: GuideId | null;
@@ -33,17 +24,54 @@ interface PreviewState {
 
 const DEFAULT_PREVIEW_OVERLAYS: PreviewOverlaysState = {};
 
-function getPersistedActiveGuide(
-	state: PersistedPreviewState | undefined,
-): GuideId | null {
-	const persistedGuide =
-		state?.activeGuide ?? state?.layoutGuide?.platform ?? null;
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getPersistedActiveGuide(state: unknown): GuideId | null {
+	if (!isRecord(state)) {
+		return null;
+	}
+
+	const layoutGuide = isRecord(state.layoutGuide) ? state.layoutGuide : null;
+	const persistedGuide = state.activeGuide ?? layoutGuide?.platform ?? null;
 
 	if (typeof persistedGuide !== "string") {
 		return null;
 	}
 
 	return isGuideId(persistedGuide) ? persistedGuide : null;
+}
+
+function getGridDimension({
+	value,
+	fallback,
+}: {
+	value: unknown;
+	fallback: number;
+}): number {
+	return typeof value === "number" &&
+		Number.isInteger(value) &&
+		value >= GRID_MIN &&
+		value <= GRID_MAX
+		? value
+		: fallback;
+}
+
+function getPersistedGridConfig(state: unknown): GridConfig {
+	const gridConfig =
+		isRecord(state) && isRecord(state.gridConfig) ? state.gridConfig : null;
+
+	return {
+		rows: getGridDimension({
+			value: gridConfig?.rows,
+			fallback: DEFAULT_GRID_CONFIG.rows,
+		}),
+		cols: getGridDimension({
+			value: gridConfig?.cols,
+			fallback: DEFAULT_GRID_CONFIG.cols,
+		}),
+	};
 }
 
 export const usePreviewStore = create<PreviewState>()(
@@ -83,15 +111,10 @@ export const usePreviewStore = create<PreviewState>()(
 			name: "preview-settings",
 			version: 6,
 			migrate: (persistedState) => {
-				const state = persistedState as PersistedPreviewState | undefined;
-
 				return {
-					activeGuide: getPersistedActiveGuide(state),
+					activeGuide: getPersistedActiveGuide(persistedState),
 					overlays: DEFAULT_PREVIEW_OVERLAYS,
-					gridConfig: {
-						rows: state?.gridConfig?.rows ?? DEFAULT_GRID_CONFIG.rows,
-						cols: state?.gridConfig?.cols ?? DEFAULT_GRID_CONFIG.cols,
-					},
+					gridConfig: getPersistedGridConfig(persistedState),
 				};
 			},
 			partialize: (state) => ({

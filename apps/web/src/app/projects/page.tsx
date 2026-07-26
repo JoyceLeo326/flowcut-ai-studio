@@ -148,15 +148,32 @@ export default function ProjectsPage() {
 				},
 			});
 			if (files.length > 0) {
-				try {
-					const processedAssets = await processMediaAssets({ files });
-					for (const asset of processedAssets) {
+				let importedCount = 0;
+				const failedFileNames: string[] = [];
+				for (const file of files) {
+					try {
+						const [asset] = await processMediaAssets({ files: [file] });
+						if (!asset) {
+							failedFileNames.push(file.name);
+							continue;
+						}
 						await editor.media.addMediaAsset({ projectId, asset });
+						importedCount += 1;
+					} catch {
+						failedFileNames.push(file.name);
 					}
-					toast.success(`${processedAssets.length} 个素材已加入项目`);
-				} catch (error) {
-					toast.error("项目已创建，但部分素材无法导入", {
-						description: error instanceof Error ? error.message : undefined,
+				}
+				if (importedCount > 0) {
+					toast.success(`${importedCount} 个素材已加入项目`);
+				}
+				if (failedFileNames.length > 0) {
+					const visibleNames = failedFileNames.slice(0, 3).join("、");
+					const remainingCount = Math.max(failedFileNames.length - 3, 0);
+					toast.error(`${failedFileNames.length} 个素材未能导入`, {
+						description:
+							remainingCount > 0
+								? `${visibleNames}，另有 ${remainingCount} 个。可在编辑器素材面板重新选择这些文件。`
+								: `${visibleNames}。可在编辑器素材面板重新选择这些文件。`,
 					});
 				}
 			}

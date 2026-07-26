@@ -1,19 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-	findClosestPointOnFreeformSegment,
-	getFreeformPathClosedStateAfterPointRemoval,
-	insertPointIntoFreeformSegment,
-	removeFreeformPathPoints,
-} from "@/masks/freeform/path";
-import {
-	appendPointToFreeformPathMask,
-	freeformMaskDefinition,
-	insertPointOnFreeformSegment,
-} from "@/masks/freeform/definition";
-import { getSplitMaskStrokeSegment } from "@/masks/builtin/definitions/split";
-import { textMaskDefinition } from "@/masks/builtin/definitions/text";
-import { getMaskSnapGeometry } from "@/masks/geometry";
-import { snapBoxMaskInteraction, snapSplitMaskInteraction } from "@/masks/snap";
+import { installMockWasm } from "@/test-utils/mock-wasm";
 import type { ElementBounds } from "@/preview/element-bounds";
 import type {
 	FreeformPathMaskParams,
@@ -21,6 +7,27 @@ import type {
 	SplitMaskParams,
 	TextMaskParams,
 } from "@/masks/types";
+
+installMockWasm();
+
+const {
+	findClosestPointOnFreeformSegment,
+	getFreeformPathClosedStateAfterPointRemoval,
+	insertPointIntoFreeformSegment,
+	removeFreeformPathPoints,
+} = await import("@/masks/freeform/path");
+const {
+	appendPointToFreeformPathMask,
+	freeformMaskDefinition,
+	insertPointOnFreeformSegment,
+} = await import("@/masks/freeform/definition");
+const { getSplitMaskStrokeSegment } =
+	await import("@/masks/builtin/definitions/split");
+const { snapTextMaskInteraction, textMaskDefinition } =
+	await import("@/masks/builtin/definitions/text");
+const { getMaskSnapGeometry } = await import("@/masks/geometry");
+const { snapBoxMaskInteraction, snapSplitMaskInteraction } =
+	await import("@/masks/snap");
 
 const bounds: ElementBounds = {
 	cx: 200,
@@ -365,18 +372,21 @@ describe("mask snapping", () => {
 			centerX: 0.03,
 			centerY: -0.04,
 		});
-		const result = textMaskDefinition.interaction.snap?.({
+		const result = snapTextMaskInteraction({
 			handleId: { kind: "position" },
-			startParams: params,
 			proposedParams: params,
 			bounds,
 			canvasSize,
 			snapThreshold,
+			measurement: {
+				intrinsicWidth: 40,
+				intrinsicHeight: 18,
+			},
 		});
 
-		expect(result?.params.centerX).toBe(0);
-		expect(result?.params.centerY).toBe(0);
-		expect(result?.activeLines).toEqual([
+		expect(result.params.centerX).toBe(0);
+		expect(result.params.centerY).toBe(0);
+		expect(result.activeLines).toEqual([
 			{ type: "vertical", position: 0 },
 			{ type: "horizontal", position: 0 },
 		]);
@@ -499,9 +509,9 @@ describe("custom mask point insertion", () => {
 			id: "new",
 			x: 0,
 			y: -0.1,
-			inX: 0,
+			inX: -0.1,
 			inY: 0,
-			outX: 0,
+			outX: 0.1,
 			outY: 0,
 		});
 	});

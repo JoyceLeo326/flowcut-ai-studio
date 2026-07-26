@@ -18,11 +18,20 @@ import type {
 	TranscriptionLanguage,
 	TranscriptionProgress,
 } from "@/transcription/types";
+import {
+	DEFAULT_TRANSCRIPTION_MODEL,
+	TRANSCRIPTION_MODELS,
+} from "@/transcription/models";
 import { transcriptionService } from "@/services/transcription/service";
 import { decodeAudioToFloat32 } from "@/media/audio";
 import { buildCaptionChunks } from "@/transcription/caption";
 import { insertCaptionChunksAsTextTrack } from "@/subtitles/insert";
 import { parseSubtitleFile } from "@/subtitles/parse";
+import {
+	appendTimelineTranscriptArtifact,
+	emitTimelineTranscriptArtifactUpdated,
+	type TimelineTranscriptArtifactDraft,
+} from "@/ai-studio/transcript-artifact";
 import { Spinner } from "@/components/ui/spinner";
 import {
 	Section,
@@ -49,19 +58,25 @@ const DIAGNOSTIC_BUTTON_VARIANT: Record<
 };
 
 type ProcessingState =
-	| { status: "idle"; error: string | null; warnings: string[] }
+	| {
+			status: "idle";
+			error: string | null;
+			warnings: string[];
+			notice: string | null;
+	  }
 	| { status: "processing"; step: string };
 
 type ProcessingAction =
 	| { type: "start"; step: string }
 	| { type: "update_step"; step: string }
-	| { type: "succeed"; warnings: string[] }
+	| { type: "succeed"; warnings: string[]; notice: string | null }
 	| { type: "fail"; error: string };
 
 const IDLE_STATE: ProcessingState = {
 	status: "idle",
 	error: null,
 	warnings: [],
+	notice: null,
 };
 
 /* eslint-disable opencut/prefer-object-params -- React reducers must accept (state, action). */
@@ -76,9 +91,19 @@ function processingReducer(
 			if (state.status !== "processing") return state;
 			return { status: "processing", step: action.step };
 		case "succeed":
-			return { status: "idle", error: null, warnings: action.warnings };
+			return {
+				status: "idle",
+				error: null,
+				warnings: action.warnings,
+				notice: action.notice,
+			};
 		case "fail":
-			return { status: "idle", error: action.error, warnings: [] };
+			return {
+				status: "idle",
+				error: action.error,
+				warnings: [],
+				notice: null,
+			};
 	}
 }
 /* eslint-enable opencut/prefer-object-params */
@@ -112,14 +137,78 @@ export function Captions() {
 		captions,
 	}: {
 		captions: CaptionChunk[];
-	}): boolean => {
-		const trackId = insertCaptionChunksAsTextTrack({ editor, captions });
-		return trackId !== null;
+	}): string | null => {
+		return insertCaptionChunksAsTextTrack({ editor, captions });
+	};
+
+	const getActiveTranscriptScope = () => {
+		const projectId = editor.project.getActive()?.metadata.id;
+		const sceneId = editor.scenes.getActiveSceneOrNull()?.id;
+		if (!projectId || !sceneId) {
+			throw new Error("No active project timeline is available.");
+		}
+		return {
+			projectId,
+			sceneId,
+			timelineId: sceneId,
+		};
+	};
+
+	const assertTranscriptScopeIsActive = ({
+		scope,
+	}: {
+		scope: ReturnType<typeof getActiveTranscriptScope>;
+	}) => {
+		const currentProjectId = editor.project.getActive()?.metadata.id;
+		const currentSceneId = editor.scenes.getActiveSceneOrNull()?.id;
+		if (
+			currentProjectId !== scope.projectId ||
+			currentSceneId !== scope.sceneId
+		) {
+			throw new Error(
+				"The active project or scene changed during processing. No captions or transcript evidence were saved.",
+			);
+		}
+	};
+
+	const finishWithTranscriptEvidence = async ({
+		draft,
+		warnings,
+	}: {
+		draft: TimelineTranscriptArtifactDraft;
+		warnings: string[];
+	}) => {
+		dispatch({
+			type: "update_step",
+			step: "Saving transcript evidence...",
+		});
+		try {
+			const artifact = await appendTimelineTranscriptArtifact({ draft });
+			emitTimelineTranscriptArtifactUpdated({ artifact });
+			dispatch({
+				type: "succeed",
+				warnings,
+				notice: `Transcript evidence saved locally as revision ${artifact.revision}.`,
+			});
+		} catch (error) {
+			console.error("Transcript evidence persistence failed:", error);
+			const reason =
+				error instanceof Error ? error.message : "Unknown storage error";
+			dispatch({
+				type: "succeed",
+				warnings: [
+					...warnings,
+					`Captions were inserted into the timeline, but transcript evidence was not saved locally: ${reason}`,
+				],
+				notice: null,
+			});
+		}
 	};
 
 	const handleGenerateTranscript = async () => {
 		dispatch({ type: "start", step: "Extracting audio..." });
 		try {
+			const scope = getActiveTranscriptScope();
 			const audioBlob = await extractTimelineAudio({
 				tracks: editor.scenes.getActiveScene().tracks,
 				mediaAssets: editor.media.getAssets(),
@@ -141,12 +230,63 @@ export function Captions() {
 			dispatch({ type: "update_step", step: "Generating captions..." });
 			const captionChunks = buildCaptionChunks({ segments: result.segments });
 
-			if (!insertCaptions({ captions: captionChunks })) {
+			assertTranscriptScopeIsActive({ scope });
+			const trackId = insertCaptions({ captions: captionChunks });
+			if (trackId === null) {
 				dispatch({ type: "fail", error: "No captions were generated" });
 				return;
 			}
 
-			dispatch({ type: "succeed", warnings: [] });
+			const model = TRANSCRIPTION_MODELS.find(
+				(candidate) => candidate.id === DEFAULT_TRANSCRIPTION_MODEL,
+			);
+			if (!model) {
+				dispatch({
+					type: "succeed",
+					warnings: [
+						"Captions were inserted into the timeline, but transcript evidence was not saved locally because the Whisper model metadata was unavailable.",
+					],
+					notice: null,
+				});
+				return;
+			}
+
+			await finishWithTranscriptEvidence({
+				draft: {
+					...scope,
+					captionTrackId: trackId,
+					language: {
+						code: selectedLanguage === "auto" ? "und" : selectedLanguage,
+						basis:
+							selectedLanguage === "auto"
+								? "auto-requested-not-returned"
+								: "user-selected",
+						verified: false,
+					},
+					provenance: "local-whisper",
+					sourceMetadata: {
+						kind: "local-whisper",
+						runtimePackage: "@huggingface/transformers",
+						modelId: model.id,
+						modelRepository: model.huggingFaceId,
+						audioSource: "active-timeline-mix",
+						mediaStored: false,
+						apiKeyStored: false,
+					},
+					fullText:
+						result.text.trim() ||
+						result.segments
+							.map((segment) => segment.text.trim())
+							.filter(Boolean)
+							.join(" "),
+					segments: result.segments.map((segment) => ({
+						text: segment.text,
+						startSeconds: segment.start,
+						endSeconds: segment.end,
+					})),
+				},
+				warnings: [],
+			});
 		} catch (error) {
 			console.error("Transcription failed:", error);
 			dispatch({
@@ -166,6 +306,7 @@ export function Captions() {
 	const handleImportFile = async ({ file }: { file: File }) => {
 		dispatch({ type: "start", step: "Reading subtitle file..." });
 		try {
+			const scope = getActiveTranscriptScope();
 			const input = await file.text();
 			const result = parseSubtitleFile({
 				fileName: file.name,
@@ -182,7 +323,9 @@ export function Captions() {
 
 			dispatch({ type: "update_step", step: "Importing subtitles..." });
 
-			if (!insertCaptions({ captions: result.captions })) {
+			assertTranscriptScopeIsActive({ scope });
+			const trackId = insertCaptions({ captions: result.captions });
+			if (trackId === null) {
 				dispatch({ type: "fail", error: "No captions were generated" });
 				return;
 			}
@@ -194,7 +337,38 @@ export function Captions() {
 				);
 			}
 
-			dispatch({ type: "succeed", warnings: nextWarnings });
+			const format = file.name.toLowerCase().endsWith(".ass") ? "ass" : "srt";
+			await finishWithTranscriptEvidence({
+				draft: {
+					...scope,
+					captionTrackId: trackId,
+					language: {
+						code: "und",
+						basis: "subtitle-file-not-declared",
+						verified: false,
+					},
+					provenance: "imported-subtitle",
+					sourceMetadata: {
+						kind: "imported-subtitle",
+						fileName: file.name,
+						format,
+						mimeType: file.type.trim() || null,
+						sizeBytes: file.size,
+						lastModified: file.lastModified,
+						fileContentStored: false,
+						apiKeyStored: false,
+					},
+					fullText: result.captions
+						.map((caption) => caption.text.trim())
+						.join("\n"),
+					segments: result.captions.map((caption) => ({
+						text: caption.text,
+						startSeconds: caption.startTime,
+						endSeconds: caption.startTime + caption.duration,
+					})),
+				},
+				warnings: nextWarnings,
+			});
 		} catch (error) {
 			console.error("Subtitle import failed:", error);
 			dispatch({
@@ -236,6 +410,7 @@ export function Captions() {
 
 	const error = processing.status === "idle" ? processing.error : null;
 	const warnings = processing.status === "idle" ? processing.warnings : [];
+	const notice = processing.status === "idle" ? processing.notice : null;
 
 	return (
 		<PanelView
@@ -321,6 +496,11 @@ export function Captions() {
 					{error && (
 						<div className="bg-destructive/10 border-destructive/20 rounded-md border p-3">
 							<p className="text-destructive text-sm">{error}</p>
+						</div>
+					)}
+					{notice && (
+						<div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3">
+							<p className="text-sm text-emerald-700">{notice}</p>
 						</div>
 					)}
 					{warnings.length > 0 && (

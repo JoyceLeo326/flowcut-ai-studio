@@ -1,6 +1,10 @@
 import type { ParamDefinition } from "@/params";
 import { applyAlignedStroke } from "../stroke";
-import { STROKE_ALIGN_PARAM, type GraphicStrokeAlign } from "./shared";
+import {
+	resolveGraphicStrokeAlign,
+	STROKE_ALIGN_PARAM,
+	type GraphicStrokeAlign,
+} from "./shared";
 import type { GraphicDefinition } from "../types";
 
 interface RectangleParams {
@@ -58,13 +62,14 @@ export const rectangleGraphicDefinition: GraphicDefinition = {
 		const fill = String(params.fill ?? "#ffffff");
 		const stroke = String(params.stroke ?? "#000000");
 		const strokeWidth = Math.max(0, Number(params.strokeWidth ?? 0));
-		const strokeAlign = (params.strokeAlign ?? "center") as GraphicStrokeAlign;
+		const strokeAlign = resolveGraphicStrokeAlign(params.strokeAlign);
 		const inset = strokeAlign === "center" ? strokeWidth / 2 : 0;
 		const drawWidth = Math.max(1, width - inset * 2);
 		const drawHeight = Math.max(1, height - inset * 2);
 		const radiusPercent = Math.max(0, Number(params.cornerRadius ?? 0));
 		const radius =
-			(Math.min(drawWidth, drawHeight) / 2) * Math.min(radiusPercent, 50) / 50;
+			((Math.min(drawWidth, drawHeight) / 2) * Math.min(radiusPercent, 50)) /
+			50;
 
 		ctx.clearRect(0, 0, width, height);
 		const path = new Path2D();

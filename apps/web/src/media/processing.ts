@@ -1,4 +1,9 @@
 import { toast } from "sonner";
+import {
+	claimPreparedMediaImport,
+	prepareMediaImport,
+	type PreparedMediaImport,
+} from "@/media/import-service";
 import { getMediaTypeFromFile } from "@/media/media-utils";
 import { formatStorageBytes } from "@/services/storage/quota";
 import { storageService } from "@/services/storage/service";
@@ -7,7 +12,7 @@ import { readVideoFile } from "./mediabunny";
 import type { VideoFileData } from "./mediabunny";
 import { renderThumbnailDataUrl } from "./thumbnail";
 
-export interface ProcessedMediaAsset extends Omit<MediaAsset, "id"> {}
+export type ProcessedMediaAsset = Omit<MediaAsset, "id">;
 
 const getUnsupportedVideoDescription = ({
 	codec,
@@ -82,20 +87,48 @@ async function generateImageThumbnail({
 	});
 }
 
-export async function processMediaAssets({
+type ProcessMediaAssetsOptions = {
+	onProgress?: ({ progress }: { progress: number }) => void;
+} & (
+	| {
+			files: FileList | readonly File[];
+			preparedImport?: never;
+	  }
+	| {
+			files?: never;
+			preparedImport: PreparedMediaImport;
+	  }
+);
+
+export async function processMediaAssets(
+	options: ProcessMediaAssetsOptions,
+): Promise<ProcessedMediaAsset[]> {
+	const preparedImport =
+		options.preparedImport ??
+		(await prepareMediaImport({
+			files: options.files,
+		}));
+	const files = claimPreparedMediaImport({ preparedImport });
+
+	return processPreflightedMediaAssets({
+		files,
+		onProgress: options.onProgress,
+	});
+}
+
+async function processPreflightedMediaAssets({
 	files,
 	onProgress,
 }: {
-	files: FileList | File[];
+	files: readonly File[];
 	onProgress?: ({ progress }: { progress: number }) => void;
 }): Promise<ProcessedMediaAsset[]> {
-	const fileArray = Array.from(files);
 	const processedAssets: ProcessedMediaAsset[] = [];
 
-	const total = fileArray.length;
+	const total = files.length;
 	let completed = 0;
 
-	for (const file of fileArray) {
+	for (const file of files) {
 		const fileType = getMediaTypeFromFile({ file });
 
 		if (!fileType) {
@@ -152,9 +185,7 @@ export async function processMediaAssets({
 					}
 				} catch (error) {
 					const message =
-						error instanceof Error
-							? error.message
-							: "Could not process video";
+						error instanceof Error ? error.message : "Could not process video";
 
 					toast.error(`Couldn't process ${file.name}`, {
 						description: message,
@@ -196,9 +227,9 @@ export async function processMediaAssets({
 
 const getMediaDuration = ({ file }: { file: File }): Promise<number> => {
 	return new Promise((resolve, reject) => {
-		const element = document.createElement(
-			file.type.startsWith("video/") ? "video" : "audio",
-		) as HTMLVideoElement;
+		const element = file.type.startsWith("video/")
+			? document.createElement("video")
+			: document.createElement("audio");
 		const objectUrl = URL.createObjectURL(file);
 
 		element.addEventListener("loadedmetadata", () => {

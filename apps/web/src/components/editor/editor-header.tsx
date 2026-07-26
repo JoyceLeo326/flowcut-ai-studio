@@ -20,6 +20,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { ShortcutsDialog } from "@/actions/components/shortcuts-dialog";
 import { cn } from "@/utils/ui";
 import { Clapperboard, Sparkles } from "lucide-react";
+import styles from "./editor-header.module.css";
 
 export function EditorHeader() {
 	return (
@@ -29,13 +30,18 @@ export function EditorHeader() {
 				<div className="h-5 w-px bg-border" />
 				<EditableProjectName />
 			</div>
-			<nav className="flex items-center gap-2">
-				<div className="hidden items-center gap-1.5 text-xs text-muted-foreground lg:flex">
+			<nav className={cn("flex items-center gap-2", styles.headerActions)}>
+				<div
+					className={cn(
+						"items-center gap-1.5 text-xs text-muted-foreground",
+						styles.desktopOnly,
+					)}
+				>
 					<Sparkles className="size-3.5 text-primary" />
 					<span>Local-first AI</span>
 				</div>
 				<ExportButton />
-				<ThemeToggle className="size-11 lg:size-8" />
+				<ThemeToggle />
 			</nav>
 		</header>
 	);
@@ -107,7 +113,10 @@ function ProjectDropdown() {
 				<DropdownMenuTrigger asChild>
 					<Button
 						variant="ghost"
-						className="h-11 min-w-11 gap-2 rounded-sm px-2 lg:h-8 lg:min-w-0"
+						className={cn(
+							"h-8 min-w-0 gap-2 rounded-sm px-2",
+							styles.interactionTarget,
+						)}
 						aria-label="VisionCut project menu"
 					>
 						<Clapperboard className="size-4 text-primary" />
@@ -121,14 +130,14 @@ function ProjectDropdown() {
 						onClick={handleExit}
 						disabled={isExiting}
 						icon={<HugeiconsIcon icon={Logout05Icon} />}
-						className="min-h-11 lg:min-h-8"
+						className={cn("min-h-8", styles.menuItem)}
 					>
 						Exit project
 					</DropdownMenuItem>
 					<DropdownMenuItem
 						onClick={() => setOpenDialog("shortcuts")}
 						icon={<HugeiconsIcon icon={CommandIcon} />}
-						className="min-h-11 lg:min-h-8"
+						className={cn("min-h-8", styles.menuItem)}
 					>
 						Shortcuts
 					</DropdownMenuItem>
@@ -218,7 +227,8 @@ function EditableProjectName() {
 			onKeyDown={handleKeyDown}
 			style={{ fieldSizing: "content" }}
 			className={cn(
-				"h-11 min-w-0 max-w-64 cursor-pointer rounded-sm bg-transparent px-2 py-1 text-[0.9rem] outline-none hover:bg-accent hover:text-accent-foreground lg:h-8",
+				"h-8 min-w-0 max-w-64 cursor-pointer rounded-sm bg-transparent px-2 py-1 text-[0.9rem] outline-none hover:bg-accent hover:text-accent-foreground",
+				styles.interactionTarget,
 				isEditing && "cursor-text ring-1 ring-ring hover:bg-transparent",
 			)}
 			aria-label="项目名称"

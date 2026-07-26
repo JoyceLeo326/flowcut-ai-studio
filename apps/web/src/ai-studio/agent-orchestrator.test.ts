@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { createIntentSpec } from "./intent-spec";
 import {
 	AGENT_ROLES,
+	CAMERA_AGENT_TASK_CONTRACT,
 	AgentOrchestratorInvariantError,
 	AgentOrchestratorTransitionError,
 	addAgentEvidence,
@@ -14,11 +15,13 @@ import {
 	getAgentTaskByRole,
 	getReadyAgentTasks,
 	parseAgentOrchestration,
+	rejectAgentTask,
 	retryAgentTask,
 	serializeAgentOrchestration,
 	startAgentTask,
 	type AgentOrchestration,
 	type AgentRole,
+	type AgentTask,
 } from "./agent-orchestrator";
 
 const TIMES = {
@@ -29,13 +32,16 @@ const TIMES = {
 	storyApproved: "2026-07-23T09:00:04.000Z",
 	storyStarted: "2026-07-23T09:00:05.000Z",
 	storyDone: "2026-07-23T09:00:06.000Z",
-	editorApproved: "2026-07-23T09:00:07.000Z",
-	editorStarted: "2026-07-23T09:00:08.000Z",
-	editorFailed: "2026-07-23T09:00:09.000Z",
-	editorRetried: "2026-07-23T09:00:10.000Z",
-	editorRestarted: "2026-07-23T09:00:11.000Z",
-	editorDone: "2026-07-23T09:00:12.000Z",
-	evidenceAdded: "2026-07-23T09:00:13.000Z",
+	cameraApproved: "2026-07-23T09:00:07.000Z",
+	cameraStarted: "2026-07-23T09:00:08.000Z",
+	cameraDone: "2026-07-23T09:00:09.000Z",
+	editorApproved: "2026-07-23T09:00:10.000Z",
+	editorStarted: "2026-07-23T09:00:11.000Z",
+	editorFailed: "2026-07-23T09:00:12.000Z",
+	editorRetried: "2026-07-23T09:00:13.000Z",
+	editorRestarted: "2026-07-23T09:00:14.000Z",
+	editorDone: "2026-07-23T09:00:15.000Z",
+	evidenceAdded: "2026-07-23T09:00:16.000Z",
 } as const;
 
 function createIntent({ withTarget = true }: { withTarget?: boolean } = {}) {
@@ -90,6 +96,13 @@ function createGraph({
 						label: "Audio stream metadata",
 						referenceId: "asset:interview-main:audio",
 						origin: "project-metadata",
+					},
+					{
+						evidenceId: "visual-main",
+						kind: "visual-analysis",
+						label: "Imported shot composition analysis",
+						referenceId: "analysis:interview-main:visual",
+						origin: "imported-result",
 					},
 				]
 			: [],
@@ -181,6 +194,21 @@ function reachStorySuccess(graph = createGraph()): AgentOrchestration {
 	});
 }
 
+function reachCameraSuccess(graph = createGraph()): AgentOrchestration {
+	let current = reachStorySuccess(graph);
+	current = approveRole({
+		graph: current,
+		role: "camera",
+		at: TIMES.cameraApproved,
+	});
+	return completeRole({
+		graph: current,
+		role: "camera",
+		startedAt: TIMES.cameraStarted,
+		completedAt: TIMES.cameraDone,
+	});
+}
+
 describe("VisionCut local multi-agent orchestrator", () => {
 	test("creates a deterministic, immutable, reviewable graph for all required roles", () => {
 		const first = createGraph();
@@ -215,7 +243,7 @@ describe("VisionCut local multi-agent orchestrator", () => {
 		).not.toThrow();
 	});
 
-	test("runs the normal Director to Story to Editor path and unlocks parallel roles", () => {
+	test("runs the formal Director to Story to Camera to Editor path and unlocks parallel roles", () => {
 		const initial = createGraph();
 		const initialJson = JSON.stringify(initial);
 		let graph = reachStorySuccess(initial);
@@ -224,10 +252,28 @@ describe("VisionCut local multi-agent orchestrator", () => {
 			getAgentTaskByRole({ orchestration: graph, role: "story" }).status,
 		).toBe("succeeded");
 		expect(
-			getAgentTaskByRole({ orchestration: graph, role: "editor" }).status,
+			getAgentTaskByRole({ orchestration: graph, role: "camera" }).status,
 		).toBe("awaiting-approval");
 		expect(
 			getAgentTaskByRole({ orchestration: graph, role: "growth" }).status,
+		).toBe("awaiting-approval");
+		expect(
+			getAgentTaskByRole({ orchestration: graph, role: "editor" }).status,
+		).toBe("blocked");
+
+		graph = approveRole({
+			graph,
+			role: "camera",
+			at: TIMES.cameraApproved,
+		});
+		graph = completeRole({
+			graph,
+			role: "camera",
+			startedAt: TIMES.cameraStarted,
+			completedAt: TIMES.cameraDone,
+		});
+		expect(
+			getAgentTaskByRole({ orchestration: graph, role: "editor" }).status,
 		).toBe("awaiting-approval");
 
 		graph = approveRole({
@@ -340,8 +386,53 @@ describe("VisionCut local multi-agent orchestrator", () => {
 		});
 	});
 
-	test("records failure, blocks dependents, and retries without mutating prior versions", () => {
+	test("defines Camera as an evidence-gated, independently approved formal task", () => {
 		let graph = reachStorySuccess();
+		const camera = getAgentTaskByRole({
+			orchestration: graph,
+			role: "camera",
+		});
+		const editor = getAgentTaskByRole({
+			orchestration: graph,
+			role: "editor",
+		});
+
+		expect(AGENT_ROLES).toEqual([
+			"director",
+			"story",
+			"camera",
+			"editor",
+			"color",
+			"sound",
+			"growth",
+		]);
+		expect(CAMERA_AGENT_TASK_CONTRACT.outputKind).toBe("camera-plan");
+		expect(camera.outputReferences[0].kind).toBe("camera-plan");
+		expect(camera.dependencyTaskIds).toEqual([
+			taskId({ graph, role: "story" }),
+		]);
+		expect(editor.dependencyTaskIds).toEqual([
+			taskId({ graph, role: "story" }),
+			camera.taskId,
+		]);
+
+		graph = rejectAgentTask({
+			orchestration: graph,
+			taskId: camera.taskId,
+			rejectedBy: "director-reviewer",
+			at: TIMES.cameraApproved,
+			note: "The imported visual analysis is not the approved source.",
+		});
+		expect(
+			getAgentTaskByRole({ orchestration: graph, role: "camera" }).status,
+		).toBe("rejected");
+		expect(
+			getAgentTaskByRole({ orchestration: graph, role: "editor" }).status,
+		).toBe("blocked");
+	});
+
+	test("records failure, blocks dependents, and retries without mutating prior versions", () => {
+		let graph = reachCameraSuccess();
 		graph = approveRole({
 			graph,
 			role: "editor",
@@ -404,7 +495,7 @@ describe("VisionCut local multi-agent orchestrator", () => {
 	});
 
 	test("enforces non-retryable failures and retry limits", () => {
-		let graph = reachStorySuccess(createGraph({ maxRetries: 0 }));
+		let graph = reachCameraSuccess(createGraph({ maxRetries: 0 }));
 		graph = approveRole({
 			graph,
 			role: "editor",
@@ -431,7 +522,7 @@ describe("VisionCut local multi-agent orchestrator", () => {
 			}),
 		).toThrow("retry limit");
 
-		const retryBase = reachStorySuccess();
+		const retryBase = reachCameraSuccess();
 		const retryApproved = approveRole({
 			graph: retryBase,
 			role: "editor",
@@ -464,7 +555,13 @@ describe("VisionCut local multi-agent orchestrator", () => {
 			createGraph({ withTarget: false, withMediaEvidence: false }),
 		);
 
-		for (const role of ["editor", "color", "sound", "growth"] as const) {
+		for (const role of [
+			"camera",
+			"editor",
+			"color",
+			"sound",
+			"growth",
+		] as const) {
 			const task = getAgentTaskByRole({ orchestration: graph, role });
 			expect(task.status).toBe("blocked");
 			expect(task.blockers.some((blocker) => blocker.kind === "evidence")).toBe(
@@ -503,10 +600,135 @@ describe("VisionCut local multi-agent orchestrator", () => {
 		});
 		expect(
 			getAgentTaskByRole({ orchestration: graph, role: "editor" }).status,
-		).toBe("awaiting-approval");
+		).toBe("blocked");
 		expect(
 			getAgentTaskByRole({ orchestration: graph, role: "sound" }).status,
 		).toBe("blocked");
+		expect(
+			getAgentTaskByRole({ orchestration: graph, role: "camera" }).status,
+		).toBe("blocked");
+
+		graph = addAgentEvidence({
+			orchestration: graph,
+			evidence: {
+				evidenceId: "imported-visual-analysis",
+				kind: "visual-analysis",
+				label: "Imported composition analysis",
+				referenceId: "visual-analysis:imported:v1",
+				origin: "imported-result",
+			},
+			at: TIMES.evidenceAdded,
+		});
+		graph = approveRole({
+			graph,
+			role: "camera",
+			at: TIMES.evidenceAdded,
+		});
+		graph = completeRole({
+			graph,
+			role: "camera",
+			startedAt: TIMES.evidenceAdded,
+			completedAt: TIMES.evidenceAdded,
+		});
+		expect(
+			getAgentTaskByRole({ orchestration: graph, role: "editor" }).status,
+		).toBe("awaiting-approval");
+	});
+
+	test("migrates six-role schema data without fabricating Camera approval", () => {
+		let graph = reachCameraSuccess();
+		graph = approveRole({
+			graph,
+			role: "editor",
+			at: TIMES.editorApproved,
+		});
+		graph = completeRole({
+			graph,
+			role: "editor",
+			startedAt: TIMES.editorStarted,
+			completedAt: TIMES.editorDone,
+		});
+		const legacy = JSON.parse(JSON.stringify(graph));
+		legacy.schemaVersion = 1;
+		legacy.tasks = legacy.tasks
+			.filter((task: AgentTask) => task.role !== "camera")
+			.map((task: AgentTask) =>
+				task.role === "editor"
+					? {
+							...task,
+							dependencyTaskIds: [taskId({ graph, role: "story" })],
+						}
+					: task,
+			);
+		legacy.history = legacy.history
+			.filter(
+				(event: { taskId: string | null }) =>
+					event.taskId !== taskId({ graph, role: "camera" }),
+			)
+			.map((event: AgentOrchestration["history"][number], index: number) => ({
+				...event,
+				eventId: `event-r${index + 1}`,
+				revision: index + 1,
+			}));
+		legacy.revision = legacy.history.length;
+		legacy.updatedAt = legacy.history.at(-1).at;
+
+		const migrated = parseAgentOrchestration({ value: legacy });
+		const migratedCamera = getAgentTaskByRole({
+			orchestration: migrated,
+			role: "camera",
+		});
+		const migratedEditor = getAgentTaskByRole({
+			orchestration: migrated,
+			role: "editor",
+		});
+
+		expect(migrated.schemaVersion).toBe(2);
+		expect(migratedCamera.approvalGate).toEqual({
+			required: true,
+			phase: "before-run",
+			status: "pending",
+			decidedAt: null,
+			decidedBy: null,
+			note: null,
+		});
+		expect(migratedEditor.approvalGate.status).toBe("approved");
+		expect(migratedEditor.status).toBe("blocked");
+		expect(migratedEditor.outputReferences[0].state).toBe("expected");
+		expect(
+			migrated.evidence.some(
+				(item) =>
+					item.kind === "human-note" &&
+					item.referenceId ===
+						graph.tasks.find((task) => task.role === "editor")
+							?.outputReferences[0].artifactReference,
+			),
+		).toBe(true);
+		expect(migrated.history.at(-1)?.type).toBe("schema-migrated");
+
+		const forgedApproval = JSON.parse(JSON.stringify(createGraph()));
+		forgedApproval.schemaVersion = 1;
+		forgedApproval.tasks = forgedApproval.tasks
+			.filter((task: AgentTask) => task.role !== "camera")
+			.map((task: AgentTask) =>
+				task.role === "editor"
+					? {
+							...task,
+							dependencyTaskIds: [`${forgedApproval.orchestrationId}/story`],
+							approvalGate: {
+								required: true,
+								phase: "before-run",
+								status: "approved",
+								decidedAt: TIMES.created,
+								decidedBy: "forged-user",
+								note: null,
+							},
+						}
+					: task,
+			);
+		expect(() => parseAgentOrchestration({ value: forgedApproval })).toThrow(
+			"no matching audit event",
+		);
 	});
 
 	test("round-trips as JSON and structured-clone data suitable for IndexedDB", () => {

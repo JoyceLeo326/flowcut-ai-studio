@@ -1,4 +1,7 @@
 export const EXPORT_MANIFEST_SCHEMA_VERSION = 1 as const;
+export const EXPORT_MIN_VARIANT_COUNT = 1 as const;
+export const EXPORT_MAX_VARIANT_COUNT = 8 as const;
+export const EXPORT_MAX_STUDIO_OUTPUT_COUNT = 6 as const;
 
 export const EXPORT_ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:5"] as const;
 export const EXPORT_CONTAINERS = ["mp4", "webm"] as const;
@@ -160,12 +163,23 @@ export interface ExportVariantIntentInput {
 	readonly cover?: ExportCoverRequirementInput;
 }
 
+export interface ExportStudioProSettingsInput {
+	readonly targetLufs: number;
+	readonly outputCount: number;
+}
+
 export interface CreateExportManifestInput {
 	readonly project: ExportProjectMetadataSnapshot;
 	readonly media: readonly ExportMediaMetadataSnapshot[];
 	readonly timeline: ExportTimelineSnapshot;
 	readonly variants: readonly ExportVariantIntentInput[];
 	readonly fileNameStem?: string;
+	/**
+	 * Accepts the delivery-relevant subset of StudioProSettings. Variant-level
+	 * audio targets remain authoritative; targetLufs is their deterministic
+	 * default and outputCount must match the explicit variant plan.
+	 */
+	readonly studioProSettings?: ExportStudioProSettingsInput;
 }
 
 export interface ExportPlatformConstraint {
@@ -292,6 +306,9 @@ export interface ExportManifest {
 			readonly trackCount: number;
 			readonly elementCount: number;
 			readonly activeVisualElementCount: number;
+			readonly captionTrackState: "present" | "absent";
+			readonly captionTrackCount: number;
+			readonly captionTrackIds: readonly string[];
 			readonly captionElementCount: number;
 			readonly activeAudioElementCount: number;
 			readonly hasAudioSource: boolean;
@@ -301,6 +318,25 @@ export interface ExportManifest {
 	};
 	readonly intent: {
 		readonly fileNameStem: string;
+		readonly deliveryContract: {
+			readonly outputVariants: {
+				readonly count: number;
+				readonly source: "explicit-variants" | "studio-pro-settings";
+			};
+			readonly loudness: {
+				readonly unit: "LUFS";
+				readonly defaultTargetIntegratedLufs: number | null;
+				readonly variantTargets: readonly {
+					readonly variantId: string;
+					readonly targetIntegratedLufs: number;
+					readonly source: "variant-intent" | "studio-pro-settings";
+				}[];
+				readonly measurement: {
+					readonly state: "not-executed";
+					readonly measuredIntegratedLufs: null;
+				};
+			};
+		};
 		readonly variants: readonly ExportVariantIntent[];
 	};
 	readonly preflight: {
@@ -325,6 +361,17 @@ export interface ExportManifest {
 			readonly performedByThisModel: false;
 			readonly executorRequirement: "existing-render-engine-or-external-worker";
 			readonly renderedFiles: readonly [];
+		};
+		readonly deliveryUpload: {
+			readonly state: "not-executed";
+			readonly performedByThisModel: false;
+			readonly executorRequirement: "publisher-or-external-worker";
+			readonly uploadedFiles: readonly [];
+		};
+		readonly loudnessAnalysis: {
+			readonly state: "not-executed";
+			readonly performedByThisModel: false;
+			readonly measuredIntegratedLufs: null;
 		};
 		readonly notice: string;
 	};
@@ -679,11 +726,22 @@ function normalizeSubtitleRequirement(
 	};
 }
 
-function normalizeAudioRequirement(
-	requirement: ExportAudioRequirementInput | undefined,
-): ExportAudioRequirement {
+function normalizeAudioRequirement({
+	requirement,
+	defaultTargetLoudnessLufs,
+}: {
+	requirement: ExportAudioRequirementInput | undefined;
+	defaultTargetLoudnessLufs?: number;
+}): ExportAudioRequirement {
 	if (!requirement) {
-		return { mode: "include", required: false, channels: "stereo" };
+		return {
+			mode: "include",
+			required: false,
+			channels: "stereo",
+			...(defaultTargetLoudnessLufs === undefined
+				? {}
+				: { targetLoudnessLufs: defaultTargetLoudnessLufs }),
+		};
 	}
 	if (requirement.mode === "mute") {
 		if (Object.keys(requirement).some((key) => key !== "mode")) {
@@ -693,11 +751,13 @@ function normalizeAudioRequirement(
 		}
 		return { mode: "mute" };
 	}
-	if (requirement.targetLoudnessLufs !== undefined) {
+	const targetLoudnessLufs =
+		requirement.targetLoudnessLufs ?? defaultTargetLoudnessLufs;
+	if (targetLoudnessLufs !== undefined) {
 		if (
-			!Number.isFinite(requirement.targetLoudnessLufs) ||
-			requirement.targetLoudnessLufs < -70 ||
-			requirement.targetLoudnessLufs > 0
+			!Number.isFinite(targetLoudnessLufs) ||
+			targetLoudnessLufs < -70 ||
+			targetLoudnessLufs > 0
 		) {
 			throw new ExportManifestInvariantError(
 				"Target loudness must be between -70 and 0 LUFS.",
@@ -708,9 +768,44 @@ function normalizeAudioRequirement(
 		mode: "include",
 		required: requirement.required,
 		channels: requirement.channels ?? "stereo",
-		...(requirement.targetLoudnessLufs === undefined
-			? {}
-			: { targetLoudnessLufs: requirement.targetLoudnessLufs }),
+		...(targetLoudnessLufs === undefined ? {} : { targetLoudnessLufs }),
+	};
+}
+
+function normalizeStudioProSettings({
+	settings,
+	variantCount,
+}: {
+	settings: ExportStudioProSettingsInput | undefined;
+	variantCount: number;
+}): ExportStudioProSettingsInput | undefined {
+	if (!settings) return undefined;
+	if (
+		!Number.isSafeInteger(settings.outputCount) ||
+		settings.outputCount < EXPORT_MIN_VARIANT_COUNT ||
+		settings.outputCount > EXPORT_MAX_STUDIO_OUTPUT_COUNT
+	) {
+		throw new ExportManifestInvariantError(
+			`Studio outputCount must be an integer between ${EXPORT_MIN_VARIANT_COUNT} and ${EXPORT_MAX_STUDIO_OUTPUT_COUNT}.`,
+		);
+	}
+	if (settings.outputCount !== variantCount) {
+		throw new ExportManifestInvariantError(
+			"Studio outputCount must match the number of explicit export variants.",
+		);
+	}
+	if (
+		!Number.isFinite(settings.targetLufs) ||
+		settings.targetLufs < -24 ||
+		settings.targetLufs > -6
+	) {
+		throw new ExportManifestInvariantError(
+			"Studio targetLufs must be between -24 and -6 LUFS.",
+		);
+	}
+	return {
+		targetLufs: settings.targetLufs,
+		outputCount: settings.outputCount,
 	};
 }
 
@@ -999,6 +1094,10 @@ function summarizeSource({
 			!element.hidden &&
 			VISUAL_ELEMENT_TYPES.includes(element.type),
 	).length;
+	const captionTracks = timeline.tracks.filter(
+		(track) => track.type === "text" && track.role === "captions",
+	);
+	const captionTrackIds = uniqueSorted(captionTracks.map((track) => track.id));
 	const captionElementCount = elements.filter(
 		({ track, element }) =>
 			!track.hidden &&
@@ -1033,6 +1132,10 @@ function summarizeSource({
 			trackCount: timeline.tracks.length,
 			elementCount: elements.length,
 			activeVisualElementCount,
+			captionTrackState:
+				captionTrackIds.length > 0 ? ("present" as const) : ("absent" as const),
+			captionTrackCount: captionTrackIds.length,
+			captionTrackIds,
 			captionElementCount,
 			activeAudioElementCount: activeAudioElements.length,
 			hasAudioSource: activeAudioElements.length > 0,
@@ -1144,11 +1247,13 @@ function createVariant({
 	project,
 	source,
 	fileNameStem,
+	defaultTargetLoudnessLufs,
 }: {
 	input: ExportVariantIntentInput;
 	project: ReturnType<typeof validateProject>;
 	source: ReturnType<typeof summarizeSource>;
 	fileNameStem: string;
+	defaultTargetLoudnessLufs?: number;
 }): ExportVariantIntent {
 	const id = normalizeIdentifier({ value: input.id, label: "Variant ID" });
 	const label = normalizeRequiredText({
@@ -1185,7 +1290,10 @@ function createVariant({
 		});
 	}
 	const subtitles = normalizeSubtitleRequirement(input.subtitles);
-	const audio = normalizeAudioRequirement(input.audio);
+	const audio = normalizeAudioRequirement({
+		requirement: input.audio,
+		defaultTargetLoudnessLufs,
+	});
 	const cover = normalizeCoverRequirement(input.cover);
 	const constraint = PLATFORM_CONSTRAINTS[input.platform];
 	const issues: ExportIssue[] = [];
@@ -1508,11 +1616,33 @@ export function assertExportManifestInvariants({
 		);
 	}
 	if (
-		manifest.intent.variants.length === 0 ||
-		manifest.intent.variants.length > 8
+		manifest.intent.variants.length < EXPORT_MIN_VARIANT_COUNT ||
+		manifest.intent.variants.length > EXPORT_MAX_VARIANT_COUNT
 	) {
 		throw new ExportManifestInvariantError(
-			"Export manifest must contain between 1 and 8 variants.",
+			`Export manifest must contain between ${EXPORT_MIN_VARIANT_COUNT} and ${EXPORT_MAX_VARIANT_COUNT} variants.`,
+		);
+	}
+	if (
+		manifest.intent.deliveryContract.outputVariants.count !==
+			manifest.intent.variants.length ||
+		!["explicit-variants", "studio-pro-settings"].includes(
+			manifest.intent.deliveryContract.outputVariants.source,
+		)
+	) {
+		throw new ExportManifestInvariantError(
+			"Delivery output count must match the explicit variant plan.",
+		);
+	}
+	const { timeline } = manifest.sourceEvidence;
+	if (
+		timeline.captionTrackCount !== timeline.captionTrackIds.length ||
+		timeline.captionTrackState !==
+			(timeline.captionTrackCount > 0 ? "present" : "absent") ||
+		new Set(timeline.captionTrackIds).size !== timeline.captionTrackIds.length
+	) {
+		throw new ExportManifestInvariantError(
+			"Caption-track evidence must be derived from unique timeline track IDs.",
 		);
 	}
 	const variantIds = manifest.intent.variants.map((variant) => variant.id);
@@ -1542,6 +1672,53 @@ export function assertExportManifestInvariants({
 			"Preflight readiness must be derived from blocker counts.",
 		);
 	}
+	const loudness = manifest.intent.deliveryContract.loudness;
+	if (
+		loudness.unit !== "LUFS" ||
+		loudness.measurement.state !== "not-executed" ||
+		loudness.measurement.measuredIntegratedLufs !== null
+	) {
+		throw new ExportManifestInvariantError(
+			"Delivery loudness may contain targets, but cannot claim a measurement.",
+		);
+	}
+	if (
+		loudness.defaultTargetIntegratedLufs !== null &&
+		(!Number.isFinite(loudness.defaultTargetIntegratedLufs) ||
+			loudness.defaultTargetIntegratedLufs < -24 ||
+			loudness.defaultTargetIntegratedLufs > -6)
+	) {
+		throw new ExportManifestInvariantError(
+			"Studio delivery loudness must be between -24 and -6 LUFS.",
+		);
+	}
+	const expectedLoudnessTargets = manifest.intent.variants.flatMap((variant) =>
+		variant.requirements.audio.mode === "include" &&
+		variant.requirements.audio.targetLoudnessLufs !== undefined
+			? [
+					{
+						variantId: variant.id,
+						targetIntegratedLufs: variant.requirements.audio.targetLoudnessLufs,
+					},
+				]
+			: [],
+	);
+	if (
+		loudness.variantTargets.length !== expectedLoudnessTargets.length ||
+		loudness.variantTargets.some((target, index) => {
+			const expected = expectedLoudnessTargets[index];
+			return (
+				!expected ||
+				target.variantId !== expected.variantId ||
+				target.targetIntegratedLufs !== expected.targetIntegratedLufs ||
+				!["variant-intent", "studio-pro-settings"].includes(target.source)
+			);
+		})
+	) {
+		throw new ExportManifestInvariantError(
+			"Delivery loudness targets must match the normalized variant requirements.",
+		);
+	}
 	if (
 		manifest.localCapabilityBoundary.videoRendering.state !== "not-executed" ||
 		manifest.localCapabilityBoundary.videoRendering.performedByThisModel !==
@@ -1550,6 +1727,28 @@ export function assertExportManifestInvariants({
 	) {
 		throw new ExportManifestInvariantError(
 			"The Export Center manifest cannot claim that video rendering was executed.",
+		);
+	}
+	if (
+		manifest.localCapabilityBoundary.deliveryUpload.state !== "not-executed" ||
+		manifest.localCapabilityBoundary.deliveryUpload.performedByThisModel !==
+			false ||
+		manifest.localCapabilityBoundary.deliveryUpload.uploadedFiles.length !== 0
+	) {
+		throw new ExportManifestInvariantError(
+			"The Export Center manifest cannot claim that delivery upload was executed.",
+		);
+	}
+	if (
+		manifest.localCapabilityBoundary.loudnessAnalysis.state !==
+			"not-executed" ||
+		manifest.localCapabilityBoundary.loudnessAnalysis.performedByThisModel !==
+			false ||
+		manifest.localCapabilityBoundary.loudnessAnalysis.measuredIntegratedLufs !==
+			null
+	) {
+		throw new ExportManifestInvariantError(
+			"The Export Center manifest cannot claim a loudness analysis result.",
 		);
 	}
 	const expectedId = deterministicId({
@@ -1566,11 +1765,18 @@ export function assertExportManifestInvariants({
 export function createExportManifest(
 	input: CreateExportManifestInput,
 ): ExportManifest {
-	if (input.variants.length === 0 || input.variants.length > 8) {
+	if (
+		input.variants.length < EXPORT_MIN_VARIANT_COUNT ||
+		input.variants.length > EXPORT_MAX_VARIANT_COUNT
+	) {
 		throw new ExportManifestInvariantError(
-			"Export intent must contain between 1 and 8 variants.",
+			`Export intent must contain between ${EXPORT_MIN_VARIANT_COUNT} and ${EXPORT_MAX_VARIANT_COUNT} variants.`,
 		);
 	}
+	const studioProSettings = normalizeStudioProSettings({
+		settings: input.studioProSettings,
+		variantCount: input.variants.length,
+	});
 	const project = validateProject(input.project);
 	const media = normalizeMedia(input.media);
 	const timeline = normalizeTimeline(input.timeline);
@@ -1580,7 +1786,15 @@ export function createExportManifest(
 		fallback: "visioncut-project",
 	});
 	const variants = input.variants.map((variant) =>
-		createVariant({ input: variant, project, source, fileNameStem }),
+		createVariant({
+			input: variant,
+			project,
+			source,
+			fileNameStem,
+			...(studioProSettings === undefined
+				? {}
+				: { defaultTargetLoudnessLufs: studioProSettings.targetLufs }),
+		}),
 	);
 	const variantIds = variants.map((variant) => variant.id);
 	if (new Set(variantIds).size !== variantIds.length) {
@@ -1615,7 +1829,45 @@ export function createExportManifest(
 			media: source.media,
 			timeline: source.timeline,
 		},
-		intent: { fileNameStem, variants },
+		intent: {
+			fileNameStem,
+			deliveryContract: {
+				outputVariants: {
+					count: variants.length,
+					source:
+						studioProSettings === undefined
+							? "explicit-variants"
+							: "studio-pro-settings",
+				},
+				loudness: {
+					unit: "LUFS",
+					defaultTargetIntegratedLufs: studioProSettings?.targetLufs ?? null,
+					variantTargets: variants.flatMap((variant, index) =>
+						variant.requirements.audio.mode === "include" &&
+						variant.requirements.audio.targetLoudnessLufs !== undefined
+							? [
+									{
+										variantId: variant.id,
+										targetIntegratedLufs:
+											variant.requirements.audio.targetLoudnessLufs,
+										source:
+											input.variants[index]?.audio?.mode === "include" &&
+											input.variants[index]?.audio?.targetLoudnessLufs !==
+												undefined
+												? ("variant-intent" as const)
+												: ("studio-pro-settings" as const),
+									},
+								]
+							: [],
+					),
+					measurement: {
+						state: "not-executed",
+						measuredIntegratedLufs: null,
+					},
+				},
+			},
+			variants,
+		},
 		preflight: {
 			canExportManifestJson: true,
 			readyForVideoRenderHandoff: blockers.length === 0,
@@ -1639,8 +1891,19 @@ export function createExportManifest(
 				executorRequirement: "existing-render-engine-or-external-worker",
 				renderedFiles: [],
 			},
+			deliveryUpload: {
+				state: "not-executed",
+				performedByThisModel: false,
+				executorRequirement: "publisher-or-external-worker",
+				uploadedFiles: [],
+			},
+			loudnessAnalysis: {
+				state: "not-executed",
+				performedByThisModel: false,
+				measuredIntegratedLufs: null,
+			},
 			notice:
-				"This local domain model exports project or production-manifest JSON only. Video rendering must be performed by the existing render engine or an external worker.",
+				"This local domain model exports project or production-manifest JSON only. Rendering, upload, and loudness measurement have not been executed; video rendering must be performed by the existing render engine or an external worker.",
 		},
 	};
 	const manifest: ExportManifest = {

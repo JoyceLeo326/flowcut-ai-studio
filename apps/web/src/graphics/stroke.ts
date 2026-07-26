@@ -21,6 +21,15 @@ function createTempCanvas({
 	}
 }
 
+function get2dContext(
+	canvas: OffscreenCanvas | HTMLCanvasElement,
+): GraphicRenderContext | null {
+	if ("style" in canvas) {
+		return canvas.getContext("2d");
+	}
+	return canvas.getContext("2d");
+}
+
 function applyStroke({
 	ctx,
 	path,
@@ -72,7 +81,7 @@ export function applyAlignedStroke({
 			width: ctx.canvas.width,
 			height: ctx.canvas.height,
 		});
-		const strokeCtx = strokeCanvas.getContext("2d") as GraphicRenderContext | null;
+		const strokeCtx = get2dContext(strokeCanvas);
 		if (!strokeCtx) {
 			return;
 		}

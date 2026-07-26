@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useEditor } from "@/editor/use-editor";
+import { prepareMediaImport } from "@/media/import-service";
 import { processMediaAssets } from "@/media/processing";
 import { showMediaUploadToast } from "@/media/upload-toast";
 import { buildElementFromMedia } from "@/timeline/element-utils";
@@ -9,13 +10,6 @@ import { BatchCommand } from "@/commands";
 import { DEFAULT_NEW_ELEMENT_DURATION } from "@/timeline/creation";
 import { mediaTimeFromSeconds } from "@/wasm";
 import { isTypableDOMElement } from "@/utils/browser";
-import type { MediaType } from "@/media/types";
-
-const MEDIA_MIME_PREFIXES: MediaType[] = ["image", "video", "audio"];
-
-function isMediaMimeType({ type }: { type: string }): boolean {
-	return MEDIA_MIME_PREFIXES.some((prefix) => type.startsWith(`${prefix}/`));
-}
 
 function extractMediaFilesFromClipboard({
 	clipboardData,
@@ -27,7 +21,6 @@ function extractMediaFilesFromClipboard({
 	const files: File[] = [];
 	for (const item of clipboardData.items) {
 		if (item.kind !== "file") continue;
-		if (!isMediaMimeType({ type: item.type })) continue;
 
 		const file = item.getAsFile();
 		if (file) files.push(file);
@@ -40,9 +33,12 @@ export function usePasteMedia() {
 
 	useEffect(() => {
 		const handlePaste = async (event: ClipboardEvent) => {
-			const activeElement = document.activeElement as HTMLElement;
+			const activeElement = document.activeElement;
 
-			if (activeElement && isTypableDOMElement({ element: activeElement })) {
+			if (
+				activeElement instanceof HTMLElement &&
+				isTypableDOMElement({ element: activeElement })
+			) {
 				return;
 			}
 
@@ -61,10 +57,15 @@ export function usePasteMedia() {
 			if (!activeProject) return;
 
 			try {
+				const preparedImport = await prepareMediaImport({ files });
+				if (preparedImport.files.length === 0) return;
+
 				await showMediaUploadToast({
-					filesCount: files.length,
+					filesCount: preparedImport.files.length,
 					promise: async () => {
-						const processedAssets = await processMediaAssets({ files });
+						const processedAssets = await processMediaAssets({
+							preparedImport,
+						});
 						const startTime = editor.playback.getCurrentTime();
 
 						for (const asset of processedAssets) {

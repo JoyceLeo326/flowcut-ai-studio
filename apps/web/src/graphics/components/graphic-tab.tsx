@@ -8,7 +8,11 @@ import {
 } from "@/components/editor/panels/properties/hooks/use-keyframed-param-property";
 import type { ParamDefinition, ParamValues } from "@/params";
 import type { GraphicElement } from "@/timeline";
-import { graphicsRegistry, registerDefaultGraphics, resolveGraphicElementParamsAtTime } from "@/graphics";
+import {
+	graphicsRegistry,
+	registerDefaultGraphics,
+	resolveGraphicElementParamsAtTime,
+} from "@/graphics";
 import { useElementPreview } from "@/timeline/hooks/use-element-preview";
 import { useEditor } from "@/editor/use-editor";
 import {
@@ -47,7 +51,8 @@ export function GraphicTab({
 		fallback: element,
 	});
 
-	const liveElement = renderElement as GraphicElement;
+	const liveElement =
+		renderElement.type === "graphic" ? renderElement : element;
 	const resolvedParams = resolveGraphicElementParamsAtTime({
 		element: liveElement,
 		localTime,
@@ -102,7 +107,8 @@ function StrokeSection({
 		fallback: element,
 	});
 
-	const liveElement = renderElement as GraphicElement;
+	const liveElement =
+		renderElement.type === "graphic" ? renderElement : element;
 	const resolvedParams = resolveGraphicElementParamsAtTime({
 		element: liveElement,
 		localTime,

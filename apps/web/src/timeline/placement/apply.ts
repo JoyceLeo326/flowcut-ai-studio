@@ -28,7 +28,10 @@ export function applyPlacement({
 	const orderedTracks = [...tracks.overlay, tracks.main, ...tracks.audio];
 	if (placementResult.kind === "existingTrack") {
 		const targetTrack = orderedTracks[placementResult.trackIndex];
-		if (!targetTrack) {
+		if (
+			!targetTrack ||
+			!areElementsCompatibleWithTrack({ track: targetTrack, elements })
+		) {
 			return null;
 		}
 
@@ -47,32 +50,93 @@ export function applyPlacement({
 	const newTrackId = generateUUID();
 	const insertIndex =
 		newTrackInsertIndexOverride ?? placementResult.insertIndex;
-	const updatedTracks =
-		placementResult.trackType === "audio"
-			? {
-					...tracks,
-					audio: insertIntoAudioTracks({
-						tracks,
-						insertIndex,
-						track: buildPlacedAudioTrack({
-							id: newTrackId,
-							elements,
-						}),
-					}),
-				}
-			: {
-					...tracks,
-					overlay: insertIntoOverlayTracks({
-						tracks,
-						insertIndex,
-						track: buildPlacedOverlayTrack({
-							id: newTrackId,
-							type: placementResult.trackType,
-							elements,
-						}),
-					}),
-				};
+	let updatedTracks: SceneTracks;
+	if (placementResult.trackType === "audio") {
+		const track = buildPlacedAudioTrack({
+			id: newTrackId,
+			elements,
+		});
+		if (!track) {
+			return null;
+		}
+		updatedTracks = {
+			...tracks,
+			audio: insertIntoAudioTracks({
+				tracks,
+				insertIndex,
+				track,
+			}),
+		};
+	} else {
+		const track = buildPlacedOverlayTrack({
+			id: newTrackId,
+			type: placementResult.trackType,
+			elements,
+		});
+		if (!track) {
+			return null;
+		}
+		updatedTracks = {
+			...tracks,
+			overlay: insertIntoOverlayTracks({
+				tracks,
+				insertIndex,
+				track,
+			}),
+		};
+	}
 	return { updatedTracks, targetTrackId: newTrackId };
+}
+
+function areElementsCompatibleWithTrack({
+	track,
+	elements,
+}: {
+	track: TimelineTrack;
+	elements: TimelineElement[];
+}): boolean {
+	switch (track.type) {
+		case "audio":
+			return elements.every(isAudioElement);
+		case "video":
+			return elements.every(isVideoTrackElement);
+		case "text":
+			return elements.every(isTextElement);
+		case "graphic":
+			return elements.every(isGraphicTrackElement);
+		case "effect":
+			return elements.every(isEffectElement);
+	}
+}
+
+function isAudioElement(
+	element: TimelineElement,
+): element is AudioTrack["elements"][number] {
+	return element.type === "audio";
+}
+
+function isVideoTrackElement(
+	element: TimelineElement,
+): element is VideoTrack["elements"][number] {
+	return element.type === "video" || element.type === "image";
+}
+
+function isTextElement(
+	element: TimelineElement,
+): element is TextTrack["elements"][number] {
+	return element.type === "text";
+}
+
+function isGraphicTrackElement(
+	element: TimelineElement,
+): element is GraphicTrack["elements"][number] {
+	return element.type === "sticker" || element.type === "graphic";
+}
+
+function isEffectElement(
+	element: TimelineElement,
+): element is EffectTrack["elements"][number] {
+	return element.type === "effect";
 }
 
 function insertIntoOverlayTracks({
@@ -117,10 +181,14 @@ function buildPlacedAudioTrack({
 }: {
 	id: string;
 	elements: TimelineElement[];
-}): AudioTrack {
+}): AudioTrack | null {
+	if (!elements.every(isAudioElement)) {
+		return null;
+	}
+
 	return {
 		...buildEmptyTrack({ id, type: "audio" }),
-		elements: elements as AudioTrack["elements"],
+		elements,
 	};
 }
 
@@ -132,27 +200,39 @@ function buildPlacedOverlayTrack({
 	id: string;
 	type: Exclude<OverlayTrack["type"], "audio">;
 	elements: TimelineElement[];
-}): OverlayTrack {
+}): OverlayTrack | null {
 	switch (type) {
 		case "video":
+			if (!elements.every(isVideoTrackElement)) {
+				return null;
+			}
 			return {
 				...buildEmptyTrack({ id, type: "video" }),
-				elements: elements as VideoTrack["elements"],
+				elements,
 			};
 		case "text":
+			if (!elements.every(isTextElement)) {
+				return null;
+			}
 			return {
 				...buildEmptyTrack({ id, type: "text" }),
-				elements: elements as TextTrack["elements"],
+				elements,
 			};
 		case "graphic":
+			if (!elements.every(isGraphicTrackElement)) {
+				return null;
+			}
 			return {
 				...buildEmptyTrack({ id, type: "graphic" }),
-				elements: elements as GraphicTrack["elements"],
+				elements,
 			};
 		case "effect":
+			if (!elements.every(isEffectElement)) {
+				return null;
+			}
 			return {
 				...buildEmptyTrack({ id, type: "effect" }),
-				elements: elements as EffectTrack["elements"],
+				elements,
 			};
 	}
 }

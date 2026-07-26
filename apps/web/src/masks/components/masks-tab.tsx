@@ -1,6 +1,7 @@
 "use client";
 
 import type { MaskableElement } from "@/timeline";
+import { isMaskableElement } from "@/timeline/element-utils";
 import type { Mask, MaskType, TextMask } from "@/masks/types";
 import type { NumberParamDefinition, SelectParamDefinition } from "@/params";
 import {
@@ -128,12 +129,15 @@ function withPreviewedMaskParam({
 
 export function MasksTab({ element, trackId }: MasksTabProps) {
 	const editor = useEditor();
-	const { renderElement, previewUpdates, commit } =
-		useElementPreview<MaskableElement>({
-			trackId,
-			elementId: element.id,
-			fallback: element,
-		});
+	const elementPreview = useElementPreview({
+		trackId,
+		elementId: element.id,
+		fallback: element,
+	});
+	const renderElement = isMaskableElement(elementPreview.renderElement)
+		? elementPreview.renderElement
+		: element;
+	const { previewUpdates, commit } = elementPreview;
 	const maskDefs = getMaskDefinitionsForMenu();
 	const tracks = useEditor(
 		(e) => e.timeline.getPreviewTracks() ?? e.scenes.getActiveScene().tracks,

@@ -50,8 +50,7 @@ export function useBookmarkDrag({
 	const editor = useEditor();
 	const isShiftHeldRef = useShiftKey();
 	const tracks = editor.scenes.getActiveScene().tracks;
-	const activeScene = editor.scenes.getActiveScene();
-	const bookmarks = activeScene?.bookmarks ?? [];
+	const bookmarks = editor.scenes.getActiveScene().bookmarks;
 	const playheadTime = editor.playback.getCurrentTime();
 	const duration = editor.timeline.getTotalDuration();
 
@@ -162,8 +161,7 @@ export function useBookmarkDrag({
 					zoomLevel,
 					scrollLeft,
 				});
-				const clampedTime =
-					mouseTime > duration ? duration : mouseTime;
+				const clampedTime = mouseTime > duration ? duration : mouseTime;
 				const frameSnappedTime = roundFrameTime({
 					time: clampedTime,
 					fps: activeProject.settings.fps,
@@ -194,8 +192,7 @@ export function useBookmarkDrag({
 				zoomLevel,
 				scrollLeft,
 			});
-			const clampedTime =
-				mouseTime > duration ? duration : mouseTime;
+			const clampedTime = mouseTime > duration ? duration : mouseTime;
 			const frameSnappedTime = roundFrameTime({
 				time: clampedTime,
 				fps: activeProject.settings.fps,

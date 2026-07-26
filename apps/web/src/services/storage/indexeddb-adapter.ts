@@ -26,8 +26,8 @@ export class IndexedDBAdapter<T> implements StorageAdapter<T> {
 			request.onerror = () => reject(request.error);
 			request.onsuccess = () => resolve(request.result);
 
-			request.onupgradeneeded = (event) => {
-				const db = (event.target as IDBOpenDBRequest).result;
+			request.onupgradeneeded = () => {
+				const db = request.result;
 				if (!db.objectStoreNames.contains(this.storeName)) {
 					db.createObjectStore(this.storeName, { keyPath: "id" });
 				}
@@ -47,13 +47,7 @@ export class IndexedDBAdapter<T> implements StorageAdapter<T> {
 		});
 	}
 
-	async set({
-		key,
-		value,
-	}: {
-		key: string;
-		value: T;
-	}): Promise<void> {
+	async set({ key, value }: { key: string; value: T }): Promise<void> {
 		const db = await this.getDB();
 		const transaction = db.transaction([this.storeName], "readwrite");
 		const store = transaction.objectStore(this.storeName);
@@ -85,7 +79,17 @@ export class IndexedDBAdapter<T> implements StorageAdapter<T> {
 		return new Promise((resolve, reject) => {
 			const request = store.getAllKeys();
 			request.onerror = () => reject(request.error);
-			request.onsuccess = () => resolve(request.result as string[]);
+			request.onsuccess = () => {
+				const keys = request.result;
+				const stringKeys = keys.filter(
+					(key): key is string => typeof key === "string",
+				);
+				if (stringKeys.length !== keys.length) {
+					reject(new TypeError("IndexedDB store contains a non-string key"));
+					return;
+				}
+				resolve(stringKeys);
+			};
 		});
 	}
 

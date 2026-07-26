@@ -39,6 +39,28 @@ type ExternalCacheEntry = {
 	height: number;
 };
 
+function parseFrameProfile(
+	value: unknown,
+): Array<{ name: string; durationMs: number }> {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return value.flatMap((entry) => {
+		if (typeof entry !== "object" || entry === null) {
+			return [];
+		}
+
+		const name = Reflect.get(entry, "name");
+		const durationMs = Reflect.get(entry, "durationMs");
+		return typeof name === "string" &&
+			typeof durationMs === "number" &&
+			Number.isFinite(durationMs)
+			? [{ name, durationMs }]
+			: [];
+	});
+}
+
 class WasmCompositor {
 	private canvas: HTMLCanvasElement | null = null;
 	private initializedSize: { width: number; height: number } | null = null;
@@ -90,9 +112,8 @@ class WasmCompositor {
 	render(frame: FrameDescriptor) {
 		renderFrame(frame);
 		if (isRenderPerfEnabled()) {
-			recordWasmFrameProfile(
-				getLastFrameProfile() as Array<{ name: string; durationMs: number }>,
-			);
+			const profile: unknown = getLastFrameProfile();
+			recordWasmFrameProfile(parseFrameProfile(profile));
 		}
 	}
 

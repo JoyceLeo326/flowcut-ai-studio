@@ -36,19 +36,6 @@ type Distance =
 
 type Position = { type: "position"; value: { x?: Distance; y?: Distance } };
 
-type Shape = {
-	type: "shape";
-	value: "circle" | "ellipse";
-	style?: Distance | { type: "extent-keyword"; value: string } | Position;
-	at?: Position;
-};
-
-type DefaultRadial = { type: "default-radial"; at: Position };
-
-type ExtentKeyword = { type: "extent-keyword"; value: string; at?: Position };
-
-type RadialOrientation = Shape | ExtentKeyword | DefaultRadial;
-
 const gradientLayerPattern =
 	/^(?:-(webkit|o|ms|moz)-)?(linear-gradient|repeating-linear-gradient|radial-gradient|repeating-radial-gradient)/i;
 
@@ -318,9 +305,7 @@ const resolveRadialDimensions = ({
 	orientation: GradientOrientation | undefined;
 }): RadialDimensions => {
 	const centerFallback = { cx: width / 2, cy: height / 2 };
-	const radial = Array.isArray(orientation)
-		? (orientation[0] as RadialOrientation | undefined)
-		: undefined;
+	const radial = Array.isArray(orientation) ? orientation[0] : undefined;
 
 	if (!radial) {
 		const { rx, ry } = resolveRadialExtents({
@@ -460,8 +445,12 @@ const normalizePositionKeywords = ({
 		xValue?.type === "position-keyword" &&
 		yValue?.type === "position-keyword"
 	) {
-		const xKeyword = xValue.value.toLowerCase() as PositionKeyword;
-		const yKeyword = yValue.value.toLowerCase() as PositionKeyword;
+		const xKeyword = parsePositionKeyword({ value: xValue.value });
+		const yKeyword = parsePositionKeyword({ value: yValue.value });
+		if (!xKeyword || !yKeyword) {
+			return position;
+		}
+
 		const xIsVertical = xKeyword === "top" || xKeyword === "bottom";
 		const yIsHorizontal = yKeyword === "left" || yKeyword === "right";
 
@@ -628,7 +617,10 @@ const keywordToPosition = ({
 	axisSize: number;
 	axis: "x" | "y";
 }): number => {
-	const keyword = value.toLowerCase() as PositionKeyword;
+	const keyword = parsePositionKeyword({ value });
+	if (!keyword) {
+		return axisSize / 2;
+	}
 
 	if (keyword === "center") {
 		return axisSize / 2;
@@ -653,6 +645,27 @@ const keywordToPosition = ({
 	}
 
 	return axisSize / 2;
+};
+
+const parsePositionKeyword = ({
+	value,
+}: {
+	value: string;
+}): PositionKeyword | null => {
+	switch (value.toLowerCase()) {
+		case "left":
+			return "left";
+		case "center":
+			return "center";
+		case "right":
+			return "right";
+		case "top":
+			return "top";
+		case "bottom":
+			return "bottom";
+		default:
+			return null;
+	}
 };
 
 const isTransparent = ({ color }: { color: string }): boolean => {

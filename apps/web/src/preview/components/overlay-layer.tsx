@@ -16,6 +16,13 @@ const HUD_ANCHOR_CLASS_NAMES: Record<PreviewOverlayHudAnchor, string> = {
 		"absolute right-2 bottom-2 flex flex-col-reverse items-end gap-1.5",
 };
 
+const HUD_ANCHORS: readonly PreviewOverlayHudAnchor[] = [
+	"top-left",
+	"top-right",
+	"bottom-left",
+	"bottom-right",
+];
+
 function getPositionedMountStyle({
 	instance,
 	baseStyle,
@@ -153,11 +160,8 @@ export function PreviewOverlayLayer({
 						return null;
 				}
 			})}
-			{(
-				Object.entries(hudInstancesByAnchor) as Array<
-					[PreviewOverlayHudAnchor, PreviewOverlayInstance[]]
-				>
-			).map(([anchor, anchorInstances]) => {
+			{HUD_ANCHORS.map((anchor) => {
+				const anchorInstances = hudInstancesByAnchor[anchor];
 				if (anchorInstances.length === 0) {
 					return null;
 				}

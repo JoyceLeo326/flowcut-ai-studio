@@ -225,7 +225,9 @@ export class AudioManager {
 		for (const source of this.queuedSources) {
 			try {
 				source.stop();
-			} catch {}
+			} catch {
+				// The source may already have ended or been stopped.
+			}
 			source.disconnect();
 		}
 		this.queuedSources.clear();
@@ -460,18 +462,12 @@ export class AudioManager {
 		clip: AudioClipSource;
 	}): boolean {
 		return (
-			this.hasCurveRetime({ clip }) ||
 			hasAnimatedVolume({ element: clip.timelineElement }) ||
 			shouldMaintainPitch({
 				rate: clip.retime?.rate ?? 1,
 				maintainPitch: clip.retime?.maintainPitch,
 			})
 		);
-	}
-
-	private hasCurveRetime({ clip }: { clip: AudioClipSource }): boolean {
-		const mode = (clip.retime as { mode?: unknown } | undefined)?.mode;
-		return mode === "curve";
 	}
 
 	private scheduleClipGainAutomation({

@@ -2,11 +2,21 @@ import type { IntentSpec, IntentSpecTarget } from "./intent-spec";
 
 export const AGENT_ORCHESTRATION_KIND =
 	"visioncut.agent-orchestration" as const;
-export const AGENT_ORCHESTRATION_SCHEMA_VERSION = 1 as const;
+export const AGENT_ORCHESTRATION_SCHEMA_VERSION = 2 as const;
+const LEGACY_AGENT_ORCHESTRATION_SCHEMA_VERSION = 1 as const;
+const LEGACY_AGENT_ROLES = [
+	"director",
+	"story",
+	"editor",
+	"color",
+	"sound",
+	"growth",
+] as const;
 
 export const AGENT_ROLES = [
 	"director",
 	"story",
+	"camera",
 	"editor",
 	"color",
 	"sound",
@@ -92,6 +102,7 @@ export interface AgentApprovalGate {
 export type AgentTaskOutputKind =
 	| "director-brief"
 	| "story-plan"
+	| "camera-plan"
 	| "edit-plan"
 	| "color-plan"
 	| "sound-plan"
@@ -156,6 +167,7 @@ export interface AgentTask {
 
 export type AgentOrchestrationEventType =
 	| "created"
+	| "schema-migrated"
 	| "evidence-added"
 	| "task-approved"
 	| "task-rejected"
@@ -229,6 +241,37 @@ interface AgentTaskTemplate {
 const PLAN_ONLY_LIMITATION =
 	"This task produces a reviewable plan reference only; it does not analyze or mutate media.";
 
+export const CAMERA_AGENT_TASK_CONTRACT = Object.freeze({
+	role: "camera",
+	title: "Camera coverage plan",
+	purpose:
+		"Translate the approved story structure and cited visual evidence into reviewable shot, framing, movement, and coverage recommendations.",
+	dependencyRoles: ["story"] as const,
+	evidenceRequirements: [
+		{
+			requirementId: "camera-visual-context",
+			description:
+				"At least one scene or visual analysis reference is required for footage-specific framing or movement claims.",
+			anyOfKinds: ["scene-analysis", "visual-analysis"] as const,
+			minimum: 1,
+		},
+	],
+	acceptedEvidenceKinds: [
+		"intent-spec",
+		"publication-target",
+		"asset-metadata",
+		"scene-analysis",
+		"visual-analysis",
+		"brand-guideline",
+		"style-reference",
+		"human-note",
+	] as const,
+	outputKind: "camera-plan",
+	outputLabel: "Reviewable camera coverage plan",
+	specificLimitation:
+		"Asset names and generic metadata cannot support footage-specific framing, movement, or shot-quality claims.",
+}) satisfies AgentTaskTemplate;
+
 const TASK_TEMPLATES: readonly AgentTaskTemplate[] = [
 	{
 		role: "director",
@@ -278,11 +321,14 @@ const TASK_TEMPLATES: readonly AgentTaskTemplate[] = [
 			"Without transcript or scene evidence, story suggestions must remain conceptual and must not describe unseen footage.",
 	},
 	{
+		...CAMERA_AGENT_TASK_CONTRACT,
+	},
+	{
 		role: "editor",
 		title: "Edit decision plan",
 		purpose:
 			"Prepare reversible edit decisions from the approved story plan and cited media evidence.",
-		dependencyRoles: ["story"],
+		dependencyRoles: ["story", "camera"],
 		evidenceRequirements: [
 			{
 				requirementId: "editor-media-context",
@@ -455,6 +501,7 @@ const OUTPUT_ORIGINS = new Set<string>([
 ]);
 const EVENT_TYPES = new Set<string>([
 	"created",
+	"schema-migrated",
 	"evidence-added",
 	"task-approved",
 	"task-rejected",
@@ -2223,12 +2270,257 @@ function assertAgentOrchestrationShape(
 	}
 }
 
+function storedSchemaVersion(value: unknown): unknown {
+	return isRecord(value) ? value.schemaVersion : undefined;
+}
+
+function assertLegacyAgentOrchestrationMigrationCandidate(
+	legacy: AgentOrchestration,
+): void {
+	assertPlainSerializable({ value: legacy });
+	if (
+		legacy.kind !== AGENT_ORCHESTRATION_KIND ||
+		storedSchemaVersion(legacy) !== LEGACY_AGENT_ORCHESTRATION_SCHEMA_VERSION
+	) {
+		throw new AgentOrchestratorInvariantError(
+			"Unsupported legacy agent orchestration schema.",
+		);
+	}
+	if (
+		legacy.tasks.length !== LEGACY_AGENT_ROLES.length ||
+		legacy.history.length !== legacy.revision
+	) {
+		throw new AgentOrchestratorInvariantError(
+			"Legacy orchestration collections are incomplete.",
+		);
+	}
+	const legacyDependencies: Record<
+		(typeof LEGACY_AGENT_ROLES)[number],
+		readonly (typeof LEGACY_AGENT_ROLES)[number][]
+	> = {
+		director: [],
+		story: ["director"],
+		editor: ["story"],
+		color: ["editor"],
+		sound: ["editor"],
+		growth: ["story"],
+	};
+	for (const [index, role] of LEGACY_AGENT_ROLES.entries()) {
+		const task = legacy.tasks[index];
+		const expectedTaskId = taskIdFor({
+			orchestrationId: legacy.orchestrationId,
+			role,
+		});
+		if (
+			task?.role !== role ||
+			task.taskId !== expectedTaskId ||
+			JSON.stringify(task.dependencyTaskIds) !==
+				JSON.stringify(
+					legacyDependencies[role].map((dependencyRole) =>
+						taskIdFor({
+							orchestrationId: legacy.orchestrationId,
+							role: dependencyRole,
+						}),
+					),
+				)
+		) {
+			throw new AgentOrchestratorInvariantError(
+				"Legacy orchestration task topology is invalid.",
+			);
+		}
+		if (
+			!Number.isSafeInteger(task.maxRetries) ||
+			task.maxRetries < 0 ||
+			task.maxRetries > 10 ||
+			task.maxRetries !== legacy.tasks[0]?.maxRetries
+		) {
+			throw new AgentOrchestratorInvariantError(
+				"Legacy orchestration retry policy is invalid.",
+			);
+		}
+		const gate = task.approvalGate;
+		if (!APPROVAL_STATUSES.has(gate.status)) {
+			throw new AgentOrchestratorInvariantError(
+				"Legacy orchestration approval state is invalid.",
+			);
+		}
+		if (gate.status === "pending") {
+			if (
+				gate.decidedAt !== null ||
+				gate.decidedBy !== null ||
+				gate.note !== null
+			) {
+				throw new AgentOrchestratorInvariantError(
+					"Legacy pending approval contains a decision.",
+				);
+			}
+			continue;
+		}
+		if (gate.decidedAt === null || gate.decidedBy === null) {
+			throw new AgentOrchestratorInvariantError(
+				"Legacy approval decision is incomplete.",
+			);
+		}
+		normalizeTimestamp({
+			value: gate.decidedAt,
+			label: "Legacy approval decision time",
+		});
+		normalizeText({
+			value: gate.decidedBy,
+			label: "Legacy approval decision author",
+			maxLength: 160,
+		});
+		if (gate.status === "rejected" && gate.note === null) {
+			throw new AgentOrchestratorInvariantError(
+				"Legacy rejection must retain its reason.",
+			);
+		}
+		const decisionEventType =
+			gate.status === "approved" ? "task-approved" : "task-rejected";
+		if (
+			!legacy.history.some(
+				(event) =>
+					event.type === decisionEventType &&
+					event.taskId === task.taskId &&
+					event.at === gate.decidedAt,
+			)
+		) {
+			throw new AgentOrchestratorInvariantError(
+				"Legacy approval decision has no matching audit event.",
+			);
+		}
+	}
+	for (const [index, event] of legacy.history.entries()) {
+		if (
+			event.revision !== index + 1 ||
+			event.eventId !== `event-r${index + 1}` ||
+			event.type === "schema-migrated"
+		) {
+			throw new AgentOrchestratorInvariantError(
+				"Legacy orchestration history is not contiguous.",
+			);
+		}
+	}
+}
+
+function legacyOutputEvidence({
+	legacy,
+	task,
+}: {
+	legacy: AgentOrchestration;
+	task: AgentTask;
+}): AgentEvidence | null {
+	if (
+		task.status !== "succeeded" ||
+		!legacy.history.some(
+			(event) =>
+				event.type === "task-succeeded" && event.taskId === task.taskId,
+		)
+	) {
+		return null;
+	}
+	const output = task.outputReferences[0];
+	if (
+		output?.state !== "available" ||
+		output.artifactReference === null ||
+		output.producedAt === null
+	) {
+		return null;
+	}
+	const artifactReference = normalizeId({
+		value: output.artifactReference,
+		label: "Legacy output artifact reference",
+	});
+	return {
+		evidenceId: `legacy-output-${task.role}-${hashText(
+			`${output.outputId}:${artifactReference}`,
+		)}`,
+		kind: "human-note",
+		label: `Legacy ${task.role} output retained for audit after Camera role migration`,
+		referenceId: artifactReference,
+		origin: "imported-result",
+		producedByOrchestrator: false,
+	};
+}
+
+function migrateLegacyAgentOrchestration(
+	legacy: AgentOrchestration,
+): AgentOrchestration {
+	assertLegacyAgentOrchestrationMigrationCandidate(legacy);
+	const evidence = legacy.evidence.map((item) => ({ ...item }));
+	for (const task of legacy.tasks) {
+		const retained = legacyOutputEvidence({ legacy, task });
+		if (retained === null) continue;
+		const existing = evidence.find(
+			(item) => item.evidenceId === retained.evidenceId,
+		);
+		if (
+			existing !== undefined &&
+			JSON.stringify(existing) !== JSON.stringify(retained)
+		) {
+			throw new AgentOrchestratorInvariantError(
+				"Legacy output evidence collides with existing evidence.",
+			);
+		}
+		if (existing === undefined) evidence.push(retained);
+	}
+	evidence.sort((left, right) =>
+		left.evidenceId.localeCompare(right.evidenceId),
+	);
+
+	const initialTasks = buildInitialTasks({
+		orchestrationId: legacy.orchestrationId,
+		evidence,
+		maxRetries: legacy.tasks[0]?.maxRetries ?? 2,
+	});
+	const tasks = refreshTasks({
+		evidence,
+		tasks: initialTasks.map((task) => {
+			const previous = legacy.tasks.find(
+				(candidate) => candidate.role === task.role,
+			);
+			if (previous === undefined) return task;
+			return {
+				...task,
+				approvalGate: { ...previous.approvalGate },
+			};
+		}),
+	});
+	const revision = legacy.revision + 1;
+	const migrated: AgentOrchestration = {
+		...legacy,
+		schemaVersion: AGENT_ORCHESTRATION_SCHEMA_VERSION,
+		revision,
+		evidence,
+		tasks,
+		history: [
+			...legacy.history,
+			nextEvent({
+				revision,
+				type: "schema-migrated",
+				at: legacy.updatedAt,
+				taskId: null,
+				detail:
+					"Migrated the legacy six-role graph to schema 2. Camera approval remains pending; prior outputs are audit evidence only.",
+			}),
+		],
+	};
+	assertAgentOrchestrationInvariants({ orchestration: migrated });
+	return migrated;
+}
+
 export function parseAgentOrchestration({
 	value,
 }: {
 	value: unknown;
 }): AgentOrchestration {
-	const cloned: unknown = structuredClone(value);
+	let cloned: unknown = structuredClone(value);
+	assertAgentOrchestrationShape(cloned);
+	if (
+		storedSchemaVersion(cloned) === LEGACY_AGENT_ORCHESTRATION_SCHEMA_VERSION
+	) {
+		cloned = migrateLegacyAgentOrchestration(cloned);
+	}
 	assertAgentOrchestrationShape(cloned);
 	assertAgentOrchestrationInvariants({ orchestration: cloned });
 	return deepFreeze(cloned);

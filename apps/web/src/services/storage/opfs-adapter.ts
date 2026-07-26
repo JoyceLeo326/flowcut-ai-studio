@@ -20,20 +20,14 @@ export class OPFSAdapter implements StorageAdapter<File> {
 			const fileHandle = await directory.getFileHandle(key);
 			return await fileHandle.getFile();
 		} catch (error) {
-			if ((error as Error).name === "NotFoundError") {
+			if (error instanceof Error && error.name === "NotFoundError") {
 				return null;
 			}
 			throw error;
 		}
 	}
 
-	async set({
-		key,
-		value: file,
-	}: {
-		key: string;
-		value: File;
-	}): Promise<void> {
+	async set({ key, value: file }: { key: string; value: File }): Promise<void> {
 		const directory = await this.getDirectory();
 		const fileHandle = await directory.getFileHandle(key, { create: true });
 		const writable = await fileHandle.createWritable();
@@ -47,7 +41,7 @@ export class OPFSAdapter implements StorageAdapter<File> {
 			const directory = await this.getDirectory();
 			await directory.removeEntry(key);
 		} catch (error) {
-			if ((error as Error).name !== "NotFoundError") {
+			if (!(error instanceof Error) || error.name !== "NotFoundError") {
 				throw error;
 			}
 		}

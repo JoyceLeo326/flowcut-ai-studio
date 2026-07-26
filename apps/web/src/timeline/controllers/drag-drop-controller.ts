@@ -1,4 +1,5 @@
 import type { DragEvent } from "react";
+import { prepareMediaImport } from "@/media/import-service";
 import { processMediaAssets } from "@/media/processing";
 import { showMediaUploadToast } from "@/media/upload-toast";
 import {
@@ -502,10 +503,15 @@ export class DragDropController {
 		const projectId = this.config.getActiveProjectId();
 		if (!projectId) return;
 
+		const preparedImport = await prepareMediaImport({ files });
+		if (preparedImport.files.length === 0) return;
+
 		await showMediaUploadToast({
-			filesCount: files.length,
+			filesCount: preparedImport.files.length,
 			promise: async () => {
-				const processedAssets = await processMediaAssets({ files });
+				const processedAssets = await processMediaAssets({
+					preparedImport,
+				});
 
 				// Sequential on purpose: each iteration reads getSceneTracks()
 				// to decide placement (reuse empty main vs new track) and that

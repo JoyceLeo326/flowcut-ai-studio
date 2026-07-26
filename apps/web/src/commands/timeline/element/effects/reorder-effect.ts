@@ -52,12 +52,14 @@ export class ReorderClipEffectsCommand extends Command {
 			trackId: this.trackId,
 			elementId: this.elementId,
 			elementPredicate: isVisualElement,
-		update: (element) => {
-			return reorderEffectsOnElement({
-				element: element as VisualElement,
-				fromIndex: this.fromIndex,
-				toIndex: this.toIndex,
-			});
+			update: (element) => {
+				if (!isVisualElement(element)) return element;
+
+				return reorderEffectsOnElement({
+					element,
+					fromIndex: this.fromIndex,
+					toIndex: this.toIndex,
+				});
 			},
 		});
 

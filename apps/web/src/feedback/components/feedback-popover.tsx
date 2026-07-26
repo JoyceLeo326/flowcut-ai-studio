@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { ClockIcon } from "lucide-react";
 import {
@@ -29,10 +29,47 @@ interface FeedbackFormValues {
 	message: string;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseFeedbackEntry(value: unknown): FeedbackEntry | null {
+	if (
+		!isRecord(value) ||
+		typeof value.id !== "string" ||
+		typeof value.message !== "string" ||
+		typeof value.createdAt !== "string"
+	) {
+		return null;
+	}
+
+	return {
+		id: value.id,
+		message: value.message,
+		createdAt: value.createdAt,
+	};
+}
+
 function readHistory(): FeedbackEntry[] {
 	try {
 		const stored = localStorage.getItem(HISTORY_KEY);
-		return stored ? (JSON.parse(stored) as FeedbackEntry[]) : [];
+		if (!stored) {
+			return [];
+		}
+
+		const parsed: unknown = JSON.parse(stored);
+		if (!Array.isArray(parsed)) {
+			return [];
+		}
+
+		const entries: FeedbackEntry[] = [];
+		for (const value of parsed) {
+			const entry = parseFeedbackEntry(value);
+			if (entry) {
+				entries.push(entry);
+			}
+		}
+		return entries.slice(0, MAX_HISTORY);
 	} catch {
 		return [];
 	}
@@ -49,6 +86,10 @@ function writeHistory({ entries }: { entries: FeedbackEntry[] }): void {
 function useFeedback() {
 	const [entries, setEntries] = useState<FeedbackEntry[]>(readHistory);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+
+	useEffect(() => {
+		writeHistory({ entries });
+	}, [entries]);
 
 	async function submit({
 		values,
@@ -68,14 +109,21 @@ function useFeedback() {
 			});
 
 			if (!res.ok) {
-				const data = await res.json().catch(() => null);
-				throw new Error(data?.error ?? "Failed to submit");
+				const data: unknown = await res.json().catch(() => null);
+				const message =
+					isRecord(data) && typeof data.error === "string"
+						? data.error
+						: "Failed to submit";
+				throw new Error(message);
 			}
 
-			const { entry } = await res.json();
-			const next = [entry, ...entries].slice(0, MAX_HISTORY);
-			setEntries(next);
-			writeHistory({ entries: next });
+			const data: unknown = await res.json();
+			const entry = isRecord(data) ? parseFeedbackEntry(data.entry) : null;
+			if (!entry) {
+				throw new Error("Feedback service returned an invalid response");
+			}
+
+			setEntries((current) => [entry, ...current].slice(0, MAX_HISTORY));
 			onSuccess();
 			toast.success("Feedback sent");
 		} catch (error) {
@@ -116,6 +164,11 @@ function FeedbackPopoverContent({ onClose }: { onClose: () => void }) {
 	const form = useForm<FeedbackFormValues>({
 		defaultValues: { message: "" },
 	});
+	const message = useWatch({
+		control: form.control,
+		name: "message",
+	});
+	const hasMessage = message.trim().length > 0;
 
 	async function handleSubmit(values: FeedbackFormValues) {
 		await submit({
@@ -158,7 +211,10 @@ function FeedbackPopoverContent({ onClose }: { onClose: () => void }) {
 	return (
 		<div className="flex flex-col">
 			<Form persistKey={PERSIST_KEY} {...form}>
-				<form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col">
+				<form
+					onSubmit={form.handleSubmit(handleSubmit)}
+					className="flex flex-col"
+				>
 					<FormField
 						control={form.control}
 						name="message"
@@ -188,7 +244,7 @@ function FeedbackPopoverContent({ onClose }: { onClose: () => void }) {
 							<span />
 						)}
 						<div className="flex gap-2">
-							{!form.watch("message").trim() && (
+							{!hasMessage && (
 								<Button
 									type="button"
 									variant="outline"
@@ -201,7 +257,7 @@ function FeedbackPopoverContent({ onClose }: { onClose: () => void }) {
 							<Button
 								type="submit"
 								size="sm"
-								disabled={isSubmitting || !form.watch("message").trim()}
+								disabled={isSubmitting || !hasMessage}
 							>
 								{isSubmitting ? <Spinner /> : "Send"}
 							</Button>

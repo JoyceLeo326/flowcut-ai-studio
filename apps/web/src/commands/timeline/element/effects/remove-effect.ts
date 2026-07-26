@@ -45,11 +45,13 @@ export class RemoveClipEffectCommand extends Command {
 			trackId: this.trackId,
 			elementId: this.elementId,
 			elementPredicate: isVisualElement,
-		update: (element) => {
-			return removeEffectFromElement({
-				element: element as VisualElement,
-				effectId: this.effectId,
-			});
+			update: (element) => {
+				if (!isVisualElement(element)) return element;
+
+				return removeEffectFromElement({
+					element,
+					effectId: this.effectId,
+				});
 			},
 		});
 

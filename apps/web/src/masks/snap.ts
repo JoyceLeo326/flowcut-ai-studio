@@ -55,6 +55,13 @@ function getPreferredEdges({
 		};
 	}
 
+	if (handleId.kind === "scale") {
+		return {
+			right: true,
+			bottom: true,
+		};
+	}
+
 	return undefined;
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import * as ResizablePrimitive from "react-resizable-panels";
+import { GripVertical } from "lucide-react";
 
 import { cn } from "@/utils/ui";
 
@@ -32,7 +33,13 @@ const ResizableHandle = ({
 			className,
 		)}
 		{...props}
-	/>
+	>
+		{withHandle && (
+			<div className="bg-border z-10 flex h-4 w-3 items-center justify-center rounded-sm border">
+				<GripVertical className="size-2.5" aria-hidden="true" />
+			</div>
+		)}
+	</ResizablePrimitive.PanelResizeHandle>
 );
 
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle };

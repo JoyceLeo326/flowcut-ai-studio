@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
 	getCachedFontAtlas,
 	loadFontAtlas,
@@ -9,37 +9,58 @@ import { SYSTEM_FONTS } from "@/fonts/system-fonts";
 
 type Status = "idle" | "loading" | "error";
 
+interface FontAtlasState {
+	atlas: FontAtlas | null;
+	status: Status;
+}
+
 export function useFontAtlas({ open }: { open: boolean }) {
-	const [atlas, setAtlas] = useState<FontAtlas | null>(() =>
-		getCachedFontAtlas(),
-	);
-	const [status, setStatus] = useState<Status>(() =>
-		getCachedFontAtlas() ? "idle" : "loading",
-	);
+	const [state, setState] = useState<FontAtlasState>(() => {
+		const atlas = getCachedFontAtlas();
+		return {
+			atlas,
+			status: atlas ? "idle" : "loading",
+		};
+	});
+	const requestIdRef = useRef(0);
+	const { atlas, status } = state;
 
 	useEffect(() => {
 		if (!open || atlas) return;
 
-		setStatus("loading");
-		loadFontAtlas().then((data) => {
+		const requestId = ++requestIdRef.current;
+		void loadFontAtlas().then((data) => {
+			if (requestIdRef.current !== requestId) {
+				return;
+			}
+
 			if (data) {
-				setAtlas(data);
-				setStatus("idle");
+				setState({ atlas: data, status: "idle" });
 			} else {
-				setStatus("error");
+				setState({ atlas: null, status: "error" });
 			}
 		});
+
+		return () => {
+			if (requestIdRef.current === requestId) {
+				requestIdRef.current += 1;
+			}
+		};
 	}, [open, atlas]);
 
 	const retry = useCallback(() => {
 		clearFontAtlasCache();
-		setStatus("loading");
-		loadFontAtlas().then((data) => {
+		const requestId = ++requestIdRef.current;
+		setState((current) => ({ ...current, status: "loading" }));
+		void loadFontAtlas().then((data) => {
+			if (requestIdRef.current !== requestId) {
+				return;
+			}
+
 			if (data) {
-				setAtlas(data);
-				setStatus("idle");
+				setState({ atlas: data, status: "idle" });
 			} else {
-				setStatus("error");
+				setState({ atlas: null, status: "error" });
 			}
 		});
 	}, []);

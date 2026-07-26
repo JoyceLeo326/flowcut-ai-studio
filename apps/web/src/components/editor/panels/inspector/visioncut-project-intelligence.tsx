@@ -15,6 +15,8 @@ import {
 	Wand2,
 	type LucideIcon,
 } from "lucide-react";
+import type { MediaIndex } from "@/ai-studio/media-index";
+import type { TimelineTranscriptArtifact } from "@/ai-studio/transcript-artifact";
 import type { MediaAsset } from "@/media/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/ui";
@@ -28,6 +30,8 @@ export interface ProjectIntelligenceSnapshot {
 
 interface VisionCutProjectIntelligenceProps {
 	snapshot: ProjectIntelligenceSnapshot;
+	mediaIndexes: readonly MediaIndex[];
+	transcriptArtifact: TimelineTranscriptArtifact | null;
 	onImportMedia: () => void;
 	onOpenDirector: () => void;
 	onOpenModels?: () => void;
@@ -92,7 +96,7 @@ function ReadinessRow({
 		<div className="flex min-w-0 items-start gap-2.5 border-t py-2.5 first:border-t-0">
 			<span
 				className={cn(
-					"mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-[5px] border text-[8px] font-semibold",
+					"mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-[5px] border text-[10px] font-semibold",
 					state === "ready" &&
 						"border-emerald-500/35 bg-emerald-500/10 text-emerald-600",
 					state === "current" &&
@@ -104,7 +108,7 @@ function ReadinessRow({
 			</span>
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center justify-between gap-2">
-					<p className="text-[11px] font-medium">{title}</p>
+					<p className="text-[12px] font-medium">{title}</p>
 					<Icon
 						className={cn(
 							"size-3.5 shrink-0",
@@ -112,7 +116,7 @@ function ReadinessRow({
 						)}
 					/>
 				</div>
-				<p className="mt-0.5 text-[9px] leading-relaxed text-muted-foreground">
+				<p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
 					{detail}
 				</p>
 			</div>
@@ -122,6 +126,8 @@ function ReadinessRow({
 
 export function VisionCutProjectIntelligence({
 	snapshot,
+	mediaIndexes,
+	transcriptArtifact,
 	onImportMedia,
 	onOpenDirector,
 	onOpenModels,
@@ -152,6 +158,23 @@ export function VisionCutProjectIntelligence({
 		(asset) => asset.type !== "audio" && (!asset.width || !asset.height),
 	).length;
 	const ephemeralCount = assets.filter((asset) => asset.ephemeral).length;
+	const analyzedVideoCount = new Set(mediaIndexes.map((index) => index.assetId))
+		.size;
+	const videoFrameSampleCount = mediaIndexes.reduce(
+		(total, index) =>
+			total + index.sourceSnapshot.videoFrameSamples.length,
+		0,
+	);
+	const audioWindowSampleCount = mediaIndexes.reduce(
+		(total, index) =>
+			total + index.sourceSnapshot.audioWindowSamples.length,
+		0,
+	);
+	const transcriptSegmentCount = transcriptArtifact?.segments.length ?? 0;
+	const analysisComplete =
+		videoAssets.length > 0 && analyzedVideoCount >= videoAssets.length;
+	const hasMeasuredEvidence =
+		analyzedVideoCount > 0 || transcriptSegmentCount > 0;
 
 	const observations: string[] = [];
 	if (unusedMediaCount > 0) {
@@ -173,6 +196,11 @@ export function VisionCutProjectIntelligence({
 	if (ephemeralCount > 0) {
 		observations.push(
 			`${ephemeralCount} 个素材为临时引用，关闭来源后可能需要重新定位。`,
+		);
+	}
+	if (videoAssets.length > analyzedVideoCount) {
+		observations.push(
+			`${videoAssets.length - analyzedVideoCount} 个视频尚未完成本地采样，可在“理解”中继续分析。`,
 		);
 	}
 	if (durationSeconds > 900) {
@@ -230,12 +258,12 @@ export function VisionCutProjectIntelligence({
 					<div className="min-w-0 flex-1">
 						<div className="flex items-center justify-between gap-2">
 							<h2 className="text-[14px] font-semibold">项目智能台</h2>
-							<span className="inline-flex items-center gap-1 text-[9px] text-emerald-700 dark:text-emerald-300">
+							<span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300">
 								<ShieldCheck className="size-3" />
 								免费本机
 							</span>
 						</div>
-						<p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+						<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
 							这里只显示浏览器已经读取到的文件与时间线事实，不伪造内容评分。
 						</p>
 					</div>
@@ -248,8 +276,8 @@ export function VisionCutProjectIntelligence({
 						["成片", formatDuration(durationSeconds)],
 					].map(([label, value]) => (
 						<div key={label} className="min-w-0 px-1.5 py-2.5">
-							<p className="text-[8px] text-muted-foreground">{label}</p>
-							<p className="mt-1 truncate text-[11px] font-semibold">{value}</p>
+							<p className="text-[10px] text-muted-foreground">{label}</p>
+							<p className="mt-1 truncate text-[12px] font-semibold">{value}</p>
 						</div>
 					))}
 				</div>
@@ -258,7 +286,7 @@ export function VisionCutProjectIntelligence({
 			<section>
 				<div className="mb-2 flex items-center justify-between gap-2">
 					<h3 className="text-[12px] font-semibold">制作就绪度</h3>
-					<span className="text-[9px] text-muted-foreground">真实状态</span>
+					<span className="text-[10px] text-muted-foreground">真实状态</span>
 				</div>
 				<div className="border-y">
 					<ReadinessRow
@@ -286,8 +314,20 @@ export function VisionCutProjectIntelligence({
 					<ReadinessRow
 						index="03"
 						title="内容理解"
-						detail="当前仅有媒体元数据；对白、场景、人物与情绪需要本地模型或你的 API"
-						state={hasAssets ? "current" : "waiting"}
+						detail={
+							hasMeasuredEvidence
+								? `${analyzedVideoCount}/${videoAssets.length} 个视频已采样，${videoFrameSampleCount} 个画面样本、${audioWindowSampleCount} 个音频窗口、${transcriptSegmentCount} 个转写段；不包含人物、物体或情绪识别`
+								: hasAssets
+									? "当前仅有媒体元数据；可在“理解”中生成本地画面、音频和转写证据"
+									: "导入素材后开始"
+						}
+						state={
+							analysisComplete
+								? "ready"
+								: hasAssets
+									? "current"
+									: "waiting"
+						}
 					/>
 					<ReadinessRow
 						index="04"
@@ -306,7 +346,7 @@ export function VisionCutProjectIntelligence({
 				<section>
 					<div className="mb-2 flex items-center justify-between gap-2">
 						<h3 className="text-[12px] font-semibold">素材构成</h3>
-						<span className="text-[9px] text-muted-foreground">
+						<span className="text-[10px] text-muted-foreground">
 							{formatBytes(totalBytes)}
 						</span>
 					</div>
@@ -315,7 +355,7 @@ export function VisionCutProjectIntelligence({
 							return (
 								<div key={label} className="min-w-0 px-2">
 									<MediaIcon className="mx-auto size-3.5 text-muted-foreground" />
-									<p className="mt-1 text-[9px] text-muted-foreground">
+									<p className="mt-1 text-[10px] text-muted-foreground">
 										{label}
 									</p>
 									<p className="mt-0.5 text-xs font-semibold">{value}</p>
@@ -335,10 +375,10 @@ export function VisionCutProjectIntelligence({
 										<Icon className="size-3.5" />
 									</span>
 									<div className="min-w-0 flex-1">
-										<p className="truncate text-[10px] font-medium">
+										<p className="truncate text-[11px] font-medium">
 											{asset.name}
 										</p>
-										<p className="mt-0.5 truncate text-[8px] text-muted-foreground">
+										<p className="mt-0.5 truncate text-[10px] text-muted-foreground">
 											{getAssetDetail(asset)}
 										</p>
 									</div>
@@ -347,7 +387,7 @@ export function VisionCutProjectIntelligence({
 						})}
 					</div>
 					{assets.length > 5 ? (
-						<p className="mt-2 text-[9px] text-muted-foreground">
+						<p className="mt-2 text-[10px] text-muted-foreground">
 							另有 {assets.length - 5} 个素材已收录
 						</p>
 					) : null}
@@ -356,7 +396,7 @@ export function VisionCutProjectIntelligence({
 
 			{observations.length > 0 ? (
 				<section className="rounded-[8px] border p-3">
-					<h3 className="flex items-center gap-1.5 text-[11px] font-semibold">
+					<h3 className="flex items-center gap-1.5 text-[12px] font-semibold">
 						<AlertTriangle className="size-3.5 text-amber-600" />
 						制作提醒
 					</h3>
@@ -364,7 +404,7 @@ export function VisionCutProjectIntelligence({
 						{observations.map((observation) => (
 							<li
 								key={observation}
-								className="flex gap-1.5 text-[9px] leading-relaxed text-muted-foreground"
+								className="flex gap-1.5 text-[11px] leading-relaxed text-muted-foreground"
 							>
 								<span className="mt-1.5 size-1 shrink-0 rounded-full bg-amber-500" />
 								<span>{observation}</span>
@@ -380,20 +420,20 @@ export function VisionCutProjectIntelligence({
 						<NextActionIcon className="size-4" />
 					</div>
 					<div className="min-w-0 flex-1">
-						<h3 className="text-[11px] font-semibold">{nextAction.title}</h3>
-						<p className="mt-1 text-[9px] leading-relaxed text-muted-foreground">
+						<h3 className="text-[12px] font-semibold">{nextAction.title}</h3>
+						<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
 							{nextAction.detail}
 						</p>
 					</div>
 				</div>
-				<Button className="mt-3 h-10 w-full" onClick={nextAction.onClick}>
+				<Button className="mt-3 h-11 w-full xl:h-10" onClick={nextAction.onClick}>
 					<NextActionIcon className="size-4" />
 					{nextAction.label}
 				</Button>
 				{onOpenModels ? (
 					<Button
 						variant="outline"
-						className="mt-2 h-10 w-full"
+						className="mt-2 h-11 w-full xl:h-10"
 						onClick={onOpenModels}
 					>
 						<Gauge className="size-4" />
@@ -402,7 +442,7 @@ export function VisionCutProjectIntelligence({
 				) : null}
 			</section>
 
-			<div className="flex gap-2 px-1 text-[9px] leading-relaxed text-muted-foreground">
+			<div className="flex gap-2 px-1 text-[11px] leading-relaxed text-muted-foreground">
 				<HardDrive className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
 				<p>
 					免费路径包含素材管理、时间线编辑、画幅调整、撤销和浏览器导出。模型能力保持可选，不连接也能继续工作。

@@ -1,4 +1,4 @@
-import type { EditorCore } from "@/core";
+import { EditorCore } from "@/core";
 import {
 	BatchCommand,
 	Command,
@@ -21,6 +21,56 @@ export interface ApplyEditPlanResult {
 	commandCount: number;
 	appliedStepCount: number;
 	skippedStepCount: number;
+	command: Command | null;
+	sceneId: string | null;
+}
+
+class SceneBoundEditPlanCommand extends Command {
+	override readonly handlesRipple = true;
+	private readonly batch: BatchCommand;
+
+	constructor({
+		commands,
+		sceneId,
+		projectId,
+	}: {
+		commands: Command[];
+		sceneId: string;
+		projectId: string;
+	}) {
+		super();
+		this.batch = new BatchCommand(commands);
+		this.sceneId = sceneId;
+		this.projectId = projectId;
+	}
+
+	readonly sceneId: string;
+	private readonly projectId: string;
+
+	private assertTarget(): void {
+		const editor = EditorCore.getInstance();
+		if (editor.scenes.getActiveScene().id !== this.sceneId) {
+			throw new Error("Active scene no longer matches the approved edit plan.");
+		}
+		if (editor.project.getActive()?.metadata.id !== this.projectId) {
+			throw new Error("Active project no longer matches the approved edit plan.");
+		}
+	}
+
+	execute() {
+		this.assertTarget();
+		return this.batch.execute();
+	}
+
+	override undo(): void {
+		this.assertTarget();
+		this.batch.undo();
+	}
+
+	override redo() {
+		this.assertTarget();
+		return this.batch.redo();
+	}
 }
 
 export function applyLocalEditPlan({
@@ -32,7 +82,23 @@ export function applyLocalEditPlan({
 }): ApplyEditPlanResult {
 	const scene = editor.scenes.getActiveSceneOrNull();
 	if (!scene)
-		return { commandCount: 0, appliedStepCount: 0, skippedStepCount: 0 };
+		return {
+			commandCount: 0,
+			appliedStepCount: 0,
+			skippedStepCount: 0,
+			command: null,
+			sceneId: null,
+		};
+	const projectId = editor.project.getActive()?.metadata.id;
+	if (!projectId) {
+		return {
+			commandCount: 0,
+			appliedStepCount: 0,
+			skippedStepCount: 0,
+			command: null,
+			sceneId: scene.id,
+		};
+	}
 
 	const commands: Command[] = [];
 	let appliedStepCount = 0;
@@ -113,9 +179,21 @@ export function applyLocalEditPlan({
 		skippedStepCount += 1;
 	}
 
-	if (commands.length > 0) {
-		editor.command.execute({ command: new BatchCommand(commands) });
-	}
+	const command =
+		commands.length > 0
+			? new SceneBoundEditPlanCommand({
+					commands,
+					sceneId: scene.id,
+					projectId,
+				})
+			: null;
+	if (command) editor.command.execute({ command });
 
-	return { commandCount: commands.length, appliedStepCount, skippedStepCount };
+	return {
+		commandCount: commands.length,
+		appliedStepCount,
+		skippedStepCount,
+		command,
+		sceneId: scene.id,
+	};
 }

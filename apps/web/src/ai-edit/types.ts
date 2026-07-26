@@ -91,16 +91,40 @@ export interface PlannerInput extends EditPlanSource {
 }
 
 export interface HandoffMediaItem {
+	visionCutAssetId: string;
 	name: string;
 	type: "image" | "video" | "audio";
+	fingerprint: string;
+	durationFrames: number;
 	durationSeconds?: number;
+	sizeBytes: number;
+	lastModified: number;
 }
 
 export interface ChatCutHandoff {
-	formatVersion: "flowcut.chatcut-handoff/v1";
+	formatVersion: "visioncut.chatcut-handoff/v2";
+	handoffId: string;
+	createdAt: string;
 	project: {
 		id: string;
 		name: string;
+	};
+	timebase: {
+		unit: "frame";
+		fps: { numerator: number; denominator: number };
+	};
+	baseline: {
+		projectId: string;
+		projectVersion: number;
+		versionId: string;
+		timelineId: string;
+		timelineSnapshotId: string;
+		timelineFingerprint: string;
+		assets: import("@/ai-studio/chatcut-result").ChatCutImportAssetState[];
+		items: import("@/ai-studio/chatcut-result").ChatCutImportTimelineItemState[];
+		transcripts: import("@/ai-studio/chatcut-result").ChatCutImportTranscriptState[];
+		transcriptWords: import("@/ai-studio/chatcut-result").ChatCutImportTranscriptWordState[];
+		silenceAnalyses: import("@/ai-studio/chatcut-result").ChatCutImportSilenceAnalysisState[];
 	};
 	media: HandoffMediaItem[];
 	plan: EditPlan;
@@ -111,5 +135,19 @@ export interface ChatCutHandoff {
 		requiresExplicitUpload: true;
 		provider: "ChatCut";
 		consent: string;
+	};
+	resultContract: {
+		kind: "visioncut.chatcut-result";
+		schemaVersion: 1;
+		coordinateSystem: "frame";
+		atomicImport: true;
+		revalidateBeforeApply: true;
+		requiresExplicitApproval: true;
+		freeTextCommandsAllowed: false;
+	};
+	capabilityBoundary: {
+		transcriptEvidenceProvided: boolean;
+		silenceEvidenceProvided: boolean;
+		binaryMediaIncluded: false;
 	};
 }

@@ -2,7 +2,13 @@
 
 import { cn } from "@/utils/ui";
 import { clamp } from "@/utils/math";
-import { useRef, useState, useLayoutEffect, type ComponentProps } from "react";
+import {
+	useImperativeHandle,
+	useLayoutEffect,
+	useRef,
+	useState,
+	type ComponentProps,
+} from "react";
 import { useFocusLock } from "@/hooks/use-focus-lock";
 import { Button } from "@/components/ui/button";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -97,8 +103,10 @@ function scrubAcrossRanges({
 	return clampScrubValue({ value: currentValue, min, max });
 }
 
-interface NumberFieldProps
-	extends Omit<ComponentProps<"input">, "size" | "type"> {
+interface NumberFieldProps extends Omit<
+	ComponentProps<"input">,
+	"size" | "type"
+> {
 	icon?: React.ReactNode;
 	suffix?: string;
 	suffixClassName?: string;
@@ -137,24 +145,36 @@ function NumberField({
 	const iconRef = useRef<HTMLButtonElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const ghostRef = useRef<HTMLSpanElement>(null);
+	const suffixRef = useRef<HTMLSpanElement>(null);
 	const startValueRef = useRef(0);
 	const cumulativeDeltaRef = useRef(0);
 	const [isInputFocused, setIsInputFocused] = useState(false);
-	const [suffixLeft, setSuffixLeft] = useState(0);
-	const ghostValue = Array.isArray(value) ? value.join(", ") : String(value ?? "");
+	const ghostValue = Array.isArray(value)
+		? value.join(", ")
+		: String(value ?? "");
+
+	useImperativeHandle(ref, () => {
+		const input = inputRef.current;
+		if (!input) {
+			throw new Error("NumberField input is not mounted");
+		}
+		return input;
+	}, []);
 
 	useLayoutEffect(() => {
-		if (!suffix) {
-			setSuffixLeft(0);
+		if (
+			!suffix ||
+			!ghostRef.current ||
+			!inputRef.current ||
+			!suffixRef.current
+		) {
 			return;
-		}
-		if (!ghostRef.current || !inputRef.current) return;
-		if (ghostRef.current.textContent !== ghostValue) {
-			ghostRef.current.textContent = ghostValue;
 		}
 		const paddingLeft =
 			parseFloat(getComputedStyle(inputRef.current).paddingLeft) || 0;
-		setSuffixLeft(paddingLeft + ghostRef.current.offsetWidth);
+		suffixRef.current.style.left = `${
+			paddingLeft + ghostRef.current.offsetWidth + SUFFIX_GAP_PX
+		}px`;
 	}, [ghostValue, suffix]);
 
 	const { containerRef: wrapperRef } = useFocusLock<HTMLDivElement>({
@@ -288,11 +308,11 @@ function NumberField({
 							{ghostValue}
 						</span>
 						<span
+							ref={suffixRef}
 							className={cn(
 								"absolute top-1/2 -translate-y-1/2 select-none pointer-events-none text-sm leading-none",
 								suffixClassName,
 							)}
-							style={{ left: suffixLeft + SUFFIX_GAP_PX }}
 						>
 							{suffix}
 						</span>

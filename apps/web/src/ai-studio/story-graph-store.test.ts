@@ -9,6 +9,7 @@ import {
 	MemoryStoryGraphStorage,
 	StoryGraphStorageValidationError,
 	StoryGraphVersionConflictError,
+	appendRestoredStoryGraphVersion,
 	appendStoryGraphVersion,
 	deleteStoryGraphHistory,
 	exportStoryGraphHistory,
@@ -77,6 +78,36 @@ describe("VisionCut project Story Graph persistence", () => {
 		expect(Object.isFrozen(history)).toBe(true);
 		expect(Object.isFrozen(history?.current)).toBe(true);
 		expect(Object.isFrozen(history?.history)).toBe(true);
+	});
+
+	test("restores an older graph as a new durable version", async () => {
+		const projectId = "project-story-restore";
+		const storage = new MemoryStoryGraphStorage();
+		const first = await appendStoryGraphVersion({
+			projectId,
+			graph: initialGraph(projectId),
+			expectedCurrentVersion: 0,
+			storage,
+		});
+		const second = await appendStoryGraphVersion({
+			projectId,
+			graph: nextGraph({ graph: first, label: "Later direction" }),
+			expectedCurrentVersion: first.version,
+			storage,
+		});
+
+		const restored = await appendRestoredStoryGraphVersion({
+			projectId,
+			graph: first,
+			storage,
+		});
+		const versions = await listStoryGraphVersions({ projectId, storage });
+
+		expect(restored.version).toBe(second.version + 1);
+		expect(restored.graphId).toBe(second.graphId);
+		expect(restored.nodes).toEqual(first.nodes);
+		expect(versions.map((graph) => graph.version)).toEqual([1, 2, 3]);
+		expect(versions.at(-1)).toEqual(restored);
 	});
 
 	test("appends consecutive graph versions without mutating prior history", async () => {

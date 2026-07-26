@@ -1,0 +1,25 @@
+.desktopOnly {
+	display: none;
+}
+
+@media (max-width: 1199px), (pointer: coarse) {
+	.interactionTarget {
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+	}
+
+	.headerActions :global(button) {
+		min-width: 2.75rem;
+		min-height: 2.75rem;
+	}
+
+	.menuItem {
+		min-height: 2.75rem;
+	}
+}
+
+@media (min-width: 1200px) and (pointer: fine) {
+	.desktopOnly {
+		display: flex;
+	}
+}

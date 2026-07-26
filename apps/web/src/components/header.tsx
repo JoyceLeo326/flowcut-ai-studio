@@ -16,7 +16,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { cn } from "@/utils/ui";
-import { DEFAULT_LOGO_URL, SITE_URL } from "@/site/brand";
+import { DEFAULT_LOGO_URL } from "@/site/brand";
 import { SOCIAL_LINKS } from "@/site/social";
 import {
 	ContextMenu,
@@ -113,6 +113,11 @@ export function Header() {
 							size="icon"
 							className="flex items-center justify-center p-0"
 							onClick={() => setIsMenuOpen(!isMenuOpen)}
+							aria-label={
+								isMenuOpen ? "Close navigation menu" : "Open navigation menu"
+							}
+							aria-expanded={isMenuOpen}
+							aria-controls="mobile-site-navigation"
 						>
 							<HugeiconsIcon icon={Menu02Icon} size={30} />
 						</Button>
@@ -157,7 +162,10 @@ export function Header() {
 								}
 							}}
 						/>
-						<nav className="flex flex-col gap-3 px-6 pt-[5rem]">
+						<nav
+							id="mobile-site-navigation"
+							className="flex flex-col gap-3 px-6 pt-[5rem]"
+						>
 							{links.map((link, index) => (
 								<motion.div
 									key={link.href}
