@@ -17,7 +17,7 @@ export const baseMetaData: Metadata = {
 				url: SITE_INFO.openGraphImage,
 				width: 1200,
 				height: 630,
-				alt: "VisionCut AI",
+				alt: "FlowCut AI Studio",
 			},
 		],
 	},

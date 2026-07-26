@@ -6,9 +6,9 @@ export const SITE_URL =
 	process.env.NEXT_PUBLIC_SITE_URL ?? vercelSiteUrl ?? "http://localhost:3200";
 
 export const SITE_INFO = {
-	title: "VisionCut AI",
+	title: "FlowCut AI Studio",
 	description:
-		"An intent-driven, local-first AI video creation system with reviewable edit plans and an optional ChatCut cloud workflow.",
+		"FlowCut AI Studio turns a creative brief and source media into a reviewable video plan, editable timeline, and export-ready project.",
 	url: SITE_URL,
 	openGraphImage: "/open-graph/default.jpg",
 	twitterImage: "/open-graph/default.jpg",
