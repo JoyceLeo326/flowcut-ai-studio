@@ -74,3 +74,16 @@ footer { display: grid; grid-template-columns: 1fr auto auto; align-items: cente
 .real-clip { min-width: 44px; min-height: 44px; }
 .export-bar button,
 .score-inputs span { min-height: 44px; }
+.score-inputs label { position: relative; min-width: 0; }
+.score-inputs input {
+  inset: 50% auto auto 50%;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  pointer-events: none;
+}
+.topbar > .brand,
+footer > a { min-height: 44px; }
+footer > a { display: inline-flex; align-items: center; }
