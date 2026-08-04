@@ -21,7 +21,12 @@
 		"publish:wasm": "bun run build:wasm && npm publish rust/wasm/pkg --access public",
 		"start:tools": "turbo run start --filter=@opencut/tools",
 		"test": "bun test",
-		"security:secrets": "node scripts/secret-guard.mjs . apps/web/.next"
+		"test:mirror": "node --test mirror-src/experience.test.mjs mirror-src/public-mirror.test.mjs",
+		"build:public-mirror": "node scripts/build-public-mirror.mjs",
+		"test:public-mirror": "node --experimental-vm-modules scripts/http-mirror-smoke.mjs",
+		"security:secrets": "node scripts/secret-guard.mjs . apps/web/.next",
+		"security:mirror": "node scripts/secret-guard.mjs public-mirror",
+		"quality": "bun run lint:web && bun run test && bun run test:mirror && bun run build:web && bun run build:public-mirror && bun run test:public-mirror && bun run security:secrets && bun run security:mirror"
 	},
 	"dependencies": {
 		"@types/react": "^19.2.10",

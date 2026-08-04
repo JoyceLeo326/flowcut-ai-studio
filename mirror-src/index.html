@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="从素材观察生成三条可比较的剪辑路线，确认真实时间线并让反馈进入下一版。" />
+    <meta name="theme-color" content="#080b0f" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>FlowCut · 把剪辑意图变成时间线</title>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="#top"><span class="brand-icon" aria-hidden="true"><i></i><i></i><i></i></span><span><b>FLOWCUT</b><small>EDIT DECISION STUDIO</small></span></a>
+      <nav aria-label="页面导航"><a href="#mission">任务</a><a href="#routes">路线</a><a href="#timeline">时间线</a><a href="#review">复盘</a></nav>
+      <span class="session-state"><i></i> 本机创作会话</span>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="kicker"><span>NEW CUT</span> 从真实素材出发</p>
+          <h1 id="hero-title">让素材说出，<br /><em>下一刀在哪里。</em></h1>
+          <p>先定义观众与目标，再比较三条真正不同的剪辑路径。不是替你按下确认键，而是让每一次保留和删减都有依据。</p>
+          <div class="hero-actions"><a class="primary-button" href="#mission">开始一次剪辑决策 <span>↘</span></a><small>输入 → 比较 → 确认 → 下载 → 复盘</small></div>
+          <ul class="signal-list"><li><i></i>真实时间码</li><li><i></i>素材锚点</li><li><i></i>本地反馈回流</li></ul>
+        </div>
+
+        <div class="editor-demo" aria-label="剪辑时间线示意">
+          <div class="demo-toolbar"><span><i></i><i></i><i></i></span><b>PROJECT / FIRST-CUT</b><time>00:00:02:12</time></div>
+          <div class="demo-body">
+            <aside><span>媒体</span><span>文字</span><span>声音</span><span>调色</span></aside>
+            <div class="preview-panel">
+              <div class="preview-screen"><span class="frame-no">FRAME 037</span><div class="visual-shape shape-a"></div><div class="visual-shape shape-b"></div><div class="preview-copy"><small>结果先出现</small><strong>失败样品，<br />为什么留下？</strong></div><div class="safe-zone"></div></div>
+              <div class="transport" aria-hidden="true"><i>‹</i><i class="play">▶</i><i>›</i><span>30 FPS</span></div>
+            </div>
+          </div>
+          <div class="demo-timeline">
+            <div class="time-ruler"><span>00:00</span><span>00:05</span><span>00:10</span><span>00:15</span><span>00:20</span><span>00:25</span><span>00:30</span></div>
+            <div class="playhead"></div>
+            <div class="track"><b>V1</b><span class="clip clip-a">结果帧</span><span class="clip clip-b">冲突</span><span class="clip clip-c">过程 / 证据</span><span class="clip clip-d">兑现</span></div>
+            <div class="track"><b>T1</b><span class="caption-clip">为什么留下失败样品？</span><span class="caption-clip caption-clip-b">三次调整</span></div>
+            <div class="track"><b>A1</b><span class="wave-clip"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
+          </div>
+          <div class="demo-note"><span>推荐理由</span><p>你选择“前 3 秒留存”，所以结果帧先于解释出现。</p></div>
+        </div>
+      </section>
+
+      <section class="mission-section" id="mission" aria-labelledby="mission-title">
+        <header class="section-title"><span>01</span><div><p>DEFINE THE CUT</p><h2 id="mission-title">先把这条片子，<br />放进真实的观看场景。</h2></div></header>
+        <form id="mission-form" class="mission-form">
+          <div class="form-intro"><strong>剪辑任务</strong><p>这些约束会改变推荐分数、时间线比例、画幅和复看标准。</p><span>自动保存在当前浏览器</span></div>
+          <div class="form-fields">
+            <div class="field-row">
+              <label><span>怎么称呼你</span><input name="creator" maxlength="24" value="周屿" autocomplete="name" /></label>
+              <label><span>你的角色</span><select name="role"><option>剪辑师</option><option>内容导演</option><option>内容运营</option></select></label>
+            </div>
+            <div class="field-row field-row-three">
+              <label><span>观众此刻是谁</span><select name="audience"><option>第一次刷到</option><option>已经关注</option><option>准备购买</option></select></label>
+              <label><span>发布平台</span><select name="platform"><option>抖音</option><option>视频号</option><option>B站</option></select></label>
+              <label><span>成片时长</span><select name="seconds"><option value="15">15 秒</option><option value="30" selected>30 秒</option><option value="60">60 秒</option></select></label>
+            </div>
+            <div class="field-row">
+              <label><span>必须守住什么</span><select name="priority"><option>前3秒留存</option><option>叙事完整</option><option>转化证据</option></select></label>
+              <label><span>交付时间</span><input name="deadline" maxlength="32" value="今天 20:00" /></label>
+            </div>
+            <label class="material-field"><span>素材里真实发生了什么 <small>按镜头顺序写下动作、变化与结果</small></span><textarea name="material" maxlength="2400" rows="6">开场是主理人把失败样品放到桌上。中段展示三次调整配方的过程。最后顾客盲测说终于喝到了想要的酸度。</textarea><i><b id="material-count">0</b> / 2400</i></label>
+            <button class="primary-button full-button" type="submit">分析素材，生成三条剪辑路线 <span>→</span></button>
+          </div>
+        </form>
+      </section>
+
+      <section class="routes-section is-hidden" id="routes" aria-labelledby="routes-title">
+        <header class="section-title"><span>02</span><div><p>COMPARE THE TRADE-OFFS</p><h2 id="routes-title">三条路线，<br />三种主动放弃。</h2><small id="route-context"></small></div></header>
+        <div class="route-grid" id="route-grid" aria-live="polite"></div>
+        <div class="confirm-dock"><div><small>当前路线</small><strong id="selected-route">尚未选择</strong></div><button id="confirm-route" type="button" disabled>确认并铺入时间线 <span>→</span></button></div>
+      </section>
+
+      <section class="timeline-section is-hidden" id="timeline" aria-labelledby="timeline-title">
+        <header class="section-title light-title"><span>03</span><div><p>COMMIT THE CUT</p><h2 id="timeline-title">每一秒，<br />现在都有任务。</h2></div></header>
+        <div class="decision-summary"><div><small>已确认</small><h3 id="decision-title"></h3><p id="decision-thesis"></p></div><dl><div><dt id="decision-score"></dt><dd>适配分</dd></div><div><dt id="decision-ratio"></dt><dd>画幅</dd></div><div><dt id="decision-duration"></dt><dd>秒</dd></div></dl></div>
+        <div class="real-timeline">
+          <div class="timeline-tools"><span>FIRST CUT / V1</span><div><button id="timeline-zoom-out" type="button" aria-label="缩小时间线">−</button><b id="timeline-zoom-value">100%</b><button id="timeline-zoom-in" type="button" aria-label="放大时间线">＋</button></div></div>
+          <div class="timeline-ruler" id="timeline-ruler"></div>
+          <div class="timeline-tracks" id="timeline-tracks"></div>
+          <div class="timeline-detail" id="timeline-detail" aria-live="polite"><p>选择一个片段，查看剪辑指令和素材锚点。</p></div>
+        </div>
+        <div class="delivery-grid">
+          <article><small>这版获得什么</small><p id="decision-gain"></p></article><article><small>这版主动接受什么</small><p id="decision-tradeoff"></p></article><article><small>下一次怎么验证</small><p id="decision-check"></p></article>
+        </div>
+        <div class="export-bar"><div><strong>剪辑单已经可以带走</strong><span>下载文件包含完整时间码、轨道、声音、字幕安全区和素材锚点。</span></div><button id="download-md" type="button">MD 剪辑单</button><button id="download-json" type="button">JSON 时间线</button></div>
+      </section>
+
+      <section class="review-section is-hidden" id="review" aria-labelledby="review-title">
+        <header class="section-title"><span>04</span><div><p>FEEDBACK TO THE NEXT CUT</p><h2 id="review-title">复看不是终点，<br />它是下一刀的依据。</h2></div></header>
+        <div class="review-grid">
+          <form id="review-form" class="review-form">
+            <fieldset><legend>这一版现在有多成立？</legend><div class="score-inputs"><label><input type="radio" name="score" value="1" /><span>1</span></label><label><input type="radio" name="score" value="2" /><span>2</span></label><label><input type="radio" name="score" value="3" checked /><span>3</span></label><label><input type="radio" name="score" value="4" /><span>4</span></label><label><input type="radio" name="score" value="5" /><span>5</span></label></div></fieldset>
+            <label><span>最需要修正的地方</span><select name="outcome"><option>开场不够抓人</option><option>过程看不明白</option><option>证据不够可信</option><option>节奏太赶</option><option>可以交付</option></select></label>
+            <label><span>你观察到了什么</span><textarea name="note" rows="4" maxlength="240" required placeholder="例如：测试者在第 2 秒仍不知道冲突是什么。"></textarea></label>
+            <button type="submit">记录证据，生成下一刀</button>
+          </form>
+          <div class="revision-card"><div id="revision-empty" class="revision-empty"><span>WAITING FOR REVIEW</span><p>第一条具体观察，会在这里变成单一、可验证的修订动作。</p></div><div id="revision-result" class="is-hidden"><small id="revision-version"></small><h3>下一版只改这一刀</h3><p id="revision-action"></p><blockquote id="revision-evidence"></blockquote></div><div id="revision-history" class="revision-history"></div></div>
+        </div>
+      </section>
+    </main>
+
+    <footer><div class="brand"><span class="brand-icon" aria-hidden="true"><i></i><i></i><i></i></span><span><b>FLOWCUT</b><small>EDIT DECISION STUDIO</small></span></div><p>你的任务、选择与反馈保存在当前浏览器。</p><a href="#top">BACK TO TOP ↑</a></footer>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -29,5 +29,6 @@ target/
 .test-assets/
 .bun-cache/
 .tmp/
+/public-mirror/
 
 rust-migration-notes.md

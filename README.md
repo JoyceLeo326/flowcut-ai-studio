@@ -5,7 +5,7 @@ creative goals into reviewable edit plans, local timeline actions, and optional
 ChatCut cloud handoffs. It is a derivative project based on the MIT-licensed
 OpenCut Classic editor.
 
-Public preview: [flowcut-ai-studio.vercel.app](https://flowcut-ai-studio.vercel.app)
+Public preview: [FlowCut static experience](https://joyceleo326.github.io/liujiarui-product-lab/mirrors/flowcut-ai-studio/)
 
 ## Product capabilities
 
@@ -131,6 +131,19 @@ bun run dev:web
 bun test apps/web/src/ai-edit
 bun run build:web
 ```
+
+### Public static compatibility mode
+
+`mirror-src/` is an independent, server-free editing decision experience. A creator can enter a real material observation and personal delivery constraints, compare three plans with explicit gains and trade-offs, confirm a contiguous edit timeline, download a Markdown edit sheet or JSON timeline, and feed local review evidence into the next revision.
+
+```bash
+bun run test:mirror
+bun run build:public-mirror
+bun run test:public-mirror
+bun run security:mirror
+```
+
+The publishable output is `public-mirror/`. Its HTML, CSS and JavaScript use relative paths and system fonts; `mirror-manifest.json` records the public capability boundary and SHA-256 for every runtime file. It contains no environment files, server routes, provider credentials or private user media.
 
 The web app is in `apps/web`, shared core work is in `rust`, and the VisionCut
 edit-plan adapter is in `apps/web/src/ai-edit`.

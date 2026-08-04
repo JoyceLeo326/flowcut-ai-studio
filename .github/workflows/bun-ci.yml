@@ -28,11 +28,23 @@ jobs:
       - name: Test AI product foundations
         run: bun test apps/web/src/ai-edit apps/web/src/ai-studio
 
+      - name: Test public mirror decision engine
+        run: bun run test:mirror
+
       - name: Lint web app
         run: bun run lint:web
 
       - name: Build web app
         run: bun run build:web
 
+      - name: Build public static compatibility mode
+        run: bun run build:public-mirror
+
+      - name: Smoke-test public mirror through HTTP
+        run: bun run test:public-mirror
+
       - name: Block exposed credentials in source and build output
         run: bun run security:secrets
+
+      - name: Block exposed credentials in public mirror
+        run: bun run security:mirror
