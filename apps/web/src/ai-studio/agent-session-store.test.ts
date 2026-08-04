@@ -227,7 +227,7 @@ describe("VisionCut agent session audit storage", () => {
 		const storage = new MemoryAgentSessionStorage();
 		const unsafe = structuredClone(createSession()) as AgentRuntimeSession;
 		Reflect.set(unsafe, "debug", {
-			request: { apiKey: "sk-never-persist-this" },
+			request: { apiKey: "credential-placeholder" },
 		});
 
 		await expect(

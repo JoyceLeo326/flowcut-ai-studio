@@ -367,7 +367,7 @@ export function VisionCutModelCenter({
 		setNotice(
 			cleared
 				? {
-						message: "所有 BYOK 密钥已删除，已恢复本地免费模式。",
+						message: "所有 BYOK 密钥已删除，已恢复本机工作模式。",
 						state: "success",
 					}
 				: {
@@ -397,7 +397,7 @@ export function VisionCutModelCenter({
 						<h2 className="text-[14px] font-semibold">模型中心</h2>
 						<span className="inline-flex items-center gap-1 rounded-[5px] border px-2 py-1 text-[9px] text-emerald-700 dark:text-emerald-300">
 							<ShieldCheck className="size-3" />
-							免费默认
+							本机默认
 						</span>
 					</div>
 					<p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">

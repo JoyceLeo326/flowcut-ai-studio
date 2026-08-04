@@ -383,7 +383,7 @@ export async function handleAiCompletion({
 			throw new ModelProxyError({
 				code: "upstream_unavailable",
 				message:
-					"公网模型代理尚未配置分布式限流，请使用本地免费模式或联系部署管理员",
+					"公网模型代理尚未配置分布式限流，请使用本机工作模式或联系部署管理员",
 				retryable: false,
 				status: 503,
 			});

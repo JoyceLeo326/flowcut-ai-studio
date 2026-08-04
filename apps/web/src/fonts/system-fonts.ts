@@ -1,4 +1,9 @@
 export const SYSTEM_FONTS = new Set([
+	"Microsoft YaHei",
+	"PingFang SC",
+	"Noto Sans CJK SC",
+	"Source Han Sans SC",
+	"SimHei",
 	"Arial",
 	"Helvetica",
 	"Times New Roman",

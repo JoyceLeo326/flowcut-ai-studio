@@ -161,13 +161,11 @@ export function VisionCutProjectIntelligence({
 	const analyzedVideoCount = new Set(mediaIndexes.map((index) => index.assetId))
 		.size;
 	const videoFrameSampleCount = mediaIndexes.reduce(
-		(total, index) =>
-			total + index.sourceSnapshot.videoFrameSamples.length,
+		(total, index) => total + index.sourceSnapshot.videoFrameSamples.length,
 		0,
 	);
 	const audioWindowSampleCount = mediaIndexes.reduce(
-		(total, index) =>
-			total + index.sourceSnapshot.audioWindowSamples.length,
+		(total, index) => total + index.sourceSnapshot.audioWindowSamples.length,
 		0,
 	);
 	const transcriptSegmentCount = transcriptArtifact?.segments.length ?? 0;
@@ -260,7 +258,7 @@ export function VisionCutProjectIntelligence({
 							<h2 className="text-[14px] font-semibold">项目智能台</h2>
 							<span className="inline-flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-300">
 								<ShieldCheck className="size-3" />
-								免费本机
+								本机就绪
 							</span>
 						</div>
 						<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
@@ -322,11 +320,7 @@ export function VisionCutProjectIntelligence({
 									: "导入素材后开始"
 						}
 						state={
-							analysisComplete
-								? "ready"
-								: hasAssets
-									? "current"
-									: "waiting"
+							analysisComplete ? "ready" : hasAssets ? "current" : "waiting"
 						}
 					/>
 					<ReadinessRow
@@ -426,7 +420,10 @@ export function VisionCutProjectIntelligence({
 						</p>
 					</div>
 				</div>
-				<Button className="mt-3 h-11 w-full xl:h-10" onClick={nextAction.onClick}>
+				<Button
+					className="mt-3 h-11 w-full xl:h-10"
+					onClick={nextAction.onClick}
+				>
 					<NextActionIcon className="size-4" />
 					{nextAction.label}
 				</Button>
@@ -445,7 +442,7 @@ export function VisionCutProjectIntelligence({
 			<div className="flex gap-2 px-1 text-[11px] leading-relaxed text-muted-foreground">
 				<HardDrive className="mt-0.5 size-3.5 shrink-0 text-emerald-600" />
 				<p>
-					免费路径包含素材管理、时间线编辑、画幅调整、撤销和浏览器导出。模型能力保持可选，不连接也能继续工作。
+					素材管理、时间线编辑、画幅调整、撤销与浏览器导出都在本机完成；需要生成建议时，再连接你的模型服务。
 				</p>
 			</div>
 		</div>

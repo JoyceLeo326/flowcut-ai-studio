@@ -90,7 +90,9 @@ describe("Creator decision ledger", () => {
 		expect(() =>
 			createEvent({
 				eventId: "event-secret",
-				preferences: [{ key: "visualStyle", value: "sk-secret12345678" }],
+				preferences: [
+					{ key: "visualStyle", value: "apiKey=credential-placeholder-12345" },
+				],
 			}),
 		).toThrow("privacy boundary");
 		expect(() =>

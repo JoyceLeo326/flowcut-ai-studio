@@ -71,6 +71,7 @@ import { VisionCutHomeStudio } from "@/components/projects/visioncut-home-studio
 import { createIntentSpec, saveIntentSpec } from "@/ai-studio/intent-spec";
 import { appendProjectVersion } from "@/ai-studio/project-version-store";
 import { processMediaAssets } from "@/media/processing";
+import type { CreationMissionResult } from "@/ai-studio/creation-mission";
 const formatProjectDuration = ({
 	duration,
 }: {
@@ -110,25 +111,25 @@ export default function ProjectsPage() {
 	}, [editor.project]);
 
 	const handleCreateFromIntent = async ({
-		intent,
+		mission,
 		files,
 	}: {
-		intent: string;
+		mission: CreationMissionResult;
 		files: File[];
 	}) => {
 		setIsCreatingFromIntent(true);
 		try {
-			const normalizedIntent = intent.replace(/\s+/g, " ").trim();
 			const projectId = await editor.project.createNewProject({
-				name: normalizedIntent.slice(0, 36),
+				name: mission.projectName,
 			});
 			window.sessionStorage.setItem(
 				`visioncut:intent:${projectId}`,
-				normalizedIntent,
+				mission.userIntent,
 			);
 			const intentSpec = createIntentSpec({
 				projectId,
-				userIntent: normalizedIntent,
+				userIntent: mission.userIntent,
+				target: mission.target,
 				source: "home",
 				createdAt: new Date().toISOString(),
 			});

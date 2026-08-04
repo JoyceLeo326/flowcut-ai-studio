@@ -4,7 +4,7 @@ import { handleAiCompletion } from "./route";
 function sameOriginRequest(): Request {
 	return new Request("https://visioncut.example/api/ai/complete", {
 		body: JSON.stringify({
-			apiKey: "sk-test-key",
+			apiKey: "credential-fixture",
 			maxOutputTokens: 32,
 			model: "test-model",
 			prompt: "test",
@@ -43,7 +43,7 @@ describe("AI completion proxy production safety", () => {
 			error: {
 				code: "upstream_unavailable",
 				message:
-					"公网模型代理尚未配置分布式限流，请使用本地免费模式或联系部署管理员",
+					"公网模型代理尚未配置分布式限流，请使用本机工作模式或联系部署管理员",
 				retryable: false,
 			},
 			ok: false,

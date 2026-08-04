@@ -5,9 +5,9 @@ creative goals into reviewable edit plans, local timeline actions, and optional
 ChatCut cloud handoffs. It is a derivative project based on the MIT-licensed
 OpenCut Classic editor.
 
-Public preview: [flowcut-ai-studio.vercel.app](https://flowcut-ai-studio.vercel.app)
+Public preview: [FlowCut static experience](https://joyceleo326.github.io/liujiarui-product-lab/mirrors/flowcut-ai-studio/)
 
-## Current MVP
+## Product capabilities
 
 - Start with a natural-language intent, import multiple media files, and switch
   between Guided and Pro controls without leaving the project.
@@ -51,9 +51,9 @@ Public preview: [flowcut-ai-studio.vercel.app](https://flowcut-ai-studio.vercel.
   current project before any timeline change.
 - Local frame/audio signals are not presented as person, object, speaker,
   emotion, or retention understanding. Those claims require dedicated evidence
-  and model versions that are not part of this browser MVP.
+  and model versions that remain outside the current browser workspace.
 - PostgreSQL schema, migration, constraints, and RLS exist for the cloud stage,
-  but IndexedDB/OPFS remains the runtime source of truth in the public MVP.
+  while IndexedDB/OPFS remains the runtime source of truth in the public workspace.
 
 ## Run On This Windows Computer
 
@@ -113,7 +113,7 @@ launcher-managed browser data.
 7. Check **项目版本** before major changes and use **交付** to resolve blockers,
    prepare variants, and open the real local video exporter.
 
-The current MVP and the production target architecture are separated explicitly
+The current browser workspace and the production target architecture are separated explicitly
 in [docs/architecture/visioncut-system.md](docs/architecture/visioncut-system.md).
 
 More detail is available in [docs/USAGE.zh-CN.md](docs/USAGE.zh-CN.md) and
@@ -131,6 +131,19 @@ bun run dev:web
 bun test apps/web/src/ai-edit
 bun run build:web
 ```
+
+### Public static compatibility mode
+
+`mirror-src/` is an independent, server-free editing decision experience. A creator can enter a real material observation and personal delivery constraints, compare three plans with explicit gains and trade-offs, confirm a contiguous edit timeline, download a Markdown edit sheet or JSON timeline, and feed local review evidence into the next revision.
+
+```bash
+bun run test:mirror
+bun run build:public-mirror
+bun run test:public-mirror
+bun run security:mirror
+```
+
+The publishable output is `public-mirror/`. Its HTML, CSS and JavaScript use relative paths and system fonts; `mirror-manifest.json` records the public capability boundary and SHA-256 for every runtime file. It contains no environment files, server routes, provider credentials or private user media.
 
 The web app is in `apps/web`, shared core work is in `rust`, and the VisionCut
 edit-plan adapter is in `apps/web/src/ai-edit`.
