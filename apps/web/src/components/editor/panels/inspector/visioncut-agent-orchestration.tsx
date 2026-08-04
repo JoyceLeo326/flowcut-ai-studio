@@ -1117,7 +1117,7 @@ export function VisionCutAgentOrchestration({
 						</div>
 						<p className="mt-1 text-[8px] text-muted-foreground">
 							{preference === "local"
-								? "免费默认，不访问网络。"
+								? "本机默认，不访问网络。"
 								: providerSummary.label}
 						</p>
 					</div>

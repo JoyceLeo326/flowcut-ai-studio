@@ -1079,7 +1079,7 @@ describe("VisionCut auditable agent runtime", () => {
 				invoke: async () => ({
 					ok: true,
 					text: JSON.stringify({
-						summary: "apiKey=sk-should-never-be-audited",
+						summary: "apiKey=credential-placeholder-12345",
 						findings: [],
 						actions: [],
 					}),
@@ -1089,7 +1089,7 @@ describe("VisionCut auditable agent runtime", () => {
 
 		expect(completed.runs[0].artifact?.summary).toBe("[REDACTED]");
 		expect(completed.runs[0].attempts[0].responseAudit).not.toContain(
-			"sk-should-never-be-audited",
+			"credential-placeholder-12345",
 		);
 		expect(() => assertAgentAuditSafe({ value: completed })).not.toThrow();
 	});
@@ -1101,7 +1101,7 @@ describe("VisionCut auditable agent runtime", () => {
 					authorization: "Bearer top-secret-token",
 				},
 				config: {
-					apiKey: "sk-test-secret-value",
+					apiKey: "credential-placeholder",
 				},
 			},
 			response: "password=never-store-this",

@@ -215,7 +215,7 @@ const MODES: Array<{
 	},
 	{
 		id: "local",
-		label: "免费本地",
+		label: "本机工作",
 		description: "不调用任何模型 API，只执行当前浏览器已支持的本机步骤。",
 		icon: HardDrive,
 	},
@@ -1094,8 +1094,7 @@ export function AIWorkspacePanel() {
 						},
 					});
 					toast.error("Story Graph restore could not be persisted", {
-						description:
-							error instanceof Error ? error.message : undefined,
+						description: error instanceof Error ? error.message : undefined,
 					});
 				});
 		},
@@ -2319,9 +2318,7 @@ export function AIWorkspacePanel() {
 		}
 	};
 
-	const handleOperationPlanChange = (
-		nextOperationPlan: VersionedEditPlan,
-	) => {
+	const handleOperationPlanChange = (nextOperationPlan: VersionedEditPlan) => {
 		const previousOperationPlan = operationPlan;
 		setOperationPlan(nextOperationPlan);
 		setIsPlanReviewed(false);
@@ -3385,11 +3382,11 @@ export function AIWorkspacePanel() {
 									<span className="max-w-28 truncate text-[9px] text-muted-foreground">
 										{modelSelection
 											? modelSelection.local
-												? "本地免费"
+												? "本机规则"
 												: modelSelection.connected
 													? modelSelection.model
 													: "模型未连接"
-											: "本地免费"}
+											: "本机规则"}
 									</span>
 								</div>
 								{directorAdvice ? (

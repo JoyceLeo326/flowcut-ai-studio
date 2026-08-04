@@ -28,6 +28,21 @@ import {
 	type FormEvent,
 	type ChangeEvent,
 } from "react";
+import {
+	buildCreationMission,
+	createDefaultCreationMission,
+	CREATION_AUDIENCE_OPTIONS,
+	CREATION_PLATFORM_OPTIONS,
+	CREATION_PRIORITY_OPTIONS,
+	CREATION_ROLE_OPTIONS,
+	type CreationMissionResult,
+	type CreationMissionSelection,
+	parseCreationAudience,
+	parseCreationDuration,
+	parseCreationPlatform,
+	parseCreationPriority,
+	parseCreationRole,
+} from "@/ai-studio/creation-mission";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,6 +62,7 @@ const CREATION_STARTERS: Array<{
 	intent: string;
 	image: string;
 	icon: LucideIcon;
+	selection: Partial<CreationMissionSelection>;
 }> = [
 	{
 		id: "talking-head",
@@ -54,6 +70,12 @@ const CREATION_STARTERS: Array<{
 		intent: "把我的长口播清理成自然紧凑、带重点字幕和补镜的成片",
 		image: "/flowcut/style-worlds/human-daylight.webp",
 		icon: Mic2,
+		selection: {
+			audience: "通勤静音观看者",
+			priority: "信息可复述",
+			platform: "xiaohongshu",
+			durationSeconds: 60,
+		},
 	},
 	{
 		id: "shorts",
@@ -61,6 +83,12 @@ const CREATION_STARTERS: Array<{
 		intent: "从长视频中设计 3 个不同开场的竖屏短视频版本",
 		image: "/flowcut/style-worlds/electric-noir.webp",
 		icon: Zap,
+		selection: {
+			audience: "第一次认识主人公的人",
+			priority: "三秒建立冲突",
+			platform: "douyin",
+			durationSeconds: 30,
+		},
 	},
 	{
 		id: "brand",
@@ -68,6 +96,13 @@ const CREATION_STARTERS: Array<{
 		intent: "根据产品素材设计一支克制、高级、信息清楚的品牌广告",
 		image: "/flowcut/style-worlds/botanical-luxury.webp",
 		icon: PanelTop,
+		selection: {
+			creatorRole: "品牌内容负责人",
+			audience: "通勤静音观看者",
+			priority: "信息可复述",
+			platform: "xiaohongshu",
+			durationSeconds: 60,
+		},
 	},
 	{
 		id: "story",
@@ -75,6 +110,13 @@ const CREATION_STARTERS: Array<{
 		intent: "把访谈和现场素材重构成有开场、转折和情绪高潮的人物故事",
 		image: "/visioncut/generated-library/fisherman-dawn-portrait.webp",
 		icon: Film,
+		selection: {
+			creatorRole: "纪录片导演",
+			audience: "关注人物命运的观众",
+			priority: "人物情绪完整",
+			platform: "bilibili",
+			durationSeconds: 180,
+		},
 	},
 	{
 		id: "travel",
@@ -82,16 +124,23 @@ const CREATION_STARTERS: Array<{
 		intent: "把旅行片段组织成有到达感、人物关系和记忆温度的短纪录片",
 		image: "/flowcut/style-worlds/warm-memory.webp",
 		icon: Clapperboard,
+		selection: {
+			creatorRole: "独立创作者",
+			audience: "关注人物命运的观众",
+			priority: "人物情绪完整",
+			platform: "bilibili",
+			durationSeconds: 180,
+		},
 	},
 ];
 
 export interface VisionCutHomeStudioProps {
 	isCreating: boolean;
 	onCreate: ({
-		intent,
+		mission,
 		files,
 	}: {
-		intent: string;
+		mission: CreationMissionResult;
 		files: File[];
 	}) => Promise<void>;
 }
@@ -117,6 +166,8 @@ export function VisionCutHomeStudio({
 	onCreate,
 }: VisionCutHomeStudioProps) {
 	const [intent, setIntent] = useState("");
+	const [missionSelection, setMissionSelection] =
+		useState<CreationMissionSelection>(() => createDefaultCreationMission());
 	const [files, setFiles] = useState<File[]>([]);
 	const [preflightResult, setPreflightResult] =
 		useState<ImportPreflightBatchResult<File> | null>(null);
@@ -160,7 +211,13 @@ export function VisionCutHomeStudio({
 			files.length === 0
 				? []
 				: readyResults.map((result) => prepareFileForImport({ result }));
-		await onCreate({ intent: nextIntent, files: importFiles });
+		await onCreate({
+			mission: buildCreationMission({
+				intent: nextIntent,
+				selection: missionSelection,
+			}),
+			files: importFiles,
+		});
 	}
 
 	async function runPreflight({ nextFiles }: { nextFiles: File[] }) {
@@ -231,6 +288,21 @@ export function VisionCutHomeStudio({
 		});
 	}
 
+	function updateMission<K extends keyof CreationMissionSelection>({
+		key,
+		value,
+	}: {
+		key: K;
+		value: CreationMissionSelection[K];
+	}) {
+		setMissionSelection((current) => ({ ...current, [key]: value }));
+	}
+
+	const previewMission = buildCreationMission({
+		intent: intent.trim() || "把当前素材剪成一支有冲突、有选择、有结果的成片",
+		selection: missionSelection,
+	});
+
 	return (
 		<section className="relative isolate overflow-hidden border-y border-white/10 bg-[#08090a] text-white">
 			<Image
@@ -243,8 +315,8 @@ export function VisionCutHomeStudio({
 			/>
 			<div className="absolute inset-0 -z-10 bg-black/70" />
 
-			<div className="mx-auto flex min-h-[360px] max-w-[1480px] flex-col justify-center px-4 py-8 sm:px-8 lg:min-h-[410px] lg:px-12">
-				<div className="max-w-4xl">
+			<div className="mx-auto flex min-h-[520px] max-w-[1480px] flex-col justify-center px-4 py-8 sm:px-8 lg:px-12">
+				<div className="max-w-6xl">
 					<div className="mb-3 flex items-center gap-2 text-[11px] font-medium text-[#d7ff3f]">
 						<Sparkles className="size-4" />
 						VISIONCUT CREATIVE BRAIN
@@ -257,6 +329,167 @@ export function VisionCutHomeStudio({
 						上传可以稍后完成。先定义成片目标，VisionCut
 						会把它拆成故事、镜头、声音与交付方案。
 					</p>
+
+					<section
+						className="mt-5 grid overflow-hidden rounded-[8px] border border-white/14 bg-black/48 lg:grid-cols-[1.35fr_0.65fr]"
+						aria-labelledby="creation-mission-title"
+					>
+						<div className="grid gap-px bg-white/10 sm:grid-cols-2 lg:grid-cols-3">
+							<label className="bg-black/55 p-3 text-[10px] text-white/48">
+								主创称呼
+								<input
+									aria-label="主创称呼"
+									className="mt-1.5 h-11 w-full rounded-[6px] border border-white/14 bg-white/7 px-3 text-xs text-white outline-none focus:border-[#d7ff3f]"
+									maxLength={24}
+									value={missionSelection.creatorName}
+									onChange={(event) =>
+										updateMission({
+											key: "creatorName",
+											value: event.target.value,
+										})
+									}
+								/>
+							</label>
+							<label className="bg-black/55 p-3 text-[10px] text-white/48">
+								我的角色
+								<select
+									aria-label="我的角色"
+									className="mt-1.5 h-11 w-full rounded-[6px] border border-white/14 bg-[#17191b] px-3 text-xs text-white outline-none focus:border-[#d7ff3f]"
+									value={missionSelection.creatorRole}
+									onChange={(event) =>
+										updateMission({
+											key: "creatorRole",
+											value: parseCreationRole({ value: event.target.value }),
+										})
+									}
+								>
+									{CREATION_ROLE_OPTIONS.map((option) => (
+										<option key={option}>{option}</option>
+									))}
+								</select>
+							</label>
+							<label className="bg-black/55 p-3 text-[10px] text-white/48">
+								目标观众
+								<select
+									aria-label="目标观众"
+									className="mt-1.5 h-11 w-full rounded-[6px] border border-white/14 bg-[#17191b] px-3 text-xs text-white outline-none focus:border-[#d7ff3f]"
+									value={missionSelection.audience}
+									onChange={(event) =>
+										updateMission({
+											key: "audience",
+											value: parseCreationAudience({
+												value: event.target.value,
+											}),
+										})
+									}
+								>
+									{CREATION_AUDIENCE_OPTIONS.map((option) => (
+										<option key={option}>{option}</option>
+									))}
+								</select>
+							</label>
+							<label className="bg-black/55 p-3 text-[10px] text-white/48">
+								本轮优先
+								<select
+									aria-label="本轮优先"
+									className="mt-1.5 h-11 w-full rounded-[6px] border border-white/14 bg-[#17191b] px-3 text-xs text-white outline-none focus:border-[#d7ff3f]"
+									value={missionSelection.priority}
+									onChange={(event) =>
+										updateMission({
+											key: "priority",
+											value: parseCreationPriority({
+												value: event.target.value,
+											}),
+										})
+									}
+								>
+									{CREATION_PRIORITY_OPTIONS.map((option) => (
+										<option key={option}>{option}</option>
+									))}
+								</select>
+							</label>
+							<label className="bg-black/55 p-3 text-[10px] text-white/48">
+								平台与画幅
+								<select
+									aria-label="平台与画幅"
+									className="mt-1.5 h-11 w-full rounded-[6px] border border-white/14 bg-[#17191b] px-3 text-xs text-white outline-none focus:border-[#d7ff3f]"
+									value={missionSelection.platform}
+									onChange={(event) =>
+										updateMission({
+											key: "platform",
+											value: parseCreationPlatform({
+												value: event.target.value,
+											}),
+										})
+									}
+								>
+									{CREATION_PLATFORM_OPTIONS.map((option) => (
+										<option key={option.id} value={option.id}>
+											{option.label}
+										</option>
+									))}
+								</select>
+							</label>
+							<div className="grid grid-cols-2 gap-px bg-white/10">
+								<label className="bg-black/55 p-3 text-[10px] text-white/48">
+									成片时长
+									<select
+										aria-label="成片时长"
+										className="mt-1.5 h-11 w-full rounded-[6px] border border-white/14 bg-[#17191b] px-2 text-xs text-white outline-none focus:border-[#d7ff3f]"
+										value={missionSelection.durationSeconds}
+										onChange={(event) =>
+											updateMission({
+												key: "durationSeconds",
+												value: parseCreationDuration({
+													value: event.target.value,
+												}),
+											})
+										}
+									>
+										<option value="30">30 秒</option>
+										<option value="60">60 秒</option>
+										<option value="180">3 分钟</option>
+									</select>
+								</label>
+								<label className="bg-black/55 p-3 text-[10px] text-white/48">
+									交付时间
+									<input
+										aria-label="交付时间"
+										className="mt-1.5 h-11 w-full rounded-[6px] border border-white/14 bg-white/7 px-2 text-xs text-white outline-none focus:border-[#d7ff3f]"
+										maxLength={32}
+										value={missionSelection.deliveryTime}
+										onChange={(event) =>
+											updateMission({
+												key: "deliveryTime",
+												value: event.target.value,
+											})
+										}
+									/>
+								</label>
+							</div>
+						</div>
+						<div className="bg-[#121416]/92 p-4">
+							<h2
+								id="creation-mission-title"
+								className="text-[10px] font-semibold tracking-[0.18em] text-[#d7ff3f]"
+							>
+								任务现场
+							</h2>
+							<p className="mt-2 text-sm font-medium">
+								{previewMission.decision.owner} ·{" "}
+								{missionSelection.deliveryTime}
+							</p>
+							<p className="mt-2 text-[10px] leading-5 text-white/55">
+								{previewMission.decision.conflict}
+							</p>
+							<p className="mt-2 border-l-2 border-[#d7ff3f] pl-3 text-[10px] leading-5 text-white/72">
+								{previewMission.decision.choice}
+							</p>
+							<p className="mt-2 text-[10px] leading-5 text-white/45">
+								回看 · {previewMission.decision.reviewPrompt}
+							</p>
+						</div>
+					</section>
 
 					<form
 						onSubmit={(event) => void submit(event)}
@@ -550,6 +783,10 @@ export function VisionCutHomeStudio({
 								)}
 								onClick={() => {
 									setIntent(starter.intent);
+									setMissionSelection((current) => ({
+										...current,
+										...starter.selection,
+									}));
 									inputRef.current?.focus();
 								}}
 							>

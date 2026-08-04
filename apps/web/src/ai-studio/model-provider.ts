@@ -29,7 +29,7 @@ export const MODEL_PROVIDER_CATALOG: readonly ModelProviderDefinition[] = [
 	{
 		id: LOCAL_FREE_PROVIDER_ID,
 		label: "VisionCut 本地规则",
-		shortLabel: "本地免费",
+		shortLabel: "本机规则",
 		description: "在当前浏览器内完成意图分类与剪辑蓝图，不请求模型 API。",
 		defaultModel: LOCAL_FREE_MODEL_ID,
 		modelSuggestions: [LOCAL_FREE_MODEL_ID],

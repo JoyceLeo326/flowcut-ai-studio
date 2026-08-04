@@ -28,5 +28,11 @@ jobs:
       - name: Test AI product foundations
         run: bun test apps/web/src/ai-edit apps/web/src/ai-studio
 
+      - name: Lint web app
+        run: bun run lint:web
+
       - name: Build web app
         run: bun run build:web
+
+      - name: Block exposed credentials in source and build output
+        run: bun run security:secrets

@@ -20,7 +20,8 @@
 		"preview:web": "turbo run preview --filter=@flowcut/web",
 		"publish:wasm": "bun run build:wasm && npm publish rust/wasm/pkg --access public",
 		"start:tools": "turbo run start --filter=@opencut/tools",
-		"test": "bun test"
+		"test": "bun test",
+		"security:secrets": "node scripts/secret-guard.mjs . apps/web/.next"
 	},
 	"dependencies": {
 		"@types/react": "^19.2.10",
