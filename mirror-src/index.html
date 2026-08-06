@@ -2,15 +2,16 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="从素材观察生成三条可比较的剪辑路线，确认真实时间线并让反馈进入下一版。" />
     <meta name="theme-color" content="#080b0f" />
+    <link rel="icon" href="./assets/brand/flowcut-mark.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css" />
     <title>FlowCut · 把剪辑意图变成时间线</title>
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="#top"><span class="brand-icon" aria-hidden="true"><i></i><i></i><i></i></span><span><b>FLOWCUT</b><small>EDIT DECISION STUDIO</small></span></a>
+      <a class="brand" href="#top"><img class="brand-mark" src="./assets/brand/flowcut-mark.svg" width="40" height="40" alt="" /><span><b>FLOWCUT</b><small>EVIDENCE-LED EDITING</small></span></a>
       <nav aria-label="页面导航"><a href="#mission">任务</a><a href="#routes">路线</a><a href="#timeline">时间线</a><a href="#review">复盘</a></nav>
       <span class="session-state"><i></i> 本机创作会话</span>
     </header>
@@ -18,15 +19,15 @@
     <main id="top">
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="kicker"><span>NEW CUT</span> 从真实素材出发</p>
+          <p class="kicker"><span>YOUR NEXT CUT</span> 从真实素材出发</p>
           <h1 id="hero-title">让素材说出，<br /><em>下一刀在哪里。</em></h1>
           <p>先定义观众与目标，再比较三条真正不同的剪辑路径。不是替你按下确认键，而是让每一次保留和删减都有依据。</p>
           <div class="hero-actions"><a class="primary-button" href="#mission">开始一次剪辑决策 <span>↘</span></a><small>输入 → 比较 → 确认 → 下载 → 复盘</small></div>
           <ul class="signal-list"><li><i></i>真实时间码</li><li><i></i>素材锚点</li><li><i></i>本地反馈回流</li></ul>
         </div>
 
-        <div class="editor-demo" aria-label="剪辑时间线示意">
-          <div class="demo-toolbar"><span><i></i><i></i><i></i></span><b>PROJECT / FIRST-CUT</b><time>00:00:02:12</time></div>
+        <div class="editor-demo" aria-label="当前剪辑决策预览">
+          <div class="demo-toolbar"><span><i></i><i></i><i></i></span><b>FLOWCUT / EVIDENCE LOOP</b><time>00:00:02:12</time></div>
           <div class="demo-body">
             <aside><span>媒体</span><span>文字</span><span>声音</span><span>调色</span></aside>
             <div class="preview-panel">
@@ -72,7 +73,7 @@
       <section class="routes-section is-hidden" id="routes" aria-labelledby="routes-title">
         <header class="section-title"><span>02</span><div><p>COMPARE THE TRADE-OFFS</p><h2 id="routes-title">三条路线，<br />三种主动放弃。</h2><small id="route-context"></small></div></header>
         <div class="route-grid" id="route-grid" aria-live="polite"></div>
-        <div class="confirm-dock"><div><small>当前路线</small><strong id="selected-route">尚未选择</strong></div><button id="confirm-route" type="button" disabled>确认并铺入时间线 <span>→</span></button></div>
+        <div class="confirm-dock"><div><small>当前路线</small><strong id="selected-route">尚未选择</strong></div><label class="tradeoff-consent"><input id="accept-tradeoff" type="checkbox" disabled /><span>我接受所选路线主动放弃的部分</span></label><button id="confirm-route" type="button" disabled>明确确认并生成第一版 <span>→</span></button></div>
       </section>
 
       <section class="timeline-section is-hidden" id="timeline" aria-labelledby="timeline-title">
@@ -104,7 +105,7 @@
       </section>
     </main>
 
-    <footer><div class="brand"><span class="brand-icon" aria-hidden="true"><i></i><i></i><i></i></span><span><b>FLOWCUT</b><small>EDIT DECISION STUDIO</small></span></div><p>你的任务、选择与反馈保存在当前浏览器。</p><a href="#top">BACK TO TOP ↑</a></footer>
+    <footer><div class="brand"><img class="brand-mark" src="./assets/brand/flowcut-mark.svg" width="40" height="40" alt="" /><span><b>FLOWCUT</b><small>EVIDENCE-LED EDITING</small></span></div><p>你的任务、选择与反馈保存在当前浏览器。</p><a href="#top">BACK TO TOP ↑</a></footer>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script type="module" src="./app.js"></script>
   </body>

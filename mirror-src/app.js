@@ -1,12 +1,12 @@
 import {
+  applyReviewFeedback,
   buildDownloads,
-  buildEditDecision,
-  createEditRevision,
+  confirmEditDecision,
   generateEditPlans,
   normalizeEditMission,
 } from "./experience.js";
 
-const STORAGE_KEY = "flowcut-static-session-v1";
+const STORAGE_KEY = "flowcut-evidence-session-v2";
 const byId = (id) => document.getElementById(id);
 const missionForm = byId("mission-form");
 const reviewForm = byId("review-form");
@@ -67,14 +67,16 @@ function renderRoutes({ scroll = false } = {}) {
   byId("route-grid").querySelectorAll("[data-route]").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedId = button.dataset.route;
+      byId("accept-tradeoff").checked = false;
       persist();
       renderRoutes();
-      byId("confirm-route").focus();
+      byId("accept-tradeoff").focus();
     });
   });
   const selected = state.plans.find((plan) => plan.id === state.selectedId);
   byId("selected-route").textContent = selected ? `${selected.title} · ${selected.score} 分` : "尚未选择";
-  byId("confirm-route").disabled = !selected;
+  byId("accept-tradeoff").disabled = !selected;
+  byId("confirm-route").disabled = !selected || !byId("accept-tradeoff").checked;
   if (scroll) byId("routes").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -175,6 +177,9 @@ missionForm.addEventListener("submit", (event) => {
   state.selectedId = null;
   state.decision = null;
   state.activeClipId = null;
+  byId("accept-tradeoff").checked = false;
+  byId("accept-tradeoff").disabled = true;
+  byId("confirm-route").disabled = true;
   byId("timeline").classList.add("is-hidden");
   byId("review").classList.add("is-hidden");
   persist();
@@ -183,10 +188,16 @@ missionForm.addEventListener("submit", (event) => {
 
 materialField.addEventListener("input", syncMaterialCount);
 
+byId("accept-tradeoff").addEventListener("change", () => {
+  byId("confirm-route").disabled = !state.selectedId || !byId("accept-tradeoff").checked;
+});
+
 byId("confirm-route").addEventListener("click", () => {
-  const plan = state.plans.find((item) => item.id === state.selectedId);
-  if (!plan || !state.mission) return;
-  state.decision = buildEditDecision(state.mission, plan);
+  if (!state.selectedId || !state.mission || !byId("accept-tradeoff").checked) return;
+  state.decision = confirmEditDecision(state.mission, state.plans, state.selectedId, {
+    acceptedTradeoff: true,
+    statement: "我接受这条路线主动放弃的部分，并确认生成第一版。",
+  });
   state.activeClipId = state.decision.timeline[0].id;
   persist();
   renderTimeline({ scroll: true });
@@ -217,8 +228,8 @@ byId("download-json").addEventListener("click", () => {
 reviewForm.addEventListener("submit", (event) => {
   event.preventDefault();
   if (!state.decision) return;
-  const revision = createEditRevision(state.decision, Object.fromEntries(new FormData(reviewForm).entries()));
-  state.decision.revisions.push(revision);
+  state.decision = applyReviewFeedback(state.decision, Object.fromEntries(new FormData(reviewForm).entries()));
+  const revision = state.decision.revisions.at(-1);
   reviewForm.elements.note.value = "";
   persist();
   renderRevision();

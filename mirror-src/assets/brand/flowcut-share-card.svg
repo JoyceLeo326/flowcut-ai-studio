@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">FlowCut — make the next cut accountable</title>
+  <desc id="desc">FlowCut brand card with an evidence loop, three decision routes, and a confirmed cut point.</desc>
+  <rect width="1200" height="630" fill="#080b0f"/>
+  <path d="M0 530 1200 160" stroke="#162027" stroke-width="2"/>
+  <path d="M0 570 1200 200" stroke="#162027" stroke-width="2"/>
+  <g transform="translate(72 72)">
+    <rect width="112" height="112" rx="28" fill="#b9ff66"/>
+    <path d="M31 25h48v16H49v14h25v16H49v29H31V25Z" fill="#080b0f"/>
+    <path d="m23 76 67-39" stroke="#ff8d5c" stroke-width="7" stroke-linecap="round"/>
+    <path d="M74 82c0 11-9 18-20 18-12 0-21-7-21-18" fill="none" stroke="#080b0f" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="76" cy="81" r="7" fill="#58e6ff" stroke="#080b0f" stroke-width="3"/>
+  </g>
+  <text x="214" y="130" fill="#eef4e9" font-family="system-ui, sans-serif" font-size="58" font-weight="800" letter-spacing="3">FLOWCUT</text>
+  <text x="72" y="300" fill="#eef4e9" font-family="system-ui, sans-serif" font-size="78" font-weight="750">Make the next cut</text>
+  <text x="72" y="392" fill="#b9ff66" font-family="system-ui, sans-serif" font-size="78" font-weight="750">accountable.</text>
+  <text x="76" y="486" fill="#9ba7a0" font-family="system-ui, sans-serif" font-size="28">conflict → three trade-offs → choice → confirmation → delivery → evidence loop</text>
+  <g transform="translate(846 92) rotate(16)">
+    <rect width="264" height="400" rx="24" fill="#eef4e9"/>
+    <rect x="28" y="32" width="92" height="18" rx="9" fill="#080b0f"/>
+    <rect x="28" y="88" width="208" height="76" rx="14" fill="#b9ff66"/>
+    <rect x="28" y="180" width="208" height="76" rx="14" fill="#58e6ff"/>
+    <rect x="28" y="272" width="208" height="76" rx="14" fill="#ff8d5c"/>
+    <circle cx="222" cy="366" r="9" fill="#080b0f"/>
+  </g>
+</svg>
