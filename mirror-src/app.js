@@ -1,5 +1,6 @@
 import {
   applyReviewFeedback,
+  buildEditingConflict,
   buildDownloads,
   confirmEditDecision,
   generateEditPlans,
@@ -80,7 +81,9 @@ function routeMarkup(plan, index) {
     <h3>${escapeHtml(plan.title)}</h3>
     <p>${escapeHtml(plan.thesis)}</p>
     <span class="first-frame"><small>FIRST FRAME</small><p>${escapeHtml(plan.firstFrame)}</p></span>
+    <span class="criteria" aria-label="路线三项标准"><span><b>留存</b><i style="--value:${plan.criteria.retention}%"></i><em>${plan.criteria.retention}</em></span><span><b>证据</b><i style="--value:${plan.criteria.evidence}%"></i><em>${plan.criteria.evidence}</em></span><span><b>连续</b><i style="--value:${plan.criteria.continuity}%"></i><em>${plan.criteria.continuity}</em></span></span>
     <span class="gain-loss"><span><b>获得</b><span>${escapeHtml(plan.gain)}</span></span><span><b>代价</b><span>${escapeHtml(plan.tradeoff)}</span></span></span>
+    <span class="causal-explain"><small>为什么这样排</small><span>${escapeHtml(plan.resultPromise)}</span><span>${escapeHtml(plan.fitReasons.join("·"))}</span></span>
     <span class="check" aria-hidden="true">${selected ? "✓" : ""}</span>
   </button>`;
 }
@@ -88,7 +91,14 @@ function routeMarkup(plan, index) {
 function renderRoutes({ scroll = false } = {}) {
   if (!state.mission || !state.plans.length) return;
   byId("routes").classList.remove("is-hidden");
-  byId("route-context").textContent = `${state.mission.creator}正在剪一条 ${state.mission.seconds} 秒${state.mission.platform}内容；推荐顺序优先守住“${state.mission.priority}”。`;
+  const conflict = buildEditingConflict(state.mission);
+  const isNextRound = Boolean(state.decision?.nextRound);
+  byId("route-context").textContent = isNextRound
+    ? `复看证据已重排候选；${state.decision.nextRound.candidates[0].title}成为下一轮首选。`
+    : `${state.mission.creator}正在剪一条 ${state.mission.seconds} 秒${state.mission.platform}内容；推荐顺序优先守住“${state.mission.priority}”。`;
+  byId("conflict-statement").textContent = conflict.statement;
+  byId("conflict-tension").textContent = conflict.tension;
+  byId("conflict-evidence").innerHTML = conflict.evidence.map((item, index) => `<span><b>0${index + 1}</b>${escapeHtml(item)}</span>`).join("");
   byId("route-grid").innerHTML = state.plans.map(routeMarkup).join("");
   byId("route-grid").querySelectorAll("[data-route]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -124,12 +134,19 @@ function renderClipDetail() {
 function renderRevision() {
   const revisions = state.decision?.revisions ?? [];
   const latest = revisions.at(-1);
+  const nextRound = state.decision?.nextRound;
   byId("revision-empty").classList.toggle("is-hidden", Boolean(latest));
   byId("revision-result").classList.toggle("is-hidden", !latest);
   if (latest) {
     byId("revision-version").textContent = `V${latest.version} / 评分 ${latest.score} / 5`;
     byId("revision-action").textContent = latest.action;
     byId("revision-evidence").textContent = `复看证据：${latest.evidence}`;
+    byId("next-recommendation").textContent = `新推荐：${nextRound.candidates[0].title}`;
+    byId("next-because").textContent = nextRound.changedBecause;
+    byId("next-experiment").textContent = nextRound.firstExperiment;
+    byId("next-candidates").innerHTML = nextRound.candidates
+      .map((plan, index) => `<span><b>${index + 1}</b>${escapeHtml(plan.title)}<em>${plan.score}</em></span>`)
+      .join("");
   }
   byId("revision-history").innerHTML = revisions.map((item) => `<span>V${item.version} · ${escapeHtml(item.outcome)}</span>`).join("");
 }
@@ -266,9 +283,15 @@ reviewForm.addEventListener("submit", (event) => {
   if (!state.decision) return;
   state.decision = applyReviewFeedback(state.decision, Object.fromEntries(new FormData(reviewForm).entries()));
   const revision = state.decision.revisions.at(-1);
+  state.plans = state.decision.nextRound.candidates;
+  state.selectedId = null;
+  byId("accept-tradeoff").checked = false;
+  byId("accept-tradeoff").disabled = true;
+  byId("confirm-route").disabled = true;
   reviewForm.elements.note.value = "";
   persist();
   renderStoryChapter("feedback");
+  renderRoutes();
   renderRevision();
   byId("revision-result").scrollIntoView({ behavior: "smooth", block: "nearest" });
   toast(`V${revision.version} 修订动作已写回剪辑单。`);

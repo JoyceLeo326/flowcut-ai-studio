@@ -23,7 +23,7 @@
           <h1 id="hero-title">让素材说出，<br /><em>下一刀在哪里。</em></h1>
           <p>先定义观众与目标，再比较三条真正不同的剪辑路径。不是替你按下确认键，而是让每一次保留和删减都有依据。</p>
           <div class="hero-actions"><a class="primary-button" href="#mission">开始一次剪辑决策 <span>↘</span></a><small>输入 → 比较 → 确认 → 下载 → 复盘</small></div>
-          <ul class="signal-list"><li><i></i>真实时间码</li><li><i></i>素材锚点</li><li><i></i>本地反馈回流</li></ul>
+          <ul class="signal-list"><li><i></i>无需注册</li><li><i></i>真实时间码</li><li><i></i>素材锚点</li><li><i></i>本地反馈回流</li></ul>
         </div>
 
         <div class="editor-demo" aria-label="当前剪辑决策预览">
@@ -89,6 +89,7 @@
 
       <section class="routes-section is-hidden" id="routes" aria-labelledby="routes-title">
         <header class="section-title"><span>02</span><div><p>COMPARE THE TRADE-OFFS</p><h2 id="routes-title">三条路线，<br />三种主动放弃。</h2><small id="route-context"></small></div></header>
+        <article class="conflict-card"><small>这次真正要解的冲突</small><h3 id="conflict-statement"></h3><p id="conflict-tension"></p><div id="conflict-evidence"></div></article>
         <div class="route-grid" id="route-grid" aria-live="polite"></div>
         <div class="confirm-dock"><div><small>当前路线</small><strong id="selected-route">尚未选择</strong></div><label class="tradeoff-consent"><input id="accept-tradeoff" type="checkbox" disabled /><span>我接受所选路线主动放弃的部分</span></label><button id="confirm-route" type="button" disabled>明确确认并生成第一版 <span>→</span></button></div>
       </section>
@@ -114,10 +115,11 @@
           <form id="review-form" class="review-form">
             <fieldset><legend>这一版现在有多成立？</legend><div class="score-inputs"><label><input type="radio" name="score" value="1" /><span>1</span></label><label><input type="radio" name="score" value="2" /><span>2</span></label><label><input type="radio" name="score" value="3" checked /><span>3</span></label><label><input type="radio" name="score" value="4" /><span>4</span></label><label><input type="radio" name="score" value="5" /><span>5</span></label></div></fieldset>
             <label><span>最需要修正的地方</span><select name="outcome"><option>开场不够抓人</option><option>过程看不明白</option><option>证据不够可信</option><option>节奏太赶</option><option>可以交付</option></select></label>
+            <label><span>这条观察有多确定</span><select name="confidence"><option>明确看到</option><option>倾向如此</option><option>需要再看</option></select></label>
             <label><span>你观察到了什么</span><textarea name="note" rows="4" maxlength="240" required placeholder="例如：测试者在第 2 秒仍不知道冲突是什么。"></textarea></label>
             <button type="submit">记录证据，生成下一刀</button>
           </form>
-          <div class="revision-card"><div id="revision-empty" class="revision-empty"><span>WAITING FOR REVIEW</span><p>第一条具体观察，会在这里变成单一、可验证的修订动作。</p></div><div id="revision-result" class="is-hidden"><small id="revision-version"></small><h3>下一版只改这一刀</h3><p id="revision-action"></p><blockquote id="revision-evidence"></blockquote></div><div id="revision-history" class="revision-history"></div></div>
+          <div class="revision-card"><div id="revision-empty" class="revision-empty"><span>WAITING FOR REVIEW</span><p>第一条具体观察，会在这里变成单一、可验证的修订动作。</p></div><div id="revision-result" class="is-hidden"><small id="revision-version"></small><h3>下一版只改这一刀</h3><p id="revision-action"></p><blockquote id="revision-evidence"></blockquote><section class="next-round"><small>下一轮已因证据改变</small><h4 id="next-recommendation"></h4><p id="next-because"></p><strong>第一项实验</strong><p id="next-experiment"></p><div id="next-candidates" class="next-candidates"></div></section></div><div id="revision-history" class="revision-history"></div></div>
         </div>
       </section>
     </main>

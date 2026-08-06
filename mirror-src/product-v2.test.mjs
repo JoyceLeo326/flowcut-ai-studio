@@ -112,4 +112,21 @@ describe("FlowCut owned brand contract", () => {
     assert.match(mark, /aria-labelledby="flowcut-mark-title(?:\s+flowcut-mark-desc)?"/);
     assert.match(system, /cut point.*evidence loop/i);
   });
+
+  test("the interface exposes causal scoring and a visibly changed next round", async () => {
+    const [html, app, css] = await Promise.all([
+      readFile(new URL("./index.html", import.meta.url), "utf8"),
+      readFile(new URL("./app.js", import.meta.url), "utf8"),
+      readFile(new URL("./styles.css", import.meta.url), "utf8"),
+    ]);
+    assert.match(html, /id="conflict-statement"/);
+    assert.match(html, /name="confidence"/);
+    assert.match(html, /id="next-recommendation"/);
+    assert.match(app, /plan\.criteria\.retention/);
+    assert.match(app, /plan\.fitReasons/);
+    assert.match(app, /decision\.nextRound/);
+    assert.match(app, /next-candidates/);
+    assert.match(css, /\.route-grid[^}]*grid-auto-rows:\s*1fr/s);
+    assert.match(css, /\.route-card[^}]*height:\s*100%/s);
+  });
 });
