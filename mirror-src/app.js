@@ -5,6 +5,7 @@ import {
   generateEditPlans,
   normalizeEditMission,
 } from "./experience.js";
+import { STORY_CHAPTERS, STORY_SCENES, storyChapterForStage } from "./story-scenes.js";
 
 const STORAGE_KEY = "flowcut-evidence-session-v2";
 const byId = (id) => document.getElementById(id);
@@ -13,6 +14,7 @@ const reviewForm = byId("review-form");
 const materialField = missionForm.elements.material;
 
 let state = { mission: null, plans: [], selectedId: null, decision: null, activeClipId: null, zoom: 100 };
+let activeStoryChapter = "intake";
 
 function escapeHtml(value) {
   return String(value)
@@ -47,6 +49,30 @@ function syncMaterialCount() {
   byId("material-count").textContent = String(materialField.value.length);
 }
 
+export function renderStoryChapter(stage, { scroll = false } = {}) {
+  const chapterId = storyChapterForStage(stage);
+  const chapter = STORY_CHAPTERS.find((item) => item.id === chapterId) ?? STORY_CHAPTERS[0];
+  const scenes = STORY_SCENES.filter((scene) => scene.chapter === chapter.id);
+  activeStoryChapter = chapter.id;
+  byId("story-progress").innerHTML = STORY_CHAPTERS.map(
+    (item) => `<button type="button" data-story-chapter="${item.id}" aria-current="${item.id === chapter.id ? "step" : "false"}"><span>${item.number}</span>${item.label}</button>`,
+  ).join("");
+  byId("story-progress").querySelectorAll("[data-story-chapter]").forEach((button) => {
+    button.addEventListener("click", () => renderStoryChapter(button.dataset.storyChapter));
+  });
+  byId("story-frames").innerHTML = scenes
+    .map(
+      (scene, index) => `<figure class="story-frame ${index === 0 ? "is-lead" : ""}"><img src="${scene.src}" width="${scene.width}" height="${scene.height}" alt="${escapeHtml(scene.alt)}" loading="${index === 0 ? "eager" : "lazy"}" decoding="async" /><figcaption><span>${String(scene.flowPosition).padStart(2, "0")}</span><p>${escapeHtml(scene.storyPurpose)}</p></figcaption></figure>`,
+    )
+    .join("");
+  byId("story-number").textContent = `${chapter.number} / 06`;
+  byId("story-label").textContent = chapter.label;
+  byId("story-chapter-title").textContent = chapter.title;
+  byId("story-purpose").textContent = scenes.map((scene) => scene.storyPurpose).join(" ");
+  byId("story-summary").textContent = `${chapter.label}不是装饰画面：这四帧对应当前任务状态，并为下一步操作保留因果依据。`;
+  if (scroll) byId("story-stage").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function routeMarkup(plan, index) {
   const selected = state.selectedId === plan.id;
   return `<button class="route-card" type="button" data-route="${escapeHtml(plan.id)}" aria-pressed="${selected}">
@@ -70,6 +96,7 @@ function renderRoutes({ scroll = false } = {}) {
       byId("accept-tradeoff").checked = false;
       persist();
       renderRoutes();
+      renderStoryChapter("choice");
       byId("accept-tradeoff").focus();
     });
   });
@@ -183,10 +210,18 @@ missionForm.addEventListener("submit", (event) => {
   byId("timeline").classList.add("is-hidden");
   byId("review").classList.add("is-hidden");
   persist();
+  renderStoryChapter("compare");
   renderRoutes({ scroll: true });
 });
 
-materialField.addEventListener("input", syncMaterialCount);
+materialField.addEventListener("input", () => {
+  syncMaterialCount();
+  if (activeStoryChapter === "intake") renderStoryChapter("conflict");
+});
+
+missionForm.addEventListener("change", () => {
+  if (!state.plans.length) renderStoryChapter("conflict");
+});
 
 byId("accept-tradeoff").addEventListener("change", () => {
   byId("confirm-route").disabled = !state.selectedId || !byId("accept-tradeoff").checked;
@@ -200,6 +235,7 @@ byId("confirm-route").addEventListener("click", () => {
   });
   state.activeClipId = state.decision.timeline[0].id;
   persist();
+  renderStoryChapter("confirm");
   renderTimeline({ scroll: true });
   toast("路线已确认，真实时间线已经铺开。");
 });
@@ -232,6 +268,7 @@ reviewForm.addEventListener("submit", (event) => {
   const revision = state.decision.revisions.at(-1);
   reviewForm.elements.note.value = "";
   persist();
+  renderStoryChapter("feedback");
   renderRevision();
   byId("revision-result").scrollIntoView({ behavior: "smooth", block: "nearest" });
   toast(`V${revision.version} 修订动作已写回剪辑单。`);
@@ -257,3 +294,4 @@ try {
 }
 
 syncMaterialCount();
+renderStoryChapter(state.decision?.revisions?.length ? "feedback" : state.decision ? "confirm" : state.plans.length ? "compare" : "intake");
