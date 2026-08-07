@@ -22,6 +22,7 @@ test("public mirror uses relative JavaScript resources and has a build contract"
   assert.match(css, /\.score-inputs input \{[\s\S]*?width: 1px;[\s\S]*?clip-path: inset\(50%\);/);
   assert.match(css, /footer > a \{ min-height: 44px; \}/);
   assert.doesNotMatch(`${html}\n${css}\n${app}`, /https?:\/\//);
+  assert.doesNotMatch(`${html}\n${app}\n${await readFile("mirror-src/story-scenes.js", "utf8")}`, /当前设备|当前浏览器|0成本|零成本|无需登录|静态兼容/);
   assert.ok(JSON.parse(packageText).scripts["build:public-mirror"]);
   assert.match(buildScript, /storyFrames\.length !== 24/);
   assert.match(buildScript, /await cp\(resolve\(sourceDir, "assets"\)/);
