@@ -133,7 +133,7 @@ bun run build:web
 
 `mirror-src/` is the deployable, server-free FlowCut product. Its causal loop is local source preview → conflict → three visual candidates → human choice → explicit confirmation → real download → structured feedback → changed next recommendation → confirmed V2 with preserved decision history.
 
-Production entry: [flowcut-ai-studio.vercel.app](https://flowcut-ai-studio.vercel.app/). Static fallback: [joyceleo326.github.io/flowcut-ai-studio](https://joyceleo326.github.io/flowcut-ai-studio/).
+Recommended public entry: [joyceleo326.github.io/flowcut-ai-studio](https://joyceleo326.github.io/flowcut-ai-studio/). Static Vercel backup: [flowcut-ai-studio.vercel.app](https://flowcut-ai-studio.vercel.app/). The recommended entry is verified from the current mainland China network used for release checks; reachability can still vary by region, operator, and third-party hosting policy, so it is not presented as a permanent 100% availability guarantee.
 
 ```bash
 npm run quality:mirror
