@@ -93,6 +93,22 @@ describe("FlowCut product v2 causal journey", () => {
     assert.match(revised.nextRound.changedBecause, /证据不够可信/);
     assert.match(buildDownloads(revised).markdown, /下一轮已改变/);
   });
+
+  test("feedback wins the next-round recommendation even when the old route had a large score lead", () => {
+    const currentMission = mission({ role: "内容运营", audience: "准备购买", platform: "B站", seconds: 60, priority: "转化证据", deadline: "明天 10:00" });
+    const plans = generateEditPlans(currentMission);
+    assert.equal(plans[0].id, "proof-chain");
+    const decision = confirmEditDecision(currentMission, plans, "proof-chain", { acceptedTradeoff: true });
+    const revised = applyReviewFeedback(decision, {
+      score: 2,
+      outcome: "开场不够抓人",
+      confidence: "明确看到",
+      note: "测试者在第 3 秒仍无法复述冲突。",
+    });
+    assert.equal(revised.nextRound.recommendedPlanId, "hook-cut");
+    assert.equal(revised.nextRound.candidates[0].id, "hook-cut");
+    assert.notEqual(revised.nextRound.recommendedPlanId, decision.plan.id);
+  });
 });
 
 describe("FlowCut owned brand contract", () => {

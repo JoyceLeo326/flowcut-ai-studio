@@ -26,6 +26,7 @@
 		"test:public-mirror": "node --experimental-vm-modules scripts/http-mirror-smoke.mjs",
 		"security:secrets": "node scripts/secret-guard.mjs . apps/web/.next",
 		"security:mirror": "node scripts/secret-guard.mjs public-mirror",
+		"quality:mirror": "node --test mirror-src/*.test.mjs && node --check mirror-src/app.js && node --check mirror-src/experience.js && node --check mirror-src/story-scenes.js && node scripts/build-public-mirror.mjs && node --experimental-vm-modules scripts/http-mirror-smoke.mjs && node scripts/secret-guard.mjs public-mirror",
 		"quality": "bun run lint:web && bun run test && bun run test:mirror && bun run build:web && bun run build:public-mirror && bun run test:public-mirror && bun run security:secrets && bun run security:mirror"
 	},
 	"dependencies": {

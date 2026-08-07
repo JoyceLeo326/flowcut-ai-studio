@@ -1,11 +1,8 @@
-# VisionCut AI
+# FlowCut
 
-VisionCut AI is an intent-driven, local-first AI video creation system. It turns
-creative goals into reviewable edit plans, local timeline actions, and optional
-ChatCut cloud handoffs. It is a derivative project based on the MIT-licensed
-OpenCut Classic editor.
+FlowCut is an evidence-led editing decision product. Without an account, a creator can turn real material observations and delivery constraints into exactly three comparable routes, explicitly accept one route's trade-off, confirm a contiguous timeline, download a Markdown edit sheet and JSON timeline, and feed structured review evidence into a visibly changed next round.
 
-Public preview: [FlowCut static experience](https://joyceleo326.github.io/liujiarui-product-lab/mirrors/flowcut-ai-studio/)
+The public product is self-contained under `mirror-src/`: system fonts, local scripts, an original FlowCut mark, and 24 independently generated local WebP narrative frames. It makes no runtime request to Google, a CDN, analytics, or an AI provider. The larger local-first editor architecture remains in `apps/web` and `rust` and is based on the MIT-licensed OpenCut Classic editor.
 
 ## Product capabilities
 
@@ -132,18 +129,15 @@ bun test apps/web/src/ai-edit
 bun run build:web
 ```
 
-### Public static compatibility mode
+### Public product
 
-`mirror-src/` is an independent, server-free editing decision experience. A creator can enter a real material observation and personal delivery constraints, compare three plans with explicit gains and trade-offs, confirm a contiguous edit timeline, download a Markdown edit sheet or JSON timeline, and feed local review evidence into the next revision.
+`mirror-src/` is the deployable, server-free FlowCut product. Its causal loop is conflict → three equal candidates → human choice → explicit confirmation → real download → structured feedback → changed next recommendation.
 
 ```bash
-bun run test:mirror
-bun run build:public-mirror
-bun run test:public-mirror
-bun run security:mirror
+npm run quality:mirror
 ```
 
-The publishable output is `public-mirror/`. Its HTML, CSS and JavaScript use relative paths and system fonts; `mirror-manifest.json` records the public capability boundary and SHA-256 for every runtime file. It contains no environment files, server routes, provider credentials or private user media.
+The publishable output is `public-mirror/`. Its HTML, CSS, JavaScript, SVG, and WebP assets use relative local paths; `mirror-manifest.json` records the public capability boundary and SHA-256 for every runtime file. `mirror-src/assets/story/GENERATION_MANIFEST.md` records source-call provenance and story purpose for all 24 frames. The output contains no environment files, server routes, provider credentials, analytics SDKs, or private user media.
 
 The web app is in `apps/web`, shared core work is in `rust`, and the VisionCut
 edit-plan adapter is in `apps/web/src/ai-edit`.

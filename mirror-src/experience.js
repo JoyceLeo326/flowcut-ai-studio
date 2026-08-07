@@ -392,14 +392,20 @@ export function applyReviewFeedback(decision, feedback = {}) {
   const revision = createEditRevision(decision, feedback);
   const rule = FEEDBACK_RULES[revision.outcome] ?? FEEDBACK_RULES["过程看不明白"];
   const preferredId = rule.planId ?? decision.plan.id;
-  const candidates = generateEditPlans(decision.mission)
+  const baseCandidates = generateEditPlans(decision.mission);
+  const feedbackLeadScore = Math.min(99, Math.max(...baseCandidates.map((candidate) => candidate.score)) + 1);
+  const candidates = baseCandidates
     .map((candidate) => ({
       ...candidate,
       previousScore: candidate.score,
-      score: Math.min(99, candidate.score + (candidate.id === preferredId ? 36 : 0)),
+      score: candidate.id === preferredId ? feedbackLeadScore : candidate.score,
       feedbackFit: candidate.id === preferredId ? `回应“${revision.outcome}”` : "保留为对照路线",
     }))
-    .sort((left, right) => right.score - left.score || left.templateIndex - right.templateIndex);
+    .sort((left, right) => {
+      if (left.id === preferredId) return -1;
+      if (right.id === preferredId) return 1;
+      return right.score - left.score || left.templateIndex - right.templateIndex;
+    });
   const recommended = candidates[0];
   return {
     ...decision,
@@ -408,7 +414,7 @@ export function applyReviewFeedback(decision, feedback = {}) {
       round: (decision.revisions?.length ?? 0) + 2,
       recommendedPlanId: recommended.id,
       candidates,
-      changedBecause: `“${revision.outcome}”被记录为${revision.confidence}的观察，因而提高了${recommended.title}的证据权重。`,
+      changedBecause: `“${revision.outcome}”被记录为${revision.confidence}的观察，因而把${recommended.title}的下一轮优先权重放到第一位。`,
       firstExperiment: rule.experiment,
       timelinePreview: createTimeline(decision.mission, recommended),
     },

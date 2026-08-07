@@ -133,3 +133,43 @@ footer > a { display: inline-flex; align-items: center; }
 @media (max-width: 650px) {
   .conflict-card { padding: 18px; }.conflict-card > div { grid-template-columns: 1fr; }.criteria { margin-bottom: 18px; }.causal-explain { margin-top: 16px; }.route-card { min-height: 0; }
 }
+
+/* Safe-area, keyboard, and narrow-viewport release contract. */
+html { max-width: 100%; overflow-x: clip; scroll-padding-top: calc(78px + env(safe-area-inset-top)); scroll-padding-bottom: calc(28px + env(safe-area-inset-bottom)); }
+body { max-width: 100%; min-width: 0; overflow-x: clip; }
+button, a, input, select, textarea { touch-action: manipulation; }
+input, select, textarea { scroll-margin-block: 110px calc(180px + env(safe-area-inset-bottom)); }
+.topbar { padding-top: calc(10px + env(safe-area-inset-top)); padding-left: max(clamp(16px,4vw,60px),env(safe-area-inset-left)); padding-right: max(clamp(16px,4vw,60px),env(safe-area-inset-right)); }
+.confirm-dock { bottom: calc(14px + env(safe-area-inset-bottom)); }
+.toast { right: max(14px,env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); }
+footer { padding-bottom: calc(30px + env(safe-area-inset-bottom)); padding-left: max(clamp(16px,7vw,112px),env(safe-area-inset-left)); padding-right: max(clamp(16px,7vw,112px),env(safe-area-inset-right)); }
+.hero,.editor-demo,.mission-form,.route-grid,.route-card,.real-timeline,.review-grid,.story-layout { min-width: 0; max-width: 100%; }
+@supports (height: 100dvh) { .hero { min-height: calc(100dvh - 70px); } }
+
+@media (max-width: 430px) {
+  input, select, textarea { font-size: 16px; }
+  .topbar { grid-template-columns: minmax(0,1fr) auto; padding-inline: max(14px,env(safe-area-inset-left)) max(14px,env(safe-area-inset-right)); }
+  .brand { min-width: 0; }.brand > span:last-child { min-width: 0; }.brand small { letter-spacing: .1em; }.session-state { max-width: 80px; white-space: nowrap; }
+  .hero { width: 100%; padding: 72px 16px 76px; }.hero h1 { font-size: clamp(43px,13.4vw,58px); }.hero-actions,.hero-actions .primary-button { width: 100%; }.signal-list { gap: 10px 14px; }
+  .editor-demo { width: 100%; min-height: 470px; border-radius: 14px; }.demo-toolbar { grid-template-columns: auto minmax(0,1fr) auto; gap: 6px; }.demo-toolbar b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; }.demo-body { grid-template-columns: 38px minmax(0,1fr); height: 265px; }.demo-body aside { overflow: hidden; }.demo-timeline { height: 160px; padding-left: 34px; }.demo-note { right: 8px; width: min(180px,62vw); }
+  .story-stage,.mission-section,.routes-section,.timeline-section,.review-section { width: 100%; padding: 70px 16px; }.story-progress { max-width: 100%; }.story-progress button { flex-basis: 104px; }
+  .section-title { grid-template-columns: 40px minmax(0,1fr); }.section-title h2 { overflow-wrap: anywhere; font-size: clamp(34px,10.5vw,44px); }
+  .form-fields,.form-intro,.route-card,.review-form,.revision-card { padding: 20px; }.route-card h3 { margin-top: 24px; }.route-card > p { min-height: 0; }
+  .confirm-dock { width: 100%; max-width: 100%; padding: 14px; }.tradeoff-consent { align-items: start; }.tradeoff-consent span { line-height: 1.5; }
+  .decision-summary dl { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }.timeline-ruler { padding-left: 58px; }.real-track { grid-template-columns: 40px minmax(520px,1fr); }.timeline-tracks { overscroll-behavior-inline: contain; }
+  .export-bar { padding: 16px; }.score-inputs { gap: 4px; }.score-inputs span { min-height: 44px; height: 44px; }
+}
+
+@media (max-width: 390px) {
+  .topbar .brand small { display: none; }.brand-mark { width: 36px; height: 36px; flex-basis: 36px; }
+  .hero { padding-inline: 14px; }.hero-copy > p:not(.kicker) { font-size: 15px; }.editor-demo { min-height: 450px; }.demo-note { top: 27%; }
+  .story-stage,.mission-section,.routes-section,.timeline-section,.review-section { padding-inline: 14px; }.story-header h2 { font-size: 44px; }.story-frame figcaption p { font-size: 10px; }
+  .form-fields,.form-intro,.route-card,.review-form,.revision-card { padding: 18px; }.confirm-dock { padding: 12px; }.next-round { padding: 14px; }
+}
+
+@media (max-width: 320px) {
+  .topbar { padding-inline: max(10px,env(safe-area-inset-left)) max(10px,env(safe-area-inset-right)); }.session-state { max-width: 62px; }.hero { padding-inline: 12px; }.hero h1 { font-size: 40px; }.kicker { gap: 6px; font-size: 8px; }.primary-button { padding-inline: 14px; }
+  .editor-demo { min-height: 430px; }.demo-body { grid-template-columns: 32px minmax(0,1fr); height: 250px; }.preview-panel { padding-inline: 8px; }.demo-timeline { height: 155px; }.demo-note { width: 168px; }
+  .story-stage,.mission-section,.routes-section,.timeline-section,.review-section { padding-inline: 12px; }.story-header h2 { font-size: 39px; }.section-title { grid-template-columns: 36px minmax(0,1fr); gap: 8px; }.section-title h2 { font-size: 32px; }
+  .form-fields,.form-intro,.route-card,.review-form,.revision-card { padding: 16px; }.decision-summary dl div { padding-inline: 6px; }.decision-summary dt { font-size: 18px; }.export-bar,.confirm-dock { padding: 10px; }.next-round { padding: 12px; }
+}
