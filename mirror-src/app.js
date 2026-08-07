@@ -1,18 +1,21 @@
 import {
+  applyReviewFeedback,
+  buildEditingConflict,
   buildDownloads,
-  buildEditDecision,
-  createEditRevision,
+  confirmEditDecision,
   generateEditPlans,
   normalizeEditMission,
 } from "./experience.js";
+import { STORY_CHAPTERS, STORY_SCENES, storyChapterForStage } from "./story-scenes.js";
 
-const STORAGE_KEY = "flowcut-static-session-v1";
+const STORAGE_KEY = "flowcut-evidence-session-v2";
 const byId = (id) => document.getElementById(id);
 const missionForm = byId("mission-form");
 const reviewForm = byId("review-form");
 const materialField = missionForm.elements.material;
 
 let state = { mission: null, plans: [], selectedId: null, decision: null, activeClipId: null, zoom: 100 };
+let activeStoryChapter = "intake";
 
 function escapeHtml(value) {
   return String(value)
@@ -47,6 +50,30 @@ function syncMaterialCount() {
   byId("material-count").textContent = String(materialField.value.length);
 }
 
+export function renderStoryChapter(stage, { scroll = false } = {}) {
+  const chapterId = storyChapterForStage(stage);
+  const chapter = STORY_CHAPTERS.find((item) => item.id === chapterId) ?? STORY_CHAPTERS[0];
+  const scenes = STORY_SCENES.filter((scene) => scene.chapter === chapter.id);
+  activeStoryChapter = chapter.id;
+  byId("story-progress").innerHTML = STORY_CHAPTERS.map(
+    (item) => `<button type="button" data-story-chapter="${item.id}" aria-current="${item.id === chapter.id ? "step" : "false"}"><span>${item.number}</span>${item.label}</button>`,
+  ).join("");
+  byId("story-progress").querySelectorAll("[data-story-chapter]").forEach((button) => {
+    button.addEventListener("click", () => renderStoryChapter(button.dataset.storyChapter));
+  });
+  byId("story-frames").innerHTML = scenes
+    .map(
+      (scene, index) => `<figure class="story-frame ${index === 0 ? "is-lead" : ""}"><img src="${scene.src}" width="${scene.width}" height="${scene.height}" alt="${escapeHtml(scene.alt)}" loading="${index === 0 ? "eager" : "lazy"}" decoding="async" /><figcaption><span>${String(scene.flowPosition).padStart(2, "0")}</span><p>${escapeHtml(scene.storyPurpose)}</p></figcaption></figure>`,
+    )
+    .join("");
+  byId("story-number").textContent = `${chapter.number} / 06`;
+  byId("story-label").textContent = chapter.label;
+  byId("story-chapter-title").textContent = chapter.title;
+  byId("story-purpose").textContent = scenes.map((scene) => scene.storyPurpose).join(" ");
+  byId("story-summary").textContent = `${chapter.label}不是装饰画面：这四帧对应当前任务状态，并为下一步操作保留因果依据。`;
+  if (scroll) byId("story-stage").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function routeMarkup(plan, index) {
   const selected = state.selectedId === plan.id;
   return `<button class="route-card" type="button" data-route="${escapeHtml(plan.id)}" aria-pressed="${selected}">
@@ -54,7 +81,9 @@ function routeMarkup(plan, index) {
     <h3>${escapeHtml(plan.title)}</h3>
     <p>${escapeHtml(plan.thesis)}</p>
     <span class="first-frame"><small>FIRST FRAME</small><p>${escapeHtml(plan.firstFrame)}</p></span>
+    <span class="criteria" aria-label="路线三项标准"><span><b>留存</b><i style="--value:${plan.criteria.retention}%"></i><em>${plan.criteria.retention}</em></span><span><b>证据</b><i style="--value:${plan.criteria.evidence}%"></i><em>${plan.criteria.evidence}</em></span><span><b>连续</b><i style="--value:${plan.criteria.continuity}%"></i><em>${plan.criteria.continuity}</em></span></span>
     <span class="gain-loss"><span><b>获得</b><span>${escapeHtml(plan.gain)}</span></span><span><b>代价</b><span>${escapeHtml(plan.tradeoff)}</span></span></span>
+    <span class="causal-explain"><small>为什么这样排</small><span>${escapeHtml(plan.resultPromise)}</span><span>${escapeHtml(plan.fitReasons.join("·"))}</span></span>
     <span class="check" aria-hidden="true">${selected ? "✓" : ""}</span>
   </button>`;
 }
@@ -62,19 +91,29 @@ function routeMarkup(plan, index) {
 function renderRoutes({ scroll = false } = {}) {
   if (!state.mission || !state.plans.length) return;
   byId("routes").classList.remove("is-hidden");
-  byId("route-context").textContent = `${state.mission.creator}正在剪一条 ${state.mission.seconds} 秒${state.mission.platform}内容；推荐顺序优先守住“${state.mission.priority}”。`;
+  const conflict = buildEditingConflict(state.mission);
+  const isNextRound = Boolean(state.decision?.nextRound);
+  byId("route-context").textContent = isNextRound
+    ? `复看证据已重排候选；${state.decision.nextRound.candidates[0].title}成为下一轮首选。`
+    : `${state.mission.creator}正在剪一条 ${state.mission.seconds} 秒${state.mission.platform}内容；推荐顺序优先守住“${state.mission.priority}”。`;
+  byId("conflict-statement").textContent = conflict.statement;
+  byId("conflict-tension").textContent = conflict.tension;
+  byId("conflict-evidence").innerHTML = conflict.evidence.map((item, index) => `<span><b>0${index + 1}</b>${escapeHtml(item)}</span>`).join("");
   byId("route-grid").innerHTML = state.plans.map(routeMarkup).join("");
   byId("route-grid").querySelectorAll("[data-route]").forEach((button) => {
     button.addEventListener("click", () => {
       state.selectedId = button.dataset.route;
+      byId("accept-tradeoff").checked = false;
       persist();
       renderRoutes();
-      byId("confirm-route").focus();
+      renderStoryChapter("choice");
+      byId("accept-tradeoff").focus();
     });
   });
   const selected = state.plans.find((plan) => plan.id === state.selectedId);
   byId("selected-route").textContent = selected ? `${selected.title} · ${selected.score} 分` : "尚未选择";
-  byId("confirm-route").disabled = !selected;
+  byId("accept-tradeoff").disabled = !selected;
+  byId("confirm-route").disabled = !selected || !byId("accept-tradeoff").checked;
   if (scroll) byId("routes").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -95,12 +134,19 @@ function renderClipDetail() {
 function renderRevision() {
   const revisions = state.decision?.revisions ?? [];
   const latest = revisions.at(-1);
+  const nextRound = state.decision?.nextRound;
   byId("revision-empty").classList.toggle("is-hidden", Boolean(latest));
   byId("revision-result").classList.toggle("is-hidden", !latest);
   if (latest) {
     byId("revision-version").textContent = `V${latest.version} / 评分 ${latest.score} / 5`;
     byId("revision-action").textContent = latest.action;
     byId("revision-evidence").textContent = `复看证据：${latest.evidence}`;
+    byId("next-recommendation").textContent = `新推荐：${nextRound.candidates[0].title}`;
+    byId("next-because").textContent = nextRound.changedBecause;
+    byId("next-experiment").textContent = nextRound.firstExperiment;
+    byId("next-candidates").innerHTML = nextRound.candidates
+      .map((plan, index) => `<span><b>${index + 1}</b>${escapeHtml(plan.title)}<em>${plan.score}</em></span>`)
+      .join("");
   }
   byId("revision-history").innerHTML = revisions.map((item) => `<span>V${item.version} · ${escapeHtml(item.outcome)}</span>`).join("");
 }
@@ -175,20 +221,38 @@ missionForm.addEventListener("submit", (event) => {
   state.selectedId = null;
   state.decision = null;
   state.activeClipId = null;
+  byId("accept-tradeoff").checked = false;
+  byId("accept-tradeoff").disabled = true;
+  byId("confirm-route").disabled = true;
   byId("timeline").classList.add("is-hidden");
   byId("review").classList.add("is-hidden");
   persist();
+  renderStoryChapter("compare");
   renderRoutes({ scroll: true });
 });
 
-materialField.addEventListener("input", syncMaterialCount);
+materialField.addEventListener("input", () => {
+  syncMaterialCount();
+  if (activeStoryChapter === "intake") renderStoryChapter("conflict");
+});
+
+missionForm.addEventListener("change", () => {
+  if (!state.plans.length) renderStoryChapter("conflict");
+});
+
+byId("accept-tradeoff").addEventListener("change", () => {
+  byId("confirm-route").disabled = !state.selectedId || !byId("accept-tradeoff").checked;
+});
 
 byId("confirm-route").addEventListener("click", () => {
-  const plan = state.plans.find((item) => item.id === state.selectedId);
-  if (!plan || !state.mission) return;
-  state.decision = buildEditDecision(state.mission, plan);
+  if (!state.selectedId || !state.mission || !byId("accept-tradeoff").checked) return;
+  state.decision = confirmEditDecision(state.mission, state.plans, state.selectedId, {
+    acceptedTradeoff: true,
+    statement: "我接受这条路线主动放弃的部分，并确认生成第一版。",
+  });
   state.activeClipId = state.decision.timeline[0].id;
   persist();
+  renderStoryChapter("confirm");
   renderTimeline({ scroll: true });
   toast("路线已确认，真实时间线已经铺开。");
 });
@@ -217,10 +281,17 @@ byId("download-json").addEventListener("click", () => {
 reviewForm.addEventListener("submit", (event) => {
   event.preventDefault();
   if (!state.decision) return;
-  const revision = createEditRevision(state.decision, Object.fromEntries(new FormData(reviewForm).entries()));
-  state.decision.revisions.push(revision);
+  state.decision = applyReviewFeedback(state.decision, Object.fromEntries(new FormData(reviewForm).entries()));
+  const revision = state.decision.revisions.at(-1);
+  state.plans = state.decision.nextRound.candidates;
+  state.selectedId = null;
+  byId("accept-tradeoff").checked = false;
+  byId("accept-tradeoff").disabled = true;
+  byId("confirm-route").disabled = true;
   reviewForm.elements.note.value = "";
   persist();
+  renderStoryChapter("feedback");
+  renderRoutes();
   renderRevision();
   byId("revision-result").scrollIntoView({ behavior: "smooth", block: "nearest" });
   toast(`V${revision.version} 修订动作已写回剪辑单。`);
@@ -246,3 +317,4 @@ try {
 }
 
 syncMaterialCount();
+renderStoryChapter(state.decision?.revisions?.length ? "feedback" : state.decision ? "confirm" : state.plans.length ? "compare" : "intake");

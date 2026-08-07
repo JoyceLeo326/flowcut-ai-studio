@@ -2,15 +2,16 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="从素材观察生成三条可比较的剪辑路线，确认真实时间线并让反馈进入下一版。" />
     <meta name="theme-color" content="#080b0f" />
+    <link rel="icon" href="./assets/brand/flowcut-mark.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css" />
     <title>FlowCut · 把剪辑意图变成时间线</title>
   </head>
   <body>
     <header class="topbar">
-      <a class="brand" href="#top"><span class="brand-icon" aria-hidden="true"><i></i><i></i><i></i></span><span><b>FLOWCUT</b><small>EDIT DECISION STUDIO</small></span></a>
+      <a class="brand" href="#top"><img class="brand-mark" src="./assets/brand/flowcut-mark.svg" width="40" height="40" alt="" /><span><b>FLOWCUT</b><small>EVIDENCE-LED EDITING</small></span></a>
       <nav aria-label="页面导航"><a href="#mission">任务</a><a href="#routes">路线</a><a href="#timeline">时间线</a><a href="#review">复盘</a></nav>
       <span class="session-state"><i></i> 本机创作会话</span>
     </header>
@@ -18,15 +19,15 @@
     <main id="top">
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="kicker"><span>NEW CUT</span> 从真实素材出发</p>
+          <p class="kicker"><span>YOUR NEXT CUT</span> 从真实素材出发</p>
           <h1 id="hero-title">让素材说出，<br /><em>下一刀在哪里。</em></h1>
           <p>先定义观众与目标，再比较三条真正不同的剪辑路径。不是替你按下确认键，而是让每一次保留和删减都有依据。</p>
           <div class="hero-actions"><a class="primary-button" href="#mission">开始一次剪辑决策 <span>↘</span></a><small>输入 → 比较 → 确认 → 下载 → 复盘</small></div>
-          <ul class="signal-list"><li><i></i>真实时间码</li><li><i></i>素材锚点</li><li><i></i>本地反馈回流</li></ul>
+          <ul class="signal-list"><li><i></i>无需注册</li><li><i></i>真实时间码</li><li><i></i>素材锚点</li><li><i></i>本地反馈回流</li></ul>
         </div>
 
-        <div class="editor-demo" aria-label="剪辑时间线示意">
-          <div class="demo-toolbar"><span><i></i><i></i><i></i></span><b>PROJECT / FIRST-CUT</b><time>00:00:02:12</time></div>
+        <div class="editor-demo" aria-label="当前剪辑决策预览">
+          <div class="demo-toolbar"><span><i></i><i></i><i></i></span><b>FLOWCUT / EVIDENCE LOOP</b><time>00:00:02:12</time></div>
           <div class="demo-body">
             <aside><span>媒体</span><span>文字</span><span>声音</span><span>调色</span></aside>
             <div class="preview-panel">
@@ -42,6 +43,23 @@
             <div class="track"><b>A1</b><span class="wave-clip"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span></div>
           </div>
           <div class="demo-note"><span>推荐理由</span><p>你选择“前 3 秒留存”，所以结果帧先于解释出现。</p></div>
+        </div>
+      </section>
+
+      <section class="story-stage" id="story-stage" aria-labelledby="story-title">
+        <header class="story-header">
+          <div><p>THE EVIDENCE LOOP</p><h2 id="story-title">这一刀如何发生，<br />每一步都看得见。</h2></div>
+          <p id="story-summary">素材先进入本机工作台，人物、证据和未解决的任务从这里开始。</p>
+        </header>
+        <nav class="story-progress" id="story-progress" aria-label="剪辑决策的六个阶段"></nav>
+        <div class="story-layout">
+          <div class="story-frames" id="story-frames" aria-live="polite"></div>
+          <aside class="story-caption">
+            <span id="story-number">01 / 06</span>
+            <p id="story-label">素材进入</p>
+            <h3 id="story-chapter-title">先看见，真实发生了什么。</h3>
+            <p id="story-purpose">四个连续画面说明当前阶段为何存在；你的操作会把故事推进到下一章。</p>
+          </aside>
         </div>
       </section>
 
@@ -71,8 +89,9 @@
 
       <section class="routes-section is-hidden" id="routes" aria-labelledby="routes-title">
         <header class="section-title"><span>02</span><div><p>COMPARE THE TRADE-OFFS</p><h2 id="routes-title">三条路线，<br />三种主动放弃。</h2><small id="route-context"></small></div></header>
+        <article class="conflict-card"><small>这次真正要解的冲突</small><h3 id="conflict-statement"></h3><p id="conflict-tension"></p><div id="conflict-evidence"></div></article>
         <div class="route-grid" id="route-grid" aria-live="polite"></div>
-        <div class="confirm-dock"><div><small>当前路线</small><strong id="selected-route">尚未选择</strong></div><button id="confirm-route" type="button" disabled>确认并铺入时间线 <span>→</span></button></div>
+        <div class="confirm-dock"><div><small>当前路线</small><strong id="selected-route">尚未选择</strong></div><label class="tradeoff-consent"><input id="accept-tradeoff" type="checkbox" disabled /><span>我接受所选路线主动放弃的部分</span></label><button id="confirm-route" type="button" disabled>明确确认并生成第一版 <span>→</span></button></div>
       </section>
 
       <section class="timeline-section is-hidden" id="timeline" aria-labelledby="timeline-title">
@@ -96,15 +115,16 @@
           <form id="review-form" class="review-form">
             <fieldset><legend>这一版现在有多成立？</legend><div class="score-inputs"><label><input type="radio" name="score" value="1" /><span>1</span></label><label><input type="radio" name="score" value="2" /><span>2</span></label><label><input type="radio" name="score" value="3" checked /><span>3</span></label><label><input type="radio" name="score" value="4" /><span>4</span></label><label><input type="radio" name="score" value="5" /><span>5</span></label></div></fieldset>
             <label><span>最需要修正的地方</span><select name="outcome"><option>开场不够抓人</option><option>过程看不明白</option><option>证据不够可信</option><option>节奏太赶</option><option>可以交付</option></select></label>
+            <label><span>这条观察有多确定</span><select name="confidence"><option>明确看到</option><option>倾向如此</option><option>需要再看</option></select></label>
             <label><span>你观察到了什么</span><textarea name="note" rows="4" maxlength="240" required placeholder="例如：测试者在第 2 秒仍不知道冲突是什么。"></textarea></label>
             <button type="submit">记录证据，生成下一刀</button>
           </form>
-          <div class="revision-card"><div id="revision-empty" class="revision-empty"><span>WAITING FOR REVIEW</span><p>第一条具体观察，会在这里变成单一、可验证的修订动作。</p></div><div id="revision-result" class="is-hidden"><small id="revision-version"></small><h3>下一版只改这一刀</h3><p id="revision-action"></p><blockquote id="revision-evidence"></blockquote></div><div id="revision-history" class="revision-history"></div></div>
+          <div class="revision-card"><div id="revision-empty" class="revision-empty"><span>WAITING FOR REVIEW</span><p>第一条具体观察，会在这里变成单一、可验证的修订动作。</p></div><div id="revision-result" class="is-hidden"><small id="revision-version"></small><h3>下一版只改这一刀</h3><p id="revision-action"></p><blockquote id="revision-evidence"></blockquote><section class="next-round"><small>下一轮已因证据改变</small><h4 id="next-recommendation"></h4><p id="next-because"></p><strong>第一项实验</strong><p id="next-experiment"></p><div id="next-candidates" class="next-candidates"></div></section></div><div id="revision-history" class="revision-history"></div></div>
         </div>
       </section>
     </main>
 
-    <footer><div class="brand"><span class="brand-icon" aria-hidden="true"><i></i><i></i><i></i></span><span><b>FLOWCUT</b><small>EDIT DECISION STUDIO</small></span></div><p>你的任务、选择与反馈保存在当前浏览器。</p><a href="#top">BACK TO TOP ↑</a></footer>
+    <footer><div class="brand"><img class="brand-mark" src="./assets/brand/flowcut-mark.svg" width="40" height="40" alt="" /><span><b>FLOWCUT</b><small>EVIDENCE-LED EDITING</small></span></div><p>你的任务、选择与反馈保存在当前浏览器。</p><a href="#top">BACK TO TOP ↑</a></footer>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script type="module" src="./app.js"></script>
   </body>

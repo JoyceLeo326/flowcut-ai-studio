@@ -10,6 +10,8 @@ const mime = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
 };
 
 const server = createServer(async (request, response) => {
@@ -34,30 +36,39 @@ assert(address && typeof address === "object");
 const baseUrl = `http://127.0.0.1:${address.port}`;
 
 try {
-  const [htmlResponse, appResponse, engineResponse] = await Promise.all([
+  const [htmlResponse, appResponse, engineResponse, storyModuleResponse, storyFrameResponse] = await Promise.all([
     fetch(`${baseUrl}/index.html`),
     fetch(`${baseUrl}/app.js`),
     fetch(`${baseUrl}/experience.js`),
+    fetch(`${baseUrl}/story-scenes.js`),
+    fetch(`${baseUrl}/assets/story/flowcut-story-24.webp`),
   ]);
   assert.match(htmlResponse.headers.get("content-type") ?? "", /^text\/html/);
   assert.match(appResponse.headers.get("content-type") ?? "", /^text\/javascript/);
   assert.match(engineResponse.headers.get("content-type") ?? "", /^text\/javascript/);
+  assert.match(storyModuleResponse.headers.get("content-type") ?? "", /^text\/javascript/);
+  assert.match(storyFrameResponse.headers.get("content-type") ?? "", /^image\/webp/);
 
-  const [html, appSource, engineSource] = await Promise.all([
+  const [html, appSource, engineSource, storySource] = await Promise.all([
     htmlResponse.text(),
     appResponse.text(),
     engineResponse.text(),
+    storyModuleResponse.text(),
   ]);
   assert.match(html, /type="module" src="\.\/app\.js"/);
 
   const context = createContext({ console });
   const engineModule = new SourceTextModule(engineSource, { context, identifier: `${baseUrl}/experience.js` });
+  const storyModule = new SourceTextModule(storySource, { context, identifier: `${baseUrl}/story-scenes.js` });
   const appModule = new SourceTextModule(appSource, { context, identifier: `${baseUrl}/app.js` });
   await appModule.link(async (specifier) => {
-    assert.equal(specifier, "./experience.js");
-    return engineModule;
+    if (specifier === "./experience.js") return engineModule;
+    if (specifier === "./story-scenes.js") return storyModule;
+    assert.fail(`Unexpected application module: ${specifier}`);
   });
   await engineModule.evaluate();
+  await storyModule.evaluate();
+  assert.equal(storyModule.namespace.STORY_SCENES.length, 24);
 
   const mission = engineModule.namespace.normalizeEditMission({
     creator: "周屿",
@@ -78,7 +89,7 @@ try {
   }));
   assert.match(engineModule.namespace.buildDownloads(decision).markdown, /第 2 版/);
 
-  console.log("HTTP mirror smoke passed: JS MIME, module graph, candidate pipeline, timeline and review backflow.");
+  console.log("HTTP product smoke passed: module graph, 24 local frames, candidate pipeline, timeline and review backflow.");
 } finally {
   await new Promise((resolveClose, rejectClose) => server.close((error) => (error ? rejectClose(error) : resolveClose())));
 }

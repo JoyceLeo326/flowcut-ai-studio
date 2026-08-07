@@ -32,3 +32,4 @@ target/
 /public-mirror/
 
 rust-migration-notes.md
+.vercel
