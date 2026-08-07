@@ -55,7 +55,7 @@ try {
     engineResponse.text(),
     storyModuleResponse.text(),
   ]);
-  assert.match(html, /type="module" src="\.\/app\.js"/);
+  assert.match(html, /type="module" src="\.\/app\.js\?v=\d+[a-z]?"/);
 
   const context = createContext({ console });
   const engineModule = new SourceTextModule(engineSource, { context, identifier: `${baseUrl}/experience.js` });

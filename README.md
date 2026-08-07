@@ -1,6 +1,6 @@
 # FlowCut
 
-FlowCut is an evidence-led editing decision product. Without an account, a creator can turn real material observations and delivery constraints into exactly three comparable routes, explicitly accept one route's trade-off, confirm a contiguous timeline, download a Markdown edit sheet and JSON timeline, and feed structured review evidence into a visibly changed next round.
+FlowCut is an evidence-led editing decision product. A creator can preview local video, audio, or image sources, combine their metadata with concrete material observations and delivery constraints, compare exactly three routes, explicitly accept one route's trade-off, confirm a contiguous timeline, download a Markdown edit sheet and JSON timeline, and feed structured review evidence into a visibly changed next version.
 
 The public product is self-contained under `mirror-src/`: system fonts, local scripts, an original FlowCut mark, and 24 independently generated local WebP narrative frames. It makes no runtime request to Google, a CDN, analytics, or an AI provider. The larger local-first editor architecture remains in `apps/web` and `rust` and is based on the MIT-licensed OpenCut Classic editor.
 
@@ -131,7 +131,7 @@ bun run build:web
 
 ### Public product
 
-`mirror-src/` is the deployable, server-free FlowCut product. Its causal loop is conflict → three equal candidates → human choice → explicit confirmation → real download → structured feedback → changed next recommendation.
+`mirror-src/` is the deployable, server-free FlowCut product. Its causal loop is local source preview → conflict → three visual candidates → human choice → explicit confirmation → real download → structured feedback → changed next recommendation → confirmed V2 with preserved decision history.
 
 ```bash
 npm run quality:mirror

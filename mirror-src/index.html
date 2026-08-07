@@ -6,14 +6,14 @@
     <meta name="description" content="从素材观察生成三条可比较的剪辑路线，确认真实时间线并让反馈进入下一版。" />
     <meta name="theme-color" content="#080b0f" />
     <link rel="icon" href="./assets/brand/flowcut-mark.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260807b" />
     <title>FlowCut · 把剪辑意图变成时间线</title>
   </head>
   <body>
     <header class="topbar">
       <a class="brand" href="#top"><img class="brand-mark" src="./assets/brand/flowcut-mark.svg" width="40" height="40" alt="" /><span><b>FLOWCUT</b><small>EVIDENCE-LED EDITING</small></span></a>
       <nav aria-label="页面导航"><a href="#mission">任务</a><a href="#routes">路线</a><a href="#timeline">时间线</a><a href="#review">复盘</a></nav>
-      <span class="session-state"><i></i> 本机创作会话</span>
+      <span class="session-state"><i></i><span id="progress-status">新剪辑待定义</span></span>
     </header>
 
     <main id="top">
@@ -23,7 +23,7 @@
           <h1 id="hero-title">让素材说出，<br /><em>下一刀在哪里。</em></h1>
           <p>先定义观众与目标，再比较三条真正不同的剪辑路径。不是替你按下确认键，而是让每一次保留和删减都有依据。</p>
           <div class="hero-actions"><a class="primary-button" href="#mission">开始一次剪辑决策 <span>↘</span></a><small>输入 → 比较 → 确认 → 下载 → 复盘</small></div>
-          <ul class="signal-list"><li><i></i>直接定义任务</li><li><i></i>真实时间码</li><li><i></i>素材锚点</li><li><i></i>本地反馈回流</li></ul>
+          <ul class="signal-list"><li><i></i>直接定义任务</li><li><i></i>真实时间码</li><li><i></i>素材锚点</li><li><i></i>反馈改变下一刀</li></ul>
         </div>
 
         <div class="editor-demo" aria-label="当前剪辑决策预览">
@@ -66,7 +66,7 @@
       <section class="mission-section" id="mission" aria-labelledby="mission-title">
         <header class="section-title"><span>01</span><div><p>DEFINE THE CUT</p><h2 id="mission-title">先把这条片子，<br />放进真实的观看场景。</h2></div></header>
         <form id="mission-form" class="mission-form">
-          <div class="form-intro"><strong>剪辑任务</strong><p>这些约束会改变推荐分数、时间线比例、画幅和复看标准。</p><span>自动保存在当前浏览器</span></div>
+          <div class="form-intro"><strong>剪辑任务</strong><p>这些约束会改变推荐分数、时间线比例、画幅和复看标准。</p><span>约束越明确，路线越可执行</span></div>
           <div class="form-fields">
             <div class="field-row">
               <label><span>怎么称呼你</span><input name="creator" maxlength="24" value="周屿" autocomplete="name" /></label>
@@ -81,6 +81,12 @@
               <label><span>必须守住什么</span><select name="priority"><option>前3秒留存</option><option>叙事完整</option><option>转化证据</option></select></label>
               <label><span>交付时间</span><input name="deadline" maxlength="32" value="今天 20:00" /></label>
             </div>
+            <section class="source-intake" aria-labelledby="source-title">
+              <div class="source-intake-copy"><span id="source-title">真实素材（可选）</span><small>先预览，再依据真实片段写观察</small></div>
+              <label class="source-picker" id="source-drop" for="source-files"><input class="visually-hidden" id="source-files" type="file" accept="video/*,audio/*,image/*" multiple /><b>添加本地素材</b><span>视频 · 音频 · 图片，最多 8 个</span></label>
+              <div class="source-preview" id="source-preview" aria-live="polite"><div><b>素材预览区</b><span>选择文件后可直接播放或查看</span></div></div>
+              <div class="source-file-list" id="source-file-list" aria-live="polite"><p>可先用文字定义任务，也可把真实素材一起装入剪辑单。</p></div>
+            </section>
             <label class="material-field"><span>素材里真实发生了什么 <small>按镜头顺序写下动作、变化与结果</small></span><textarea name="material" maxlength="2400" rows="6">开场是主理人把失败样品放到桌上。中段展示三次调整配方的过程。最后顾客盲测说终于喝到了想要的酸度。</textarea><i><b id="material-count">0</b> / 2400</i></label>
             <button class="primary-button full-button" type="submit">分析素材，生成三条剪辑路线 <span>→</span></button>
           </div>
@@ -98,7 +104,7 @@
         <header class="section-title light-title"><span>03</span><div><p>COMMIT THE CUT</p><h2 id="timeline-title">每一秒，<br />现在都有任务。</h2></div></header>
         <div class="decision-summary"><div><small>已确认</small><h3 id="decision-title"></h3><p id="decision-thesis"></p></div><dl><div><dt id="decision-score"></dt><dd>适配分</dd></div><div><dt id="decision-ratio"></dt><dd>画幅</dd></div><div><dt id="decision-duration"></dt><dd>秒</dd></div></dl></div>
         <div class="real-timeline">
-          <div class="timeline-tools"><span>FIRST CUT / V1</span><div><button id="timeline-zoom-out" type="button" aria-label="缩小时间线">−</button><b id="timeline-zoom-value">100%</b><button id="timeline-zoom-in" type="button" aria-label="放大时间线">＋</button></div></div>
+          <div class="timeline-tools"><span id="timeline-version">FIRST CUT / V1</span><div><button id="timeline-zoom-out" type="button" aria-label="缩小时间线">−</button><b id="timeline-zoom-value">100%</b><button id="timeline-zoom-in" type="button" aria-label="放大时间线">＋</button></div></div>
           <div class="timeline-ruler" id="timeline-ruler"></div>
           <div class="timeline-tracks" id="timeline-tracks"></div>
           <div class="timeline-detail" id="timeline-detail" aria-live="polite"><p>选择一个片段，查看剪辑指令和素材锚点。</p></div>
@@ -124,8 +130,8 @@
       </section>
     </main>
 
-    <footer><div class="brand"><img class="brand-mark" src="./assets/brand/flowcut-mark.svg" width="40" height="40" alt="" /><span><b>FLOWCUT</b><small>EVIDENCE-LED EDITING</small></span></div><p>你的任务、选择与反馈保存在当前浏览器。</p><a href="#top">BACK TO TOP ↑</a></footer>
+    <footer><div class="brand"><img class="brand-mark" src="./assets/brand/flowcut-mark.svg" width="40" height="40" alt="" /><span><b>FLOWCUT</b><small>EVIDENCE-LED EDITING</small></span></div><p>让每次选择留下依据，让下一刀从反馈开始。</p><a href="#top">BACK TO TOP ↑</a></footer>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./app.js?v=20260807b"></script>
   </body>
 </html>
