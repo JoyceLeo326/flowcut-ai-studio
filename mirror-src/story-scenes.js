@@ -12,7 +12,7 @@ export const SHARED_STORY_ANCHOR =
 
 const RAW_SCENES = [
   ["intake", "exec-96f8cd1f-b3de-44cc-b1a2-384572240d7c.png", "阿野把存储卡与红色失败样品放到桌上，林澄打开空白笔记本，真实剪辑任务开始。", "建立连续角色、空间、素材证据与尚未解决的任务。", "Material handoff begins; memory card and failed sample reach the editor."],
-  ["intake", "exec-67ff616c-5726-45d1-9c32-ee9945f76fc7.png", "林澄把存储卡插入本地读卡器，两人一起查看无文字的素材波形与片段块。", "让素材从当前设备进入工作流，并保留可核对的本地上下文。", "Local ingest begins while both creators inspect abstract clips."],
+  ["intake", "exec-67ff616c-5726-45d1-9c32-ee9945f76fc7.png", "林澄把存储卡插入读卡器，两人一起查看无文字的素材波形与片段块。", "让素材进入同一条剪辑脉络，并保留可核对的来源与上下文。", "Local ingest begins while both creators inspect abstract clips."],
   ["intake", "exec-23691abd-cb40-408c-bc2a-b0e136ceee80.png", "失败样品、杯子与存储卡在桌面构成证据三角，阿野向林澄指出素材里的真实动作。", "把原始文件转译为可观察、可引用的素材证据。", "Physical evidence forms a triangle as the creator recounts what happened."],
   ["intake", "exec-fe136cf9-a3c7-4e7c-9b43-564e5cac28b0.png", "林澄暂停一个具体画面并指向屏幕，阿野第一次看见素材中真正的矛盾。", "从素材锚点发现第一条可描述的冲突。", "A paused frame reveals the first concrete conflict."],
   ["conflict", "exec-c86cfc41-8944-4029-bd11-37a2809b963c.png", "一个屏幕是纠缠的时间线，另一个是清晰结果，林澄与阿野在速度和意义之间权衡。", "在推荐出现前，先把核心编辑冲突外化。", "Dense process and clear result confront each other across two screens."],
@@ -29,7 +29,7 @@ const RAW_SCENES = [
   ["choice", "exec-6467a4a6-6640-4273-ace6-1260a1a9be39.png", "阿野把黑色确认标记放到珊瑚切线之上，另外两条候选仍完整留在后方。", "把接受代价变成不可跳过的明确确认动作。", "A physical token records explicit acceptance of the trade-off."],
   ["confirm", "exec-715d42d1-926b-4c7c-85a9-4cd6e8c91d37.png", "被确认的路线展开为从零到结束的五个连续时间线片段，两人对照分镜检查。", "让人的确认产生一条真正连续的第一版时间线。", "The confirmed route becomes five contiguous timeline segments."],
   ["confirm", "exec-4d3fb724-4766-4382-8579-81a2f8162e53.png", "林澄选中第三个时间线片段，阿野在屏幕片段和桌面证据卡之间来回指认。", "证明时间码指令仍然锚定真实素材。", "A selected timeline segment points back to physical evidence."],
-  ["confirm", "exec-840a4902-7fc3-48cc-8a53-a172135fdeb8.png", "林澄触发本地向下导出，纸面剪辑单和数据网格卡出现在设备旁。", "表现 Markdown 与 JSON 是实际生成的本地交付物。", "A local export produces a sheet and structured data card."],
+  ["confirm", "exec-840a4902-7fc3-48cc-8a53-a172135fdeb8.png", "林澄按下导出，纸面剪辑单和数据网格卡出现在设备旁。", "表现 Markdown 与 JSON 已成为可继续执行的真实交付物。", "A local export produces a sheet and structured data card."],
   ["confirm", "exec-5cddde31-27dc-4fe5-bda3-8ccc26c3dedd.png", "林澄把夹好的剪辑单和深色存储设备交给阿野，完成时间线仍在背后发光。", "让结果可下载、可携带并归创作者所有。", "The creator receives portable deliverables while the cut remains visible."],
   ["feedback", "exec-2638f379-0f0b-49b1-ab88-766ff8af0d83.png", "两人肩并肩在手机上复看片子，结果已经出现，但他们的表情仍带着具体疑问。", "把交付后的真实观看作为反馈回环起点。", "A real phone review begins after delivery."],
   ["feedback", "exec-9f8e3080-bac7-4b2b-aaa3-eaf2aad687a1.png", "阿野点选五个评分点中的第二个，并把青色证据标记放到缺失动作旁。", "收集评分、问题、确信程度与观察证据。", "Structured review records a low score and a missing action."],
