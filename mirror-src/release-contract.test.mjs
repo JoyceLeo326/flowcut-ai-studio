@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { describe, test } from "node:test";
 
 describe("FlowCut mainland-first static release", () => {
-  test("the runtime is local, no-login, and blocks outbound connections", async () => {
+  test("the runtime starts at the task and blocks outbound connections", async () => {
     const [html, css, app, vercelText] = await Promise.all([
       readFile("mirror-src/index.html", "utf8"),
       readFile("mirror-src/styles.css", "utf8"),
@@ -12,7 +12,7 @@ describe("FlowCut mainland-first static release", () => {
     ]);
     const vercel = JSON.parse(vercelText);
 
-    assert.match(html, /无需注册/);
+    assert.match(html, /直接定义任务/);
     assert.doesNotMatch(`${html}\n${css}\n${app}`, /https?:\/\//i);
     assert.doesNotMatch(`${html}\n${css}\n${app}`, /google|gstatic|cdn|analytics/i);
     assert.equal(vercel.outputDirectory, "public-mirror");

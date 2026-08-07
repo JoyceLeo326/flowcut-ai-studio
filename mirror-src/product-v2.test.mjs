@@ -9,6 +9,7 @@ import {
   generateEditPlans,
   normalizeEditMission,
 } from "./experience.js";
+import { STORY_SCENES } from "./story-scenes.js";
 
 const MATERIAL = "开场主理人把失败样品放到桌上。中段展示三次调整配方的过程。结尾顾客盲测说终于喝到了想要的酸度。";
 
@@ -122,8 +123,11 @@ describe("FlowCut owned brand contract", () => {
     assert.match(html, /\.\/assets\/brand\/flowcut-mark\.svg/);
     assert.match(html, /id="accept-tradeoff"/);
     assert.match(html, /id="confirm-route"[^>]*disabled/);
-    const visibleCopy = html.replace(/<[^>]+>/g, " ");
-    assert.doesNotMatch(visibleCopy, /NEW CUT|DEMO|比赛|兼容模式|示意/i);
+    const visibleCopy = [
+      html.replace(/<[^>]+>/g, " "),
+      ...STORY_SCENES.flatMap((scene) => [scene.alt, scene.storyPurpose]),
+    ].join(" ");
+    assert.doesNotMatch(visibleCopy, /NEW CUT|DEMO|比赛|兼容模式|示意|无需登录|无需注册|账号稍后|零成本|MVP|演示|竞赛/i);
     assert.match(mark, /<title[^>]*>FlowCut evidence loop mark<\/title>/);
     assert.match(mark, /aria-labelledby="flowcut-mark-title(?:\s+flowcut-mark-desc)?"/);
     assert.match(system, /cut point.*evidence loop/i);
