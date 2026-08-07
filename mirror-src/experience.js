@@ -273,7 +273,7 @@ export function confirmEditDecision(input, plans, selectedId, confirmation = {})
     delivery: {
       status: "ready",
       formats: ["Markdown edit sheet", "JSON timeline"],
-      privacy: "generated locally from the current browser session",
+      privacy: "素材文件只用于当前预览；交付件仅记录名称、格式、大小与剪辑依据",
     },
     nextCheck: `在${mission.deadline}前进行一次静音首看：测试者应能在 3 秒内说出冲突，并在结尾复述一个结果。`,
     revisions: previousDecision ? [...(previousDecision.revisions ?? [])] : [],
@@ -307,7 +307,7 @@ export function buildEditDecision(input, plan) {
 }
 
 function markdown(decision) {
-  const version = decision.revisions.at(-1)?.version ?? decision.version;
+  const version = decision.version;
   const lines = [
     `# ${decision.plan.title} · 第 ${version} 版剪辑单`,
     "",
@@ -362,9 +362,10 @@ function markdown(decision) {
   ];
 
   if (decision.revisions.length) {
-    lines.push("", "## 本地反馈回流", "");
+    lines.push("", "## 复看反馈记录", "");
     for (const revision of decision.revisions) {
-      lines.push(`- V${revision.version}：${revision.action}`, `  - 观察：${revision.evidence}`);
+      const revisionLabel = revision.version <= decision.version ? `V${revision.version} 已应用` : `下一版提案 V${revision.version}`;
+      lines.push(`- ${revisionLabel}：${revision.action}`, `  - 观察：${revision.evidence}`);
     }
   }
   if (decision.nextRound) {
