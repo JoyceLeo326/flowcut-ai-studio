@@ -92,7 +92,10 @@ describe("FlowCut product v2 causal journey", () => {
     assert.notEqual(revised.nextRound.recommendedPlanId, decision.plan.id);
     assert.match(revised.nextRound.firstExperiment, /主张.*动作/);
     assert.match(revised.nextRound.changedBecause, /证据不够可信/);
-    assert.match(buildDownloads(revised).markdown, /下一轮已改变/);
+    const revisedMarkdown = buildDownloads(revised).markdown;
+    assert.match(revisedMarkdown, /^# .*第 1 版/m);
+    assert.match(revisedMarkdown, /下一版提案 V2/);
+    assert.match(revisedMarkdown, /下一轮已改变/);
   });
 
   test("real local source metadata enters the portable edit sheet without retaining file bytes", () => {
@@ -137,9 +140,12 @@ describe("FlowCut product v2 causal journey", () => {
     assert.equal(v2.decisionHistory.length, 1);
     assert.equal(v2.decisionHistory[0].planId, "hook-cut");
     assert.match(v2.appliedFeedback.changedBecause, /证据不够可信/);
-    assert.match(buildDownloads(v2).markdown, /已确认版本/);
-    assert.match(buildDownloads(v2).markdown, /V1：三秒破题/);
-    assert.match(buildDownloads(v2).markdown, /V2：证据节拍/);
+    const v2Markdown = buildDownloads(v2).markdown;
+    assert.match(v2Markdown, /^# .*第 2 版/m);
+    assert.match(v2Markdown, /V2 已应用/);
+    assert.match(v2Markdown, /已确认版本/);
+    assert.match(v2Markdown, /V1：三秒破题/);
+    assert.match(v2Markdown, /V2：证据节拍/);
   });
 
   test("feedback wins the next-round recommendation even when the old route had a large score lead", () => {
@@ -161,8 +167,10 @@ describe("FlowCut product v2 causal journey", () => {
 
 describe("FlowCut owned brand contract", () => {
   test("the public shell uses the owned mark and outcome-first language", async () => {
-    const [html, mark, system] = await Promise.all([
+    const [html, app, engine, mark, system] = await Promise.all([
       readFile(new URL("./index.html", import.meta.url), "utf8"),
+      readFile(new URL("./app.js", import.meta.url), "utf8"),
+      readFile(new URL("./experience.js", import.meta.url), "utf8"),
       readFile(new URL("./assets/brand/flowcut-mark.svg", import.meta.url), "utf8"),
       readFile(new URL("./assets/brand/BRAND_SYSTEM.md", import.meta.url), "utf8"),
     ]);
@@ -172,9 +180,11 @@ describe("FlowCut owned brand contract", () => {
     assert.match(html, /id="confirm-route"[^>]*disabled/);
     const visibleCopy = [
       html.replace(/<[^>]+>/g, " "),
+      app,
+      engine,
       ...STORY_SCENES.flatMap((scene) => [scene.alt, scene.storyPurpose]),
     ].join(" ");
-    assert.doesNotMatch(visibleCopy, /NEW CUT|DEMO|比赛|兼容模式|示意|无需登录|无需注册|账号稍后|零成本|MVP|演示|竞赛|本机保存|自动保存在当前浏览器/i);
+    assert.doesNotMatch(visibleCopy, /NEW CUT|DEMO|比赛|兼容模式|示意|无需登录|无需注册|账号稍后|零成本|MVP|演示|竞赛|本机保存|本机工作台|本地反馈回流|自动保存在当前浏览器/i);
     assert.match(mark, /<title[^>]*>FlowCut evidence loop mark<\/title>/);
     assert.match(mark, /aria-labelledby="flowcut-mark-title(?:\s+flowcut-mark-desc)?"/);
     assert.match(system, /cut point.*evidence loop/i);
@@ -197,6 +207,8 @@ describe("FlowCut owned brand contract", () => {
     assert.match(app, /next-candidates/);
     assert.match(app, /flowcut-story-10\.webp/);
     assert.match(app, /previousDecision/);
+    assert.match(app, /decision\.exportSpec\.filenameStem/);
+    assert.doesNotMatch(app, /decision\.delivery\.filenameStem/);
     assert.match(css, /\.route-grid[^}]*grid-auto-rows:\s*1fr/s);
     assert.match(css, /\.route-card[^}]*height:\s*100%/s);
   });

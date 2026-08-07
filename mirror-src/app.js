@@ -47,7 +47,7 @@ function persist() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
-    toast("当前浏览器未允许本机保存，请先下载剪辑单。");
+    toast("暂时无法保留当前进度，请先下载剪辑单备份。");
   }
 }
 
@@ -424,11 +424,11 @@ byId("timeline-zoom-in").addEventListener("click", () => {
 
 byId("download-md").addEventListener("click", () => {
   if (!state.decision) return;
-  download(`${state.decision.delivery.filenameStem}.md`, buildDownloads(state.decision).markdown, "text/markdown;charset=utf-8");
+  download(`${state.decision.exportSpec.filenameStem}.md`, buildDownloads(state.decision).markdown, "text/markdown;charset=utf-8");
 });
 byId("download-json").addEventListener("click", () => {
   if (!state.decision) return;
-  download(`${state.decision.delivery.filenameStem}.json`, buildDownloads(state.decision).json, "application/json;charset=utf-8");
+  download(`${state.decision.exportSpec.filenameStem}.json`, buildDownloads(state.decision).json, "application/json;charset=utf-8");
 });
 
 reviewForm.addEventListener("submit", (event) => {
@@ -448,7 +448,7 @@ reviewForm.addEventListener("submit", (event) => {
   renderRevision();
   setProgressStatus("下一刀已更新");
   byId("revision-result").scrollIntoView({ behavior: "smooth", block: "nearest" });
-  toast(`V${revision.version} 修订动作已写回剪辑单。`);
+  toast(`下一版 V${revision.version} 的修订建议已写入剪辑单。`);
 });
 
 try {

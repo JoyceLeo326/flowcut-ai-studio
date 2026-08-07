@@ -41,7 +41,9 @@ describe("FlowCut static edit engine", () => {
     const downloads = buildDownloads(decision);
 
     assert.match(downloads.markdown, new RegExp(decision.plan.title));
-    assert.match(downloads.markdown, /第 2 版/);
+    assert.match(downloads.markdown, /第 1 版/);
+    assert.match(downloads.markdown, /下一版提案 V2/);
+    assert.doesNotMatch(downloads.markdown, /^# .*第 2 版/m);
     assert.equal(JSON.parse(downloads.json).timeline.length, decision.timeline.length);
     assert.match(revision.action, /开场/);
   });

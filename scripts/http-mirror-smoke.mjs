@@ -87,7 +87,9 @@ try {
     outcome: "证据不够可信",
     note: "测试者没有看到主张对应的动作。",
   }));
-  assert.match(engineModule.namespace.buildDownloads(decision).markdown, /第 2 版/);
+  const reviewedMarkdown = engineModule.namespace.buildDownloads(decision).markdown;
+  assert.match(reviewedMarkdown, /^# .*第 1 版/m);
+  assert.match(reviewedMarkdown, /下一版提案 V2/);
 
   console.log("HTTP product smoke passed: module graph, 24 local frames, candidate pipeline, timeline and review backflow.");
 } finally {
