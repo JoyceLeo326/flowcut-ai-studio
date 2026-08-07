@@ -12,7 +12,7 @@ export const SHARED_STORY_ANCHOR =
 
 const RAW_SCENES = [
   ["intake", "exec-96f8cd1f-b3de-44cc-b1a2-384572240d7c.png", "阿野把存储卡与红色失败样品放到桌上，林澄打开空白笔记本，真实剪辑任务开始。", "建立连续角色、空间、素材证据与尚未解决的任务。", "Material handoff begins; memory card and failed sample reach the editor."],
-  ["intake", "exec-67ff616c-5726-45d1-9c32-ee9945f76fc7.png", "林澄把存储卡插入本地读卡器，两人一起查看无文字的素材波形与片段块。", "说明素材在当前设备进入工作流，不依赖登录或上传。", "Local ingest begins while both creators inspect abstract clips."],
+  ["intake", "exec-67ff616c-5726-45d1-9c32-ee9945f76fc7.png", "林澄把存储卡插入本地读卡器，两人一起查看无文字的素材波形与片段块。", "让素材从当前设备进入工作流，并保留可核对的本地上下文。", "Local ingest begins while both creators inspect abstract clips."],
   ["intake", "exec-23691abd-cb40-408c-bc2a-b0e136ceee80.png", "失败样品、杯子与存储卡在桌面构成证据三角，阿野向林澄指出素材里的真实动作。", "把原始文件转译为可观察、可引用的素材证据。", "Physical evidence forms a triangle as the creator recounts what happened."],
   ["intake", "exec-fe136cf9-a3c7-4e7c-9b43-564e5cac28b0.png", "林澄暂停一个具体画面并指向屏幕，阿野第一次看见素材中真正的矛盾。", "从素材锚点发现第一条可描述的冲突。", "A paused frame reveals the first concrete conflict."],
   ["conflict", "exec-c86cfc41-8944-4029-bd11-37a2809b963c.png", "一个屏幕是纠缠的时间线，另一个是清晰结果，林澄与阿野在速度和意义之间权衡。", "在推荐出现前，先把核心编辑冲突外化。", "Dense process and clear result confront each other across two screens."],
