@@ -95,6 +95,53 @@ describe("FlowCut product v2 causal journey", () => {
     assert.match(buildDownloads(revised).markdown, /下一轮已改变/);
   });
 
+  test("real local source metadata enters the portable edit sheet without retaining file bytes", () => {
+    const currentMission = mission({
+      sourceAssets: [
+        { name: "失败样品-全景.mp4", type: "video/mp4", size: 8_388_608, lastModified: 1_780_000_000_000 },
+        { name: "盲测同期声.wav", type: "audio/wav", size: 2_097_152, lastModified: 1_780_000_000_100 },
+      ],
+    });
+    assert.equal(currentMission.sourceAssets.length, 2);
+    assert.deepEqual(Object.keys(currentMission.sourceAssets[0]).sort(), ["lastModified", "name", "size", "type"]);
+
+    const plans = generateEditPlans(currentMission);
+    const decision = confirmEditDecision(currentMission, plans, plans[0].id, { acceptedTradeoff: true });
+    const downloads = buildDownloads(decision);
+    assert.match(downloads.markdown, /素材清单/);
+    assert.match(downloads.markdown, /失败样品-全景\.mp4/);
+    assert.match(downloads.markdown, /8\.0 MB/);
+    assert.equal(JSON.parse(downloads.json).mission.sourceAssets.length, 2);
+  });
+
+  test("confirming the feedback-led route creates V2 and preserves the decision trail", () => {
+    const currentMission = mission();
+    const plans = generateEditPlans(currentMission);
+    const v1 = confirmEditDecision(currentMission, plans, "hook-cut", { acceptedTradeoff: true });
+    const reviewed = applyReviewFeedback(v1, {
+      score: 2,
+      outcome: "证据不够可信",
+      confidence: "明确看到",
+      note: "主张后没有对应动作。",
+    });
+    const v2 = confirmEditDecision(
+      reviewed.mission,
+      reviewed.nextRound.candidates,
+      reviewed.nextRound.recommendedPlanId,
+      { acceptedTradeoff: true, previousDecision: reviewed },
+    );
+
+    assert.equal(v2.version, 2);
+    assert.equal(v2.plan.id, "proof-chain");
+    assert.equal(v2.revisions.length, 1);
+    assert.equal(v2.decisionHistory.length, 1);
+    assert.equal(v2.decisionHistory[0].planId, "hook-cut");
+    assert.match(v2.appliedFeedback.changedBecause, /证据不够可信/);
+    assert.match(buildDownloads(v2).markdown, /已确认版本/);
+    assert.match(buildDownloads(v2).markdown, /V1：三秒破题/);
+    assert.match(buildDownloads(v2).markdown, /V2：证据节拍/);
+  });
+
   test("feedback wins the next-round recommendation even when the old route had a large score lead", () => {
     const currentMission = mission({ role: "内容运营", audience: "准备购买", platform: "B站", seconds: 60, priority: "转化证据", deadline: "明天 10:00" });
     const plans = generateEditPlans(currentMission);
@@ -127,7 +174,7 @@ describe("FlowCut owned brand contract", () => {
       html.replace(/<[^>]+>/g, " "),
       ...STORY_SCENES.flatMap((scene) => [scene.alt, scene.storyPurpose]),
     ].join(" ");
-    assert.doesNotMatch(visibleCopy, /NEW CUT|DEMO|比赛|兼容模式|示意|无需登录|无需注册|账号稍后|零成本|MVP|演示|竞赛/i);
+    assert.doesNotMatch(visibleCopy, /NEW CUT|DEMO|比赛|兼容模式|示意|无需登录|无需注册|账号稍后|零成本|MVP|演示|竞赛|本机保存|自动保存在当前浏览器/i);
     assert.match(mark, /<title[^>]*>FlowCut evidence loop mark<\/title>/);
     assert.match(mark, /aria-labelledby="flowcut-mark-title(?:\s+flowcut-mark-desc)?"/);
     assert.match(system, /cut point.*evidence loop/i);
@@ -142,10 +189,14 @@ describe("FlowCut owned brand contract", () => {
     assert.match(html, /id="conflict-statement"/);
     assert.match(html, /name="confidence"/);
     assert.match(html, /id="next-recommendation"/);
+    assert.match(html, /id="source-files"[^>]*multiple/);
+    assert.match(html, /id="source-preview"/);
     assert.match(app, /plan\.criteria\.retention/);
     assert.match(app, /plan\.fitReasons/);
     assert.match(app, /decision\.nextRound/);
     assert.match(app, /next-candidates/);
+    assert.match(app, /flowcut-story-10\.webp/);
+    assert.match(app, /previousDecision/);
     assert.match(css, /\.route-grid[^}]*grid-auto-rows:\s*1fr/s);
     assert.match(css, /\.route-card[^}]*height:\s*100%/s);
   });

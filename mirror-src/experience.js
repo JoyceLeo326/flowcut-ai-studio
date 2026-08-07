@@ -63,6 +63,19 @@ function choice(value, list, fallback) {
   return list.includes(value) ? value : fallback;
 }
 
+function normalizeSourceAssets(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .slice(0, 8)
+    .map((asset) => ({
+      name: clean(asset?.name, "未命名素材", 120),
+      type: clean(asset?.type, "application/octet-stream", 80),
+      size: Math.max(0, Math.min(Number(asset?.size) || 0, 20_000_000_000)),
+      lastModified: Math.max(0, Number(asset?.lastModified) || 0),
+    }))
+    .filter((asset) => asset.name);
+}
+
 export function normalizeEditMission(input = {}) {
   return {
     creator: clean(input.creator, "周屿", 24),
@@ -73,6 +86,7 @@ export function normalizeEditMission(input = {}) {
     seconds: choice(Number(input.seconds), CHOICES.seconds, 30),
     deadline: clean(input.deadline, "今天 20:00", 32),
     material: clean(input.material, DEFAULT_MATERIAL, 2400),
+    sourceAssets: normalizeSourceAssets(input.sourceAssets),
   };
 }
 
@@ -137,7 +151,7 @@ export function buildEditingConflict(input = {}) {
   const mission = normalizeEditMission(input);
   const anchors = splitMaterial(mission.material);
   return {
-    statement: `${mission.creator}需要在${mission.deadline}前，把“${at(anchors, 0)}”剪成一条面向${mission.audience}的${mission.seconds}秒${mission.platform}视频。`,
+    statement: `${mission.creator}需要在${mission.deadline}前，把“${at(anchors, 0)}”剪成一条面向${mission.audience}的${mission.seconds}秒${mission.platform}视频${mission.sourceAssets.length ? `，并核对 ${mission.sourceAssets.length} 个真实素材文件` : ""}。`,
     tension: `既要守住${mission.priority}，又不能让“${at(anchors, 2)}”失去素材依据。`,
     evidence: anchors.slice(0, 3),
   };
@@ -210,12 +224,14 @@ export function confirmEditDecision(input, plans, selectedId, confirmation = {})
   const mission = normalizeEditMission(input);
   const candidates = Array.isArray(plans) && plans.length === 3 ? plans : generateEditPlans(mission);
   const plan = candidates.find((candidate) => candidate.id === selectedId);
+  const previousDecision = confirmation.previousDecision?.nextRound ? confirmation.previousDecision : null;
+  const version = previousDecision?.nextRound?.round ?? 1;
   if (!plan) throw new Error("Select one of the three edit routes before confirmation.");
   if (confirmation.acceptedTradeoff !== true) throw new Error("You must accept the selected trade-off before confirmation.");
 
   return {
     schemaVersion: 2,
-    version: 1,
+    version,
     project: "FlowCut evidence-led edit decision",
     createdAt: new Date().toISOString(),
     mission,
@@ -245,14 +261,14 @@ export function confirmEditDecision(input, plans, selectedId, confirmation = {})
     },
     confirmation: {
       acceptedTradeoff: true,
-      statement: clean(confirmation.statement, "我接受这条路线主动放弃的部分，并确认生成第一版。", 120),
+      statement: clean(confirmation.statement, `我接受这条路线主动放弃的部分，并确认生成第 ${version} 版。`, 120),
     },
     timeline: createTimeline(mission, plan),
     exportSpec: {
       aspectRatio: mission.platform === "B站" ? "16:9" : "9:16",
       durationSeconds: mission.seconds,
       captionSafeArea: mission.platform === "抖音" ? "下方 22% 避让交互区" : "下方 14% 保持两行以内",
-      filenameStem: `flowcut-${plan.id}-${mission.seconds}s`,
+      filenameStem: `flowcut-${plan.id}-v${version}-${mission.seconds}s`,
     },
     delivery: {
       status: "ready",
@@ -260,7 +276,25 @@ export function confirmEditDecision(input, plans, selectedId, confirmation = {})
       privacy: "generated locally from the current browser session",
     },
     nextCheck: `在${mission.deadline}前进行一次静音首看：测试者应能在 3 秒内说出冲突，并在结尾复述一个结果。`,
-    revisions: [],
+    revisions: previousDecision ? [...(previousDecision.revisions ?? [])] : [],
+    decisionHistory: previousDecision
+      ? [
+          ...(previousDecision.decisionHistory ?? []),
+          {
+            version: previousDecision.version,
+            planId: previousDecision.plan.id,
+            planTitle: previousDecision.plan.title,
+            confirmedAt: previousDecision.createdAt,
+          },
+        ]
+      : [],
+    appliedFeedback: previousDecision
+      ? {
+          revision: previousDecision.revisions.at(-1),
+          changedBecause: previousDecision.nextRound.changedBecause,
+          firstExperiment: previousDecision.nextRound.firstExperiment,
+        }
+      : null,
     nextRound: null,
   };
 }
@@ -285,6 +319,16 @@ function markdown(decision) {
     `- 冲突：${decision.conflict.statement}`,
     `- 张力：${decision.conflict.tension}`,
     "",
+    ...(decision.mission.sourceAssets.length
+      ? [
+          "## 素材清单",
+          "",
+          ...decision.mission.sourceAssets.map(
+            (asset) => `- ${asset.name} · ${asset.type} · ${(asset.size / 1_048_576).toFixed(1)} MB`,
+          ),
+          "",
+        ]
+      : []),
     "## 三条候选对照",
     "",
     ...decision.candidateComparison.flatMap((candidate) => [
@@ -333,6 +377,13 @@ function markdown(decision) {
       `- 改变原因：${decision.nextRound.changedBecause}`,
       `- 第一项实验：${decision.nextRound.firstExperiment}`,
     );
+  }
+  if (decision.decisionHistory?.length) {
+    lines.push("", "## 已确认版本", "");
+    for (const item of decision.decisionHistory) {
+      lines.push(`- V${item.version}：${item.planTitle}`);
+    }
+    lines.push(`- V${decision.version}：${decision.plan.title}`);
   }
   return `${lines.join("\n")}\n`;
 }

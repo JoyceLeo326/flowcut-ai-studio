@@ -13,9 +13,18 @@ const byId = (id) => document.getElementById(id);
 const missionForm = byId("mission-form");
 const reviewForm = byId("review-form");
 const materialField = missionForm.elements.material;
+const sourceInput = byId("source-files");
 
-let state = { mission: null, plans: [], selectedId: null, decision: null, activeClipId: null, zoom: 100 };
+const ROUTE_VISUALS = {
+  "hook-cut": { src: "./assets/story/flowcut-story-10.webp", alt: "结果先行路线：先亮出失败样品与最终结果，再回切解释过程。" },
+  "story-arc": { src: "./assets/story/flowcut-story-11.webp", alt: "故事先行路线：从失败、尝试到兑现保持完整的情绪回环。" },
+  "proof-chain": { src: "./assets/story/flowcut-story-12.webp", alt: "证据先行路线：让每个主张紧跟一个可核对的素材动作。" },
+};
+
+let state = { mission: null, plans: [], selectedId: null, decision: null, activeClipId: null, zoom: 100, mediaAssets: [] };
 let activeStoryChapter = "intake";
+let selectedSourceFiles = [];
+let sourcePreviewUrl = null;
 
 function escapeHtml(value) {
   return String(value)
@@ -43,11 +52,119 @@ function persist() {
 }
 
 function readMission() {
-  return normalizeEditMission(Object.fromEntries(new FormData(missionForm).entries()));
+  return normalizeEditMission({
+    ...Object.fromEntries(new FormData(missionForm).entries()),
+    sourceAssets: state.mediaAssets,
+  });
 }
 
 function syncMaterialCount() {
   byId("material-count").textContent = String(materialField.value.length);
+}
+
+function setProgressStatus(label) {
+  byId("progress-status").textContent = label;
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1_048_576) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / 1_048_576).toFixed(1)} MB`;
+}
+
+function sourceKind(file) {
+  if (file.type.startsWith("video/")) return "video";
+  if (file.type.startsWith("audio/")) return "audio";
+  if (file.type.startsWith("image/")) return "image";
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (["mp4", "mov", "m4v", "webm", "mkv"].includes(extension)) return "video";
+  if (["mp3", "wav", "m4a", "aac", "ogg", "flac"].includes(extension)) return "audio";
+  if (["jpg", "jpeg", "png", "webp", "avif", "gif"].includes(extension)) return "image";
+  return null;
+}
+
+function sourceMetadata(file) {
+  const kind = sourceKind(file);
+  return {
+    name: file.name,
+    type: file.type || `${kind || "application"}/unknown`,
+    size: file.size,
+    lastModified: file.lastModified,
+  };
+}
+
+function renderSourcePreview() {
+  const preview = byId("source-preview");
+  if (sourcePreviewUrl) URL.revokeObjectURL(sourcePreviewUrl);
+  sourcePreviewUrl = null;
+  preview.replaceChildren();
+  const file = selectedSourceFiles[0];
+  if (!file) {
+    const placeholder = document.createElement("div");
+    placeholder.innerHTML = `<b>${state.mediaAssets.length ? "素材清单已就绪" : "素材预览区"}</b><span>${state.mediaAssets.length ? "重新选择文件即可继续预览" : "选择文件后可直接播放或查看"}</span>`;
+    preview.append(placeholder);
+    return;
+  }
+
+  sourcePreviewUrl = URL.createObjectURL(file);
+  let media;
+  const kind = sourceKind(file);
+  if (kind === "video") {
+    media = document.createElement("video");
+    media.controls = true;
+    media.muted = true;
+    media.playsInline = true;
+    media.preload = "metadata";
+  } else if (kind === "audio") {
+    media = document.createElement("audio");
+    media.controls = true;
+    media.preload = "metadata";
+  } else if (kind === "image") {
+    media = document.createElement("img");
+    media.alt = `${file.name} 的本地预览`;
+  }
+  if (media) {
+    media.src = sourcePreviewUrl;
+    preview.append(media);
+  } else {
+    const placeholder = document.createElement("div");
+    placeholder.innerHTML = `<b>${escapeHtml(file.name)}</b><span>已加入素材清单</span>`;
+    preview.append(placeholder);
+  }
+}
+
+function renderSourceFiles() {
+  const list = byId("source-file-list");
+  list.innerHTML = state.mediaAssets.length
+    ? state.mediaAssets
+        .map(
+          (asset, index) => `<article><span><b>${escapeHtml(asset.name)}</b><small>${escapeHtml(asset.type || "未知格式")} · ${formatFileSize(asset.size)}</small></span><button type="button" data-remove-source="${index}" aria-label="移除素材 ${escapeHtml(asset.name)}">×</button></article>`,
+        )
+        .join("")
+    : "<p>可先用文字定义任务，也可把真实素材一起装入剪辑单。</p>";
+  list.querySelectorAll("[data-remove-source]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.removeSource);
+      state.mediaAssets.splice(index, 1);
+      selectedSourceFiles.splice(index, 1);
+      renderSourceFiles();
+      renderSourcePreview();
+      persist();
+      setProgressStatus(state.mediaAssets.length ? `${state.mediaAssets.length} 个素材待剪` : "新剪辑待定义");
+    });
+  });
+  renderSourcePreview();
+}
+
+function acceptSourceFiles(files) {
+  const accepted = [...files]
+    .filter((file) => sourceKind(file))
+    .slice(0, 8);
+  selectedSourceFiles = accepted;
+  state.mediaAssets = accepted.map(sourceMetadata);
+  renderSourceFiles();
+  persist();
+  setProgressStatus(state.mediaAssets.length ? `${state.mediaAssets.length} 个素材待剪` : "新剪辑待定义");
+  if (accepted.length) renderStoryChapter("conflict");
 }
 
 export function renderStoryChapter(stage, { scroll = false } = {}) {
@@ -70,14 +187,16 @@ export function renderStoryChapter(stage, { scroll = false } = {}) {
   byId("story-label").textContent = chapter.label;
   byId("story-chapter-title").textContent = chapter.title;
   byId("story-purpose").textContent = scenes.map((scene) => scene.storyPurpose).join(" ");
-  byId("story-summary").textContent = `${chapter.label}不是装饰画面：这四帧对应当前任务状态，并为下一步操作保留因果依据。`;
+  byId("story-summary").textContent = `四个连续画面让“${chapter.label}”的关键判断保持可追溯，并把下一步操作接回同一条故事线。`;
   if (scroll) byId("story-stage").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function routeMarkup(plan, index) {
   const selected = state.selectedId === plan.id;
+  const visual = ROUTE_VISUALS[plan.id] ?? ROUTE_VISUALS["hook-cut"];
   return `<button class="route-card" type="button" data-route="${escapeHtml(plan.id)}" aria-pressed="${selected}">
     <span class="route-top"><small>${String(index + 1).padStart(2, "0")} / ${escapeHtml(plan.badge)}</small><b>${plan.score}<i>/100</i></b></span>
+    <span class="route-visual"><img src="${visual.src}" width="1200" height="800" loading="lazy" decoding="async" alt="${escapeHtml(visual.alt)}" /><small>${selected ? "已选择" : "路线画面"}</small></span>
     <h3>${escapeHtml(plan.title)}</h3>
     <p>${escapeHtml(plan.thesis)}</p>
     <span class="first-frame"><small>FIRST FRAME</small><p>${escapeHtml(plan.firstFrame)}</p></span>
@@ -93,9 +212,10 @@ function renderRoutes({ scroll = false } = {}) {
   byId("routes").classList.remove("is-hidden");
   const conflict = buildEditingConflict(state.mission);
   const isNextRound = Boolean(state.decision?.nextRound);
+  const sourceContext = state.mission.sourceAssets.length ? `，已装入 ${state.mission.sourceAssets.length} 个真实素材` : "";
   byId("route-context").textContent = isNextRound
     ? `复看证据已重排候选；${state.decision.nextRound.candidates[0].title}成为下一轮首选。`
-    : `${state.mission.creator}正在剪一条 ${state.mission.seconds} 秒${state.mission.platform}内容；推荐顺序优先守住“${state.mission.priority}”。`;
+    : `${state.mission.creator}正在剪一条 ${state.mission.seconds} 秒${state.mission.platform}内容${sourceContext}；推荐顺序优先守住“${state.mission.priority}”。`;
   byId("conflict-statement").textContent = conflict.statement;
   byId("conflict-tension").textContent = conflict.tension;
   byId("conflict-evidence").innerHTML = conflict.evidence.map((item, index) => `<span><b>0${index + 1}</b>${escapeHtml(item)}</span>`).join("");
@@ -107,6 +227,7 @@ function renderRoutes({ scroll = false } = {}) {
       persist();
       renderRoutes();
       renderStoryChapter("choice");
+      setProgressStatus("待确认取舍");
       byId("accept-tradeoff").focus();
     });
   });
@@ -114,6 +235,9 @@ function renderRoutes({ scroll = false } = {}) {
   byId("selected-route").textContent = selected ? `${selected.title} · ${selected.score} 分` : "尚未选择";
   byId("accept-tradeoff").disabled = !selected;
   byId("confirm-route").disabled = !selected || !byId("accept-tradeoff").checked;
+  byId("confirm-route").innerHTML = isNextRound
+    ? `明确确认并生成第 ${state.decision.nextRound.round} 版 <span>→</span>`
+    : "明确确认并生成第一版 <span>→</span>";
   if (scroll) byId("routes").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -138,13 +262,19 @@ function renderRevision() {
   byId("revision-empty").classList.toggle("is-hidden", Boolean(latest));
   byId("revision-result").classList.toggle("is-hidden", !latest);
   if (latest) {
-    byId("revision-version").textContent = `V${latest.version} / 评分 ${latest.score} / 5`;
+    const applied = state.decision?.appliedFeedback;
+    byId("revision-version").textContent = applied
+      ? `V${state.decision.version} / 已应用上一轮反馈`
+      : `V${latest.version} / 评分 ${latest.score} / 5`;
     byId("revision-action").textContent = latest.action;
     byId("revision-evidence").textContent = `复看证据：${latest.evidence}`;
-    byId("next-recommendation").textContent = `新推荐：${nextRound.candidates[0].title}`;
-    byId("next-because").textContent = nextRound.changedBecause;
-    byId("next-experiment").textContent = nextRound.firstExperiment;
-    byId("next-candidates").innerHTML = nextRound.candidates
+    byId("next-recommendation").textContent = nextRound
+      ? `新推荐：${nextRound.candidates[0].title}`
+      : `已应用：${state.decision.plan.title}`;
+    byId("next-because").textContent = nextRound?.changedBecause ?? applied?.changedBecause ?? "上一轮观察已经进入当前版。";
+    byId("next-experiment").textContent = nextRound?.firstExperiment ?? applied?.firstExperiment ?? state.decision.nextCheck;
+    const candidates = nextRound?.candidates ?? state.decision.candidateComparison;
+    byId("next-candidates").innerHTML = candidates
       .map((plan, index) => `<span><b>${index + 1}</b>${escapeHtml(plan.title)}<em>${plan.score}</em></span>`)
       .join("");
   }
@@ -164,6 +294,7 @@ function renderTimeline({ scroll = false } = {}) {
   byId("decision-gain").textContent = decision.plan.gain;
   byId("decision-tradeoff").textContent = decision.plan.tradeoff;
   byId("decision-check").textContent = decision.nextCheck;
+  byId("timeline-version").textContent = `FIRST CUT / V${decision.version}`;
 
   const total = decision.exportSpec.durationSeconds;
   byId("timeline-ruler").innerHTML = Array.from({ length: 6 }, (_, index) => `<span>${Math.round((total * index) / 5)}s</span>`).join("");
@@ -180,6 +311,7 @@ function renderTimeline({ scroll = false } = {}) {
   applyTimelineZoom();
   renderClipDetail();
   renderRevision();
+  setProgressStatus(`第 ${decision.version} 版已成形`);
   if (scroll) byId("timeline").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -217,6 +349,7 @@ function download(filename, content, type) {
 missionForm.addEventListener("submit", (event) => {
   event.preventDefault();
   state.mission = readMission();
+  state.mediaAssets = state.mission.sourceAssets;
   state.plans = generateEditPlans(state.mission);
   state.selectedId = null;
   state.decision = null;
@@ -229,7 +362,24 @@ missionForm.addEventListener("submit", (event) => {
   persist();
   renderStoryChapter("compare");
   renderRoutes({ scroll: true });
+  setProgressStatus("3 路可比较");
 });
+
+sourceInput.addEventListener("change", () => acceptSourceFiles(sourceInput.files));
+
+for (const eventName of ["dragenter", "dragover"]) {
+  byId("source-drop").addEventListener(eventName, (event) => {
+    event.preventDefault();
+    byId("source-drop").classList.add("is-dragging");
+  });
+}
+for (const eventName of ["dragleave", "drop"]) {
+  byId("source-drop").addEventListener(eventName, (event) => {
+    event.preventDefault();
+    byId("source-drop").classList.remove("is-dragging");
+    if (eventName === "drop" && event.dataTransfer?.files?.length) acceptSourceFiles(event.dataTransfer.files);
+  });
+}
 
 materialField.addEventListener("input", () => {
   syncMaterialCount();
@@ -248,7 +398,10 @@ byId("confirm-route").addEventListener("click", () => {
   if (!state.selectedId || !state.mission || !byId("accept-tradeoff").checked) return;
   state.decision = confirmEditDecision(state.mission, state.plans, state.selectedId, {
     acceptedTradeoff: true,
-    statement: "我接受这条路线主动放弃的部分，并确认生成第一版。",
+    previousDecision: state.decision?.nextRound ? state.decision : null,
+    statement: state.decision?.nextRound
+      ? `我接受这条路线主动放弃的部分，并确认生成第 ${state.decision.nextRound.round} 版。`
+      : "我接受这条路线主动放弃的部分，并确认生成第一版。",
   });
   state.activeClipId = state.decision.timeline[0].id;
   persist();
@@ -271,11 +424,11 @@ byId("timeline-zoom-in").addEventListener("click", () => {
 
 byId("download-md").addEventListener("click", () => {
   if (!state.decision) return;
-  download(`flowcut-${state.decision.plan.id}.md`, buildDownloads(state.decision).markdown, "text/markdown;charset=utf-8");
+  download(`${state.decision.delivery.filenameStem}.md`, buildDownloads(state.decision).markdown, "text/markdown;charset=utf-8");
 });
 byId("download-json").addEventListener("click", () => {
   if (!state.decision) return;
-  download(`flowcut-${state.decision.plan.id}.json`, buildDownloads(state.decision).json, "application/json;charset=utf-8");
+  download(`${state.decision.delivery.filenameStem}.json`, buildDownloads(state.decision).json, "application/json;charset=utf-8");
 });
 
 reviewForm.addEventListener("submit", (event) => {
@@ -293,6 +446,7 @@ reviewForm.addEventListener("submit", (event) => {
   renderStoryChapter("feedback");
   renderRoutes();
   renderRevision();
+  setProgressStatus("下一刀已更新");
   byId("revision-result").scrollIntoView({ behavior: "smooth", block: "nearest" });
   toast(`V${revision.version} 修订动作已写回剪辑单。`);
 });
@@ -307,6 +461,9 @@ try {
       decision: restored.decision || null,
       activeClipId: restored.activeClipId || null,
       zoom: Number(restored.zoom) || 100,
+      mediaAssets: Array.isArray(restored.mediaAssets)
+        ? restored.mediaAssets
+        : normalizeEditMission(restored.mission).sourceAssets,
     };
     restoreForm(state.mission);
     renderRoutes();
@@ -317,4 +474,16 @@ try {
 }
 
 syncMaterialCount();
+renderSourceFiles();
 renderStoryChapter(state.decision?.revisions?.length ? "feedback" : state.decision ? "confirm" : state.plans.length ? "compare" : "intake");
+setProgressStatus(
+  state.decision?.nextRound
+    ? "下一刀已更新"
+    : state.decision
+      ? `第 ${state.decision.version} 版已成形`
+      : state.plans.length
+        ? "3 路可比较"
+        : state.mediaAssets.length
+          ? `${state.mediaAssets.length} 个素材待剪`
+          : "新剪辑待定义",
+);

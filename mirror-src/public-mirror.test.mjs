@@ -11,8 +11,8 @@ test("public mirror uses relative JavaScript resources and has a build contract"
     readFile("scripts/build-public-mirror.mjs", "utf8"),
   ]);
 
-  assert.match(html, /href="\.\/styles\.css"/);
-  assert.match(html, /type="module" src="\.\/app\.js"/);
+  assert.match(html, /href="\.\/styles\.css\?v=\d+[a-z]?"/);
+  assert.match(html, /type="module" src="\.\/app\.js\?v=\d+[a-z]?"/);
   assert.doesNotMatch(html, /class="transport"><button/);
   assert.match(html, /id="timeline-zoom-out"/);
   assert.match(app, /timeline-zoom-out.*addEventListener/s);

@@ -20,6 +20,7 @@ describe("FlowCut mainland-first static release", () => {
     assert.equal(vercel.framework, null);
     const headers = vercel.headers.flatMap((entry) => entry.headers).map((header) => `${header.key}: ${header.value}`).join("\n");
     assert.match(headers, /Content-Security-Policy:.*connect-src 'none'/);
+    assert.match(headers, /media-src 'self' blob:/);
     assert.match(headers, /frame-ancestors 'none'/);
     assert.match(headers, /Permissions-Policy:/);
   });
