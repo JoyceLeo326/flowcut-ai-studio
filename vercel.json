@@ -4,7 +4,6 @@
   "installCommand": "node --version",
   "buildCommand": "node scripts/build-public-mirror.mjs",
   "outputDirectory": "public-mirror",
-  "cleanUrls": true,
   "headers": [
     {
       "source": "/(.*)",
