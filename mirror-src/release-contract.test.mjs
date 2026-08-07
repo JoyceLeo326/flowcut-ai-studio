@@ -15,6 +15,8 @@ describe("FlowCut mainland-first static release", () => {
     assert.match(html, /直接定义任务/);
     assert.doesNotMatch(`${html}\n${css}\n${app}`, /https?:\/\//i);
     assert.doesNotMatch(`${html}\n${css}\n${app}`, /google|gstatic|cdn|analytics/i);
+    assert.match(html, /http-equiv="Content-Security-Policy"[^>]*connect-src 'none'/);
+    assert.match(html, /http-equiv="Content-Security-Policy"[^>]*object-src 'none'/);
     assert.equal(vercel.outputDirectory, "public-mirror");
     assert.equal(vercel.buildCommand, "node scripts/build-public-mirror.mjs");
     assert.equal(vercel.framework, null);

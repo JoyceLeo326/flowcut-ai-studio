@@ -13,6 +13,8 @@ test("public mirror uses relative JavaScript resources and has a build contract"
 
   assert.match(html, /href="\.\/styles\.css\?v=\d+[a-z]?"/);
   assert.match(html, /type="module" src="\.\/app\.js\?v=\d+[a-z]?"/);
+  assert.match(html, /http-equiv="Content-Security-Policy"[^>]*script-src 'self'/);
+  assert.match(html, /http-equiv="Content-Security-Policy"[^>]*connect-src 'none'/);
   assert.doesNotMatch(html, /class="transport"><button/);
   assert.match(html, /id="timeline-zoom-out"/);
   assert.match(app, /timeline-zoom-out.*addEventListener/s);
