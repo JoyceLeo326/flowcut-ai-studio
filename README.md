@@ -4,15 +4,32 @@
 
 # FlowCut
 
-从真实素材、观看目标与交付约束出发，把“为什么这样剪”变成可比较、可确认、可下载、可复盘的时间线决策。
+交片前只剩两个小时。素材里好镜头很多。客户又说：“开头再抓人一点。”真正难的不是多剪一版，而是决定第一刀落在哪里。还要知道删掉什么以后，这条片子的意思仍然在。
+
+FlowCut 不替你按下确认键。它把素材观察、观众、平台和期限摊在一起，让三条剪法的得失都看得见。你选定之后，会得到一份能继续改、也能带去复盘的时间线。
 
 [在线使用（GitHub Pages）](https://joyceleo326.github.io/flowcut-ai-studio/) · [备用入口（Vercel）](https://flowcut-ai-studio.vercel.app/) · [中文完整使用指南](docs/USAGE.zh-CN.md)
+
+## 把这一刀想清楚
+
+1. **先说清交付处境。** 填写你的角色、观众、平台、目标时长、期限，以及这次最不能丢掉的东西。
+2. **需要时放入真实素材。** 最多选择八个视频、音频或图片。浏览器会生成预览并读取文件信息，但不会把素材上传出去。
+3. **写下你真正看见的内容。** 按镜头顺序描述动作、变化和结果。FlowCut 只使用这些观察，不会假装理解了没有分析过的画面。
+4. **并排看三条剪法。** 开场、结构、收益、代价、素材依据和时间比例都不同。先看主动放弃了什么，再看哪条分数高。
+5. **接受取舍，再确认。** 点选卡片还不算批准。只有你明确接受这条路线的代价并确认，它才成为 V1。
+6. **检查连续时间线。** 导出前逐段看时间范围、保留依据、字幕、画幅和交付检查项。
+7. **下载能带走的文件。** Markdown 剪辑单和 JSON 时间线都会保存任务、选择、取舍、片段和确认版本。
+8. **把复盘带回下一版。** 写下真实反馈后，V1 仍会保留。FlowCut 先展示变化，等你再次确认，才形成 V2。
+
+### 先用默认案例走一遍
+
+默认的咖啡产品案例已经填好素材观察。把观众从“第一次刷到”改成“准备购买”，再换一个必须守住的目标。看看路线顺序、开场依据和时间比例怎样变化。确认一条路线并下载 V1，再写一次复盘，最后把 V1 和 V2 放在一起看。
+
+## Repository scope
 
 FlowCut is an evidence-led editing decision product. A creator can preview local video, audio, or image sources, combine their metadata with concrete material observations and delivery constraints, compare exactly three routes, explicitly accept one route's trade-off, confirm a contiguous timeline, download a Markdown edit sheet and JSON timeline, and feed structured review evidence into a visibly changed next version.
 
 The public product is self-contained under `mirror-src/`: system fonts, local scripts, an original FlowCut mark, and 24 independently generated local WebP narrative frames. It makes no runtime request to Google, a CDN, analytics, or an AI provider. The larger local-first editor architecture remains in `apps/web` and `rust` and is based on the MIT-licensed OpenCut Classic editor.
-
-## Choose the right product surface
 
 This repository contains two related but deliberately separate surfaces:
 
@@ -23,22 +40,9 @@ This repository contains two related but deliberately separate surfaces:
 
 The two public links above serve the first surface. They do not pretend to expose every capability of the larger editor.
 
-## Use the public product
+## What the full local editor adds
 
-1. **Define the delivery context.** Enter the creator role, audience, platform, target duration, deadline, and the result the edit must protect.
-2. **Add real source material when useful.** Select up to eight local video, audio, or image files. The browser creates previews and records file metadata; the static product does not upload the files.
-3. **Write material observations.** Describe what visibly or audibly happens in shot order. FlowCut uses these observations with the delivery constraints instead of claiming scene understanding it did not perform.
-4. **Compare exactly three routes.** Each route exposes a different opening, structure, gain, trade-off, evidence basis, timeline proportion, and review question.
-5. **Accept a trade-off and confirm.** Selecting a card is not approval. A route becomes V1 only after the creator explicitly accepts its stated cost and confirms the choice.
-6. **Inspect the contiguous timeline.** Review the ordered segments, time ranges, retained evidence, captions, aspect ratio, and delivery checklist before export.
-7. **Download real files.** Export the Markdown edit sheet and JSON timeline. Both files include the mission, selected route, trade-off, segments, evidence, and confirmation version.
-8. **Run the evidence loop.** Record reviewer outcome and a concrete note. FlowCut keeps V1, shows the proposed differences, requires confirmation again, and then creates V2 in the decision history.
-
-### A useful first run
-
-The default coffee-product example is intentionally complete. Change the audience from “第一次刷到” to “准备购买”, change the protected goal, and submit the mission. Compare how route order, opening evidence and timeline proportions change. Confirm one route, download V1, add review feedback, then confirm V2 and compare the two downloaded records.
-
-## Product capabilities
+当一张剪辑单不够、你需要真的回到素材和时间线里继续工作时，本地编辑器会接住这些步骤：
 
 - Start with a natural-language intent, import multiple media files, and switch
   between Guided and Pro controls without leaving the project.
