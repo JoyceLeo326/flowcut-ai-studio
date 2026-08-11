@@ -36,39 +36,49 @@ assert(address && typeof address === "object");
 const baseUrl = `http://127.0.0.1:${address.port}`;
 
 try {
-  const [htmlResponse, appResponse, engineResponse, storyModuleResponse, storyFrameResponse] = await Promise.all([
+  const [htmlResponse, appResponse, engineResponse, storyModuleResponse, visualStoryResponse, storyFrameResponse, visualStoryFrameResponse] = await Promise.all([
     fetch(`${baseUrl}/index.html`),
     fetch(`${baseUrl}/app.js`),
     fetch(`${baseUrl}/experience.js`),
     fetch(`${baseUrl}/story-scenes.js`),
+    fetch(`${baseUrl}/visual-story-v3.js`),
     fetch(`${baseUrl}/assets/story/flowcut-story-24.webp`),
+    fetch(`${baseUrl}/assets/story-v3/flowcut-v3-50-revise.webp`),
   ]);
   assert.match(htmlResponse.headers.get("content-type") ?? "", /^text\/html/);
   assert.match(appResponse.headers.get("content-type") ?? "", /^text\/javascript/);
   assert.match(engineResponse.headers.get("content-type") ?? "", /^text\/javascript/);
   assert.match(storyModuleResponse.headers.get("content-type") ?? "", /^text\/javascript/);
+  assert.match(visualStoryResponse.headers.get("content-type") ?? "", /^text\/javascript/);
   assert.match(storyFrameResponse.headers.get("content-type") ?? "", /^image\/webp/);
+  assert.match(visualStoryFrameResponse.headers.get("content-type") ?? "", /^image\/webp/);
 
-  const [html, appSource, engineSource, storySource] = await Promise.all([
+  const [html, appSource, engineSource, storySource, visualStorySource] = await Promise.all([
     htmlResponse.text(),
     appResponse.text(),
     engineResponse.text(),
     storyModuleResponse.text(),
+    visualStoryResponse.text(),
   ]);
   assert.match(html, /type="module" src="\.\/app\.js\?v=\d+[a-z]?"/);
 
   const context = createContext({ console });
   const engineModule = new SourceTextModule(engineSource, { context, identifier: `${baseUrl}/experience.js` });
   const storyModule = new SourceTextModule(storySource, { context, identifier: `${baseUrl}/story-scenes.js` });
+  const visualStoryModule = new SourceTextModule(visualStorySource, { context, identifier: `${baseUrl}/visual-story-v3.js` });
   const appModule = new SourceTextModule(appSource, { context, identifier: `${baseUrl}/app.js` });
   await appModule.link(async (specifier) => {
     if (specifier === "./experience.js") return engineModule;
     if (specifier === "./story-scenes.js") return storyModule;
+    if (specifier === "./visual-story-v3.js") return visualStoryModule;
     assert.fail(`Unexpected application module: ${specifier}`);
   });
   await engineModule.evaluate();
   await storyModule.evaluate();
+  await visualStoryModule.evaluate();
   assert.equal(storyModule.namespace.STORY_SCENES.length, 24);
+  assert.equal(visualStoryModule.namespace.VISUAL_STORIES_V3.length, 50);
+  assert.equal(visualStoryModule.namespace.VISUAL_STORIES_V3.filter((scene) => scene.coreReachable).length, 20);
 
   const mission = engineModule.namespace.normalizeEditMission({
     creator: "周屿",
@@ -91,7 +101,7 @@ try {
   assert.match(reviewedMarkdown, /^# .*第 1 版/m);
   assert.match(reviewedMarkdown, /下一版提案 V2/);
 
-  console.log("HTTP product smoke passed: module graph, 24 local frames, candidate pipeline, timeline and review backflow.");
+  console.log("HTTP product smoke passed: module graph, 24 chapter frames, 50 field scenes, candidate pipeline, timeline and review backflow.");
 } finally {
   await new Promise((resolveClose, rejectClose) => server.close((error) => (error ? rejectClose(error) : resolveClose())));
 }
