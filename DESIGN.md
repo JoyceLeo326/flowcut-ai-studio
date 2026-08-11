@@ -60,3 +60,11 @@ VisionCut should feel like an AI production team, not a traditional timeline-fir
 - Mobile and tablet must expose the same workflow through fewer, clearer surfaces.
 - Empty states must be useful, not decorative.
 - The UI should feel distinctive because the workflow is different, not because the visuals are noisy.
+
+## Visual Story v3
+
+- The 50 field scenes are product evidence, not decorative inventory. Default loading mounts 20 core moments; five phase controls make every remaining scene intentionally reachable.
+- Preserve character continuity: Lin Cheng wears a coral overshirt and silver ear cuff; A-Ye wears a sage work jacket and round glasses. Keep the compact night studio, black worktable, red failed sample, ceramic cup, dual monitors, and cyan/lime/coral practical light as the shared world.
+- Each scene must show one concrete decision moment and one legible outcome without readable generated text, branded UI, collages, or duplicate crops.
+- Runtime images use explicit 768×512 dimensions, responsive 3:2 crops, lazy decoding, substantive alt text, and no remote source.
+- Phase changes in the real task flow update the field-story index, so intake, compare, confirm, delivery, and revision remain connected to user action.

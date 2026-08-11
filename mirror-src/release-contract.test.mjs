@@ -48,7 +48,7 @@ describe("FlowCut mainland-first static release", () => {
     const pkg = JSON.parse(await readFile("package.json", "utf8"));
     assert.equal(
       pkg.scripts["quality:mirror"],
-      "node --test mirror-src/*.test.mjs && node --check mirror-src/app.js && node --check mirror-src/experience.js && node --check mirror-src/story-scenes.js && node scripts/build-public-mirror.mjs && node --experimental-vm-modules scripts/http-mirror-smoke.mjs && node scripts/secret-guard.mjs public-mirror",
+      "node --test mirror-src/*.test.mjs && node --check mirror-src/app.js && node --check mirror-src/experience.js && node --check mirror-src/story-scenes.js && node --check mirror-src/visual-story-v3.js && node qa/validate-visual-story.mjs --root . --manifest mirror-src/assets/story-v3/manifest.json && node scripts/build-public-mirror.mjs && node --experimental-vm-modules scripts/http-mirror-smoke.mjs && node scripts/secret-guard.mjs public-mirror",
     );
   });
 });
