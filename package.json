@@ -28,7 +28,7 @@
 		"security:mirror": "node scripts/secret-guard.mjs public-mirror",
 		"visual-story:build": "node scripts/build-flowcut-visual-story.mjs",
 		"visual-story:validate": "node qa/validate-visual-story.mjs --root . --manifest mirror-src/assets/story-v3/manifest.json",
-		"quality:mirror": "node --test mirror-src/*.test.mjs && node --check mirror-src/app.js && node --check mirror-src/experience.js && node --check mirror-src/story-scenes.js && node --check mirror-src/visual-story-v3.js && node qa/validate-visual-story.mjs --root . --manifest mirror-src/assets/story-v3/manifest.json && node scripts/build-public-mirror.mjs && node --experimental-vm-modules scripts/http-mirror-smoke.mjs && node scripts/secret-guard.mjs public-mirror",
+		"quality:mirror": "node --test mirror-src/*.test.mjs && node --check mirror-src/app.js && node --check mirror-src/experience.js && node --check mirror-src/story-scenes.js && node scripts/build-public-mirror.mjs && node --experimental-vm-modules scripts/http-mirror-smoke.mjs && node scripts/secret-guard.mjs public-mirror",
 		"quality": "bun run lint:web && bun run test && bun run test:mirror && bun run build:web && bun run build:public-mirror && bun run test:public-mirror && bun run security:secrets && bun run security:mirror"
 	},
 	"dependencies": {
