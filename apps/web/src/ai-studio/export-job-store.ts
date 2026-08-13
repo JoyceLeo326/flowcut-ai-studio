@@ -1,5 +1,6 @@
 import {
 	EXPORT_JOB_SCHEMA_VERSION,
+	hasDownloadableExportArtifact,
 	markInterruptedExportQueue,
 	type ExportJobArtifact,
 	type ExportJobFailure,
@@ -44,8 +45,19 @@ const EXPORT_JOB_FAILURE_CODES: readonly ExportJobFailureCode[] = [
 	"COVER_ARTIFACT_UNSUPPORTED",
 	"RENDERER_FAILED",
 	"RENDERER_RETURNED_NO_BUFFER",
+	"RENDERER_RETURNED_EMPTY_BUFFER",
 	"RENDER_INTERRUPTED",
 ];
+
+const EXPORT_PLATFORMS = [
+	"youtube",
+	"douyin",
+	"xiaohongshu",
+	"bilibili",
+	"podcast",
+	"generic",
+] as const;
+const EXPORT_ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:5"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -72,6 +84,10 @@ function isFiniteNumber(value: unknown): value is number {
 
 function isPositiveSafeInteger(value: unknown): value is number {
 	return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+	return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
 function isFailureKind(value: unknown): value is ExportJobFailureKind {
@@ -154,7 +170,11 @@ export function isExportJobQueue(value: unknown): value is ExportJobQueue {
 		!isNullableString(value.finishedAt) ||
 		!isString(value.updatedAt) ||
 		!Array.isArray(value.jobs) ||
-		!isRecord(value.guarantees)
+		!isRecord(value.guarantees) ||
+		(value.bundleFileName !== undefined && !isString(value.bundleFileName)) ||
+		(value.retryOfQueueId !== undefined && !isString(value.retryOfQueueId)) ||
+		(value.reusedArtifactCount !== undefined &&
+			!isNonNegativeSafeInteger(value.reusedArtifactCount))
 	) {
 		return false;
 	}
@@ -170,43 +190,63 @@ export function isExportJobQueue(value: unknown): value is ExportJobQueue {
 		if (!isRecord(job) || !isRecord(job.output) || !isRecord(job.capability)) {
 			return false;
 		}
-		return (
+		const output = job.output;
+		const capability = job.capability;
+		const structurallyValid =
 			isString(job.variantId) &&
 			isString(job.label) &&
 			isStatus(job.status) &&
 			isFiniteNumber(job.progress) &&
 			job.progress >= 0 &&
 			job.progress <= 1 &&
-			isString(job.output.fileName) &&
-			(job.output.format === "mp4" || job.output.format === "webm") &&
-			["low", "medium", "high", "very_high"].includes(
-				String(job.output.quality),
-			) &&
-			isPositiveSafeInteger(job.output.width) &&
-			isPositiveSafeInteger(job.output.height) &&
-			isFiniteNumber(job.output.fps) &&
-			job.output.fps > 0 &&
-			typeof job.output.includeAudio === "boolean" &&
-			(job.output.targetLoudnessLufs === null ||
-				isFiniteNumber(job.output.targetLoudnessLufs)) &&
-			isFiniteNumber(job.output.targetDurationSeconds) &&
-			job.output.targetDurationSeconds > 0 &&
-			(job.capability.state === "supported" ||
-				job.capability.state === "rejected") &&
-			Array.isArray(job.capability.rejectionReasons) &&
-			job.capability.rejectionReasons.every(
+			isString(output.fileName) &&
+			(output.format === "mp4" || output.format === "webm") &&
+			(output.platform === undefined ||
+				EXPORT_PLATFORMS.some((platform) => platform === output.platform)) &&
+			(output.aspectRatio === undefined ||
+				EXPORT_ASPECT_RATIOS.some(
+					(aspectRatio) => aspectRatio === output.aspectRatio,
+				)) &&
+			["low", "medium", "high", "very_high"].includes(String(output.quality)) &&
+			isPositiveSafeInteger(output.width) &&
+			isPositiveSafeInteger(output.height) &&
+			isFiniteNumber(output.fps) &&
+			output.fps > 0 &&
+			typeof output.includeAudio === "boolean" &&
+			(output.targetLoudnessLufs === null ||
+				isFiniteNumber(output.targetLoudnessLufs)) &&
+			isFiniteNumber(output.targetDurationSeconds) &&
+			output.targetDurationSeconds > 0 &&
+			(capability.state === "supported" || capability.state === "rejected") &&
+			Array.isArray(capability.rejectionReasons) &&
+			capability.rejectionReasons.every(
 				(reason) => typeof reason === "string",
 			) &&
-			typeof job.capability.notice === "string" &&
+			typeof capability.notice === "string" &&
 			isString(job.queuedAt) &&
 			isNullableString(job.startedAt) &&
 			isNullableString(job.finishedAt) &&
 			isFailure(job.failure) &&
 			isArtifact(job.artifact) &&
 			isMeasurements(job.measurements) &&
+			(job.attempt === undefined || isPositiveSafeInteger(job.attempt)) &&
+			(job.artifactOrigin === undefined ||
+				job.artifactOrigin === null ||
+				job.artifactOrigin === "rendered-this-queue" ||
+				job.artifactOrigin === "reused-local-artifact") &&
 			(job.artifact === null ||
 				(job.artifact.byteLength === job.artifact.blob.size &&
-					job.measurements?.encodedByteLength === job.artifact.byteLength))
+					job.measurements?.encodedByteLength === job.artifact.byteLength));
+		if (!structurallyValid) return false;
+		if (job.status !== "completed") return true;
+		const artifact = job.artifact;
+		if (!isArtifact(artifact) || artifact === null) return false;
+		return (
+			artifact.byteLength > 0 &&
+			artifact.fileName === output.fileName &&
+			artifact.mimeType ===
+				(output.format === "mp4" ? "video/mp4" : "video/webm") &&
+			(artifact.blob.type === "" || artifact.blob.type === artifact.mimeType)
 		);
 	});
 }
@@ -436,7 +476,21 @@ export class ExportJobStore {
 	}
 }
 
+function assertStandaloneArtifact(artifact: ExportJobArtifact): void {
+	if (
+		!artifact.fileName ||
+		!artifact.mimeType ||
+		!(artifact.blob instanceof Blob) ||
+		artifact.byteLength <= 0 ||
+		artifact.blob.size !== artifact.byteLength ||
+		(artifact.blob.type !== "" && artifact.blob.type !== artifact.mimeType)
+	) {
+		throw new Error("本地产物不完整，已停止下载；请重新渲染该变体。");
+	}
+}
+
 export function downloadExportArtifact(artifact: ExportJobArtifact): void {
+	assertStandaloneArtifact(artifact);
 	const url = window.URL.createObjectURL(artifact.blob);
 	const anchor = document.createElement("a");
 	anchor.href = url;
@@ -449,6 +503,221 @@ export function downloadExportArtifact(artifact: ExportJobArtifact): void {
 		anchor.remove();
 		window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
 	}
+}
+
+export function getDownloadableExportArtifacts(
+	queue: ExportJobQueue,
+): readonly ExportJobArtifact[] {
+	return queue.jobs.flatMap((job) =>
+		hasDownloadableExportArtifact(job) ? [job.artifact] : [],
+	);
+}
+
+const ZIP_LOCAL_FILE_HEADER_SIZE = 30;
+const ZIP_CENTRAL_DIRECTORY_HEADER_SIZE = 46;
+const ZIP_END_OF_CENTRAL_DIRECTORY_SIZE = 22;
+const ZIP32_MAX_VALUE = 0xffff_ffff;
+
+function crc32Update({
+	crc,
+	chunk,
+}: {
+	crc: number;
+	chunk: Uint8Array;
+}): number {
+	let next = crc;
+	for (const value of chunk) {
+		next ^= value;
+		for (let bit = 0; bit < 8; bit += 1) {
+			next = (next >>> 1) ^ (next & 1 ? 0xedb8_8320 : 0);
+		}
+	}
+	return next;
+}
+
+async function calculateBlobCrc32(blob: Blob): Promise<number> {
+	let crc = 0xffff_ffff;
+	const reader = blob.stream().getReader();
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			crc = crc32Update({ crc, chunk: value });
+		}
+	} finally {
+		reader.releaseLock();
+	}
+	return (crc ^ 0xffff_ffff) >>> 0;
+}
+
+function zipDateTime(isoDate: string): {
+	readonly date: number;
+	readonly time: number;
+} {
+	const parsed = new Date(isoDate);
+	const value = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+	const year = Math.min(2107, Math.max(1980, value.getFullYear()));
+	return {
+		date:
+			((year - 1980) << 9) | ((value.getMonth() + 1) << 5) | value.getDate(),
+		time:
+			(value.getHours() << 11) |
+			(value.getMinutes() << 5) |
+			Math.floor(value.getSeconds() / 2),
+	};
+}
+
+function zipHeader(size: number): {
+	readonly bytes: Uint8Array<ArrayBuffer>;
+	readonly view: DataView;
+} {
+	const bytes = new Uint8Array(new ArrayBuffer(size));
+	return { bytes, view: new DataView(bytes.buffer) };
+}
+
+function writeZipEntryHeaders({
+	artifact,
+	crc32,
+	name,
+	localOffset,
+}: {
+	artifact: ExportJobArtifact;
+	crc32: number;
+	name: Uint8Array;
+	localOffset: number;
+}): { readonly local: Uint8Array; readonly central: Uint8Array } {
+	const { date, time } = zipDateTime(artifact.createdAt);
+	const localHeader = zipHeader(ZIP_LOCAL_FILE_HEADER_SIZE + name.byteLength);
+	localHeader.view.setUint32(0, 0x0403_4b50, true);
+	localHeader.view.setUint16(4, 20, true);
+	localHeader.view.setUint16(6, 0x0800, true);
+	localHeader.view.setUint16(8, 0, true);
+	localHeader.view.setUint16(10, time, true);
+	localHeader.view.setUint16(12, date, true);
+	localHeader.view.setUint32(14, crc32, true);
+	localHeader.view.setUint32(18, artifact.byteLength, true);
+	localHeader.view.setUint32(22, artifact.byteLength, true);
+	localHeader.view.setUint16(26, name.byteLength, true);
+	localHeader.bytes.set(name, ZIP_LOCAL_FILE_HEADER_SIZE);
+
+	const centralHeader = zipHeader(
+		ZIP_CENTRAL_DIRECTORY_HEADER_SIZE + name.byteLength,
+	);
+	centralHeader.view.setUint32(0, 0x0201_4b50, true);
+	centralHeader.view.setUint16(4, 20, true);
+	centralHeader.view.setUint16(6, 20, true);
+	centralHeader.view.setUint16(8, 0x0800, true);
+	centralHeader.view.setUint16(10, 0, true);
+	centralHeader.view.setUint16(12, time, true);
+	centralHeader.view.setUint16(14, date, true);
+	centralHeader.view.setUint32(16, crc32, true);
+	centralHeader.view.setUint32(20, artifact.byteLength, true);
+	centralHeader.view.setUint32(24, artifact.byteLength, true);
+	centralHeader.view.setUint16(28, name.byteLength, true);
+	centralHeader.view.setUint32(42, localOffset, true);
+	centralHeader.bytes.set(name, ZIP_CENTRAL_DIRECTORY_HEADER_SIZE);
+	return { local: localHeader.bytes, central: centralHeader.bytes };
+}
+
+function fallbackBundleFileName(projectId: string): string {
+	const projectPart = projectId
+		.normalize("NFKC")
+		.split("")
+		.map((character) =>
+			'<>:"/\\|?*'.includes(character) || (character.codePointAt(0) ?? 0) <= 31
+				? "-"
+				: character,
+		)
+		.join("")
+		.replace(/\s+/gu, "-")
+		.slice(0, 80);
+	return `${projectPart || "visioncut"}_visioncut-delivery.zip`;
+}
+
+export async function createExportArtifactBundle(
+	queue: ExportJobQueue,
+): Promise<ExportJobArtifact> {
+	const artifacts = getDownloadableExportArtifacts(queue);
+	if (artifacts.length === 0) {
+		throw new Error("当前没有经过校验的本地成片可供下载。");
+	}
+	if (artifacts.length > 0xffff) {
+		throw new Error("可下载文件数量超过 ZIP32 上限。");
+	}
+
+	const encoder = new TextEncoder();
+	const localParts: BlobPart[] = [];
+	const centralParts: Uint8Array<ArrayBuffer>[] = [];
+	const fileNames = new Set<string>();
+	let localOffset = 0;
+	for (const artifact of artifacts) {
+		assertStandaloneArtifact(artifact);
+		if (fileNames.has(artifact.fileName)) {
+			throw new Error(
+				`交付包存在重复文件名：${artifact.fileName}。请重新生成交付清单。`,
+			);
+		}
+		fileNames.add(artifact.fileName);
+		const name = encoder.encode(artifact.fileName);
+		if (name.byteLength > 0xffff || artifact.byteLength > ZIP32_MAX_VALUE) {
+			throw new Error("文件过大，无法使用浏览器 ZIP32 打包；请逐个下载。");
+		}
+		const crc32 = await calculateBlobCrc32(artifact.blob);
+		const headers = writeZipEntryHeaders({
+			artifact,
+			crc32,
+			name,
+			localOffset,
+		});
+		localParts.push(new Uint8Array(headers.local).buffer, artifact.blob);
+		centralParts.push(new Uint8Array(headers.central));
+		localOffset += headers.local.byteLength + artifact.byteLength;
+		if (localOffset > ZIP32_MAX_VALUE) {
+			throw new Error("交付包超过 ZIP32 上限，请逐个下载成片。");
+		}
+	}
+
+	const centralSize = centralParts.reduce(
+		(total, part) => total + part.byteLength,
+		0,
+	);
+	if (
+		centralSize > ZIP32_MAX_VALUE ||
+		localOffset + centralSize > ZIP32_MAX_VALUE
+	) {
+		throw new Error("交付包超过 ZIP32 上限，请逐个下载成片。");
+	}
+	const end = zipHeader(ZIP_END_OF_CENTRAL_DIRECTORY_SIZE);
+	end.view.setUint32(0, 0x0605_4b50, true);
+	end.view.setUint16(8, artifacts.length, true);
+	end.view.setUint16(10, artifacts.length, true);
+	end.view.setUint32(12, centralSize, true);
+	end.view.setUint32(16, localOffset, true);
+
+	const blob = new Blob(
+		[
+			...localParts,
+			...centralParts.map((part) => part.buffer),
+			end.bytes.buffer,
+		],
+		{ type: "application/zip" },
+	);
+	return {
+		fileName: queue.bundleFileName ?? fallbackBundleFileName(queue.projectId),
+		mimeType: "application/zip",
+		blob,
+		byteLength: blob.size,
+		createdAt: new Date().toISOString(),
+	};
+}
+
+export async function downloadExportArtifactBundle(
+	queue: ExportJobQueue,
+): Promise<{ readonly fileName: string; readonly fileCount: number }> {
+	const fileCount = getDownloadableExportArtifacts(queue).length;
+	const bundle = await createExportArtifactBundle(queue);
+	downloadExportArtifact(bundle);
+	return { fileName: bundle.fileName, fileCount };
 }
 
 export const exportJobStore = new ExportJobStore();

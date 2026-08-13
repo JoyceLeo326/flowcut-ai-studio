@@ -76,6 +76,16 @@ import type { ExportManifest } from "@/ai-studio/export-manifest";
 import type { AgentOrchestration } from "@/ai-studio/agent-orchestrator";
 import type { MediaIndex } from "@/ai-studio/media-index";
 import type { TimelineTranscriptArtifact } from "@/ai-studio/transcript-artifact";
+import type { VisionCutGeneratedAsset } from "@/ai-studio/generated-library";
+import { VISIONCUT_AVAILABLE_GENERATED_LIBRARY } from "@/ai-studio/generated-library";
+import {
+	buildLocalVisualCandidates,
+	type LocalVisualCandidate,
+} from "@/ai-studio/local-visual-candidates";
+import {
+	buildStudioJourney,
+	type StudioJourneyTargetView,
+} from "@/ai-studio/studio-journey";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -136,6 +146,9 @@ interface AIProductStudioProps {
 	}) => void;
 	onStoryGraphChange?: (next: StoryGraph) => void;
 	onImportOpenverse: (item: OpenverseSearchItem) => Promise<void>;
+	onImportGeneratedAssets: (
+		assets: readonly VisionCutGeneratedAsset[],
+	) => Promise<boolean>;
 	onUseRecipe: ({
 		recipeId,
 		settings,
@@ -146,22 +159,56 @@ interface AIProductStudioProps {
 	}) => void;
 }
 
-const STUDIO_VIEWS: Array<{
-	id: StudioView;
+const STUDIO_VIEW_GROUPS = [
+	{
+		id: "understand",
+		label: "理解",
+		icon: ScanSearch,
+		views: [
+			{ id: "project", label: "项目", icon: ScanSearch },
+			{ id: "analysis", label: "素材理解", icon: FileSearch },
+		],
+	},
+	{
+		id: "design",
+		label: "设计",
+		icon: Sparkles,
+		views: [
+			{ id: "workflows", label: "AI 配方", icon: Sparkles },
+			{ id: "story", label: "故事图", icon: Route },
+			{ id: "visual", label: "视觉实验室", icon: Aperture },
+			{ id: "library", label: "开放素材", icon: Library },
+		],
+	},
+	{
+		id: "produce",
+		label: "制作",
+		icon: Boxes,
+		views: [
+			{ id: "team", label: "AI 制作组", icon: Boxes },
+			{ id: "chatcut", label: "ChatCut 协作", icon: Import },
+			{ id: "dna", label: "创作 DNA", icon: BrainCircuit },
+		],
+	},
+	{
+		id: "deliver",
+		label: "交付",
+		icon: Send,
+		views: [{ id: "delivery", label: "交付中心", icon: Send }],
+	},
+] as const satisfies ReadonlyArray<{
+	id: string;
 	label: string;
 	icon: LucideIcon;
-}> = [
-	{ id: "project", label: "项目", icon: ScanSearch },
-	{ id: "analysis", label: "理解", icon: FileSearch },
-	{ id: "chatcut", label: "协作", icon: Import },
-	{ id: "workflows", label: "AI 配方", icon: Sparkles },
-	{ id: "team", label: "制作组", icon: Boxes },
-	{ id: "story", label: "故事图", icon: Route },
-	{ id: "visual", label: "视觉实验室", icon: Aperture },
-	{ id: "library", label: "开放素材", icon: Library },
-	{ id: "dna", label: "DNA", icon: BrainCircuit },
-	{ id: "delivery", label: "交付", icon: Send },
-];
+	views: ReadonlyArray<{ id: StudioView; label: string; icon: LucideIcon }>;
+}>;
+
+const JOURNEY_VIEW_LABELS: Record<StudioJourneyTargetView, string> = {
+	analysis: "继续理解",
+	workflows: "继续设计",
+	team: "继续制作",
+	delivery: "检查交付",
+};
 
 const CATEGORIES: Array<{
 	id: "all" | AutomationCategory;
@@ -942,44 +989,77 @@ function WorkflowView({
 }
 
 function VisualJobCard({
-	job,
+	candidate,
 	index,
+	selected,
+	onToggle,
 }: {
-	job: VisualGenerationJob;
+	candidate: LocalVisualCandidate;
 	index: number;
+	selected: boolean;
+	onToggle: () => void;
 }) {
+	const { asset, job, reasons } = candidate;
 	const world =
 		VISUAL_WORLDS.find((item) => item.id === job.worldId) ?? VISUAL_WORLDS[0];
 	return (
-		<div className="flowcut-job-card overflow-hidden rounded-[8px] border">
-			<div className="relative aspect-[16/9] overflow-hidden border-b">
+		<button
+			type="button"
+			aria-pressed={selected}
+			className="flowcut-job-card group overflow-hidden rounded-[8px] border text-left outline-none focus-visible:ring-2 focus-visible:ring-[#9ce9f2]"
+			data-selected={selected ? "true" : "false"}
+			onClick={onToggle}
+		>
+			<div className="relative aspect-[16/9] overflow-hidden border-b bg-muted">
 				<Image
-					src={world.image}
-					alt=""
+					src={asset.path}
+					alt={asset.alt}
 					fill
+					unoptimized
 					sizes="240px"
-					className="object-cover opacity-55 grayscale-[0.25]"
+					className="object-cover transition duration-200 group-hover:scale-[1.02]"
 				/>
-				<div className="absolute inset-0 flex items-center justify-center bg-background/55 backdrop-blur-[1px]">
-					<div className="text-center">
-						<span className="font-mono text-[13px] font-semibold">
-							{String(index + 1).padStart(3, "0")}
-						</span>
-						<p className="mt-1 text-[8px] text-muted-foreground">等待生成</p>
-					</div>
+				<div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 bg-black/70 px-2 py-1.5 text-white">
+					<span className="font-mono text-[9px] font-semibold">
+						{String(index + 1).padStart(3, "0")}
+					</span>
+					<span className="truncate text-[8px] text-white/70">
+						{world.label}
+					</span>
 				</div>
-			</div>
-			<div className="flex items-center justify-between gap-2 p-2 text-[9px]">
-				<span className="truncate font-medium">{job.useCase}</span>
-				<span className="shrink-0 font-mono text-muted-foreground">
-					{job.aspectRatio}
+				<span
+					className={cn(
+						"absolute top-2 right-2 flex size-7 items-center justify-center rounded-[4px] border backdrop-blur-sm",
+						selected
+							? "border-[#d7ff3f] bg-[#d7ff3f] text-black"
+							: "border-white/20 bg-black/60 text-white/65",
+					)}
+				>
+					{selected ? <Check className="size-4" /> : null}
 				</span>
 			</div>
-		</div>
+			<div className="space-y-1.5 p-2 text-[9px]">
+				<div className="flex items-center justify-between gap-2">
+					<span className="truncate font-medium">{asset.title}</span>
+					<span className="shrink-0 font-mono text-muted-foreground">
+						{job.aspectRatio}
+					</span>
+				</div>
+				<p className="truncate text-[8px] text-muted-foreground">
+					{reasons.join(" · ")}
+				</p>
+			</div>
+		</button>
 	);
 }
 
-function VisualLabView() {
+function VisualLabView({
+	onImportGeneratedAssets,
+}: {
+	onImportGeneratedAssets: (
+		assets: readonly VisionCutGeneratedAsset[],
+	) => Promise<boolean>;
+}) {
 	const [surface, setSurface] = useState<"generator" | "originals">(
 		"originals",
 	);
@@ -998,9 +1078,16 @@ function VisualLabView() {
 	]);
 	const [count, setCount] = useState(12);
 	const [jobs, setJobs] = useState<VisualGenerationJob[]>([]);
+	const [candidates, setCandidates] = useState<readonly LocalVisualCandidate[]>(
+		[],
+	);
+	const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(
+		new Set(),
+	);
+	const [isImportingCandidates, setIsImportingCandidates] = useState(false);
 	const [page, setPage] = useState(0);
-	const totalPages = Math.max(1, Math.ceil(jobs.length / JOBS_PER_PAGE));
-	const visibleJobs = jobs.slice(
+	const totalPages = Math.max(1, Math.ceil(candidates.length / JOBS_PER_PAGE));
+	const visibleCandidates = candidates.slice(
 		page * JOBS_PER_PAGE,
 		(page + 1) * JOBS_PER_PAGE,
 	);
@@ -1031,11 +1118,50 @@ function VisualLabView() {
 			aspectRatios,
 			count,
 		});
-		setJobs(nextJobs);
-		setPage(0);
-		toast.success(`已建立 ${nextJobs.length} 张视觉生成队列`, {
-			description: "可在连接图像模型后分批执行，并逐张复核。",
+		const nextCandidates = buildLocalVisualCandidates({
+			jobs: nextJobs,
+			library: VISIONCUT_AVAILABLE_GENERATED_LIBRARY,
 		});
+		setJobs(nextJobs);
+		setCandidates(nextCandidates);
+		setSelectedCandidateIds(
+			new Set(nextCandidates.slice(0, 20).map((item) => item.candidateId)),
+		);
+		setPage(0);
+		toast.success(`已生成 ${nextCandidates.length} 张本地视觉候选`, {
+			description:
+				nextJobs.length > nextCandidates.length
+					? `素材储备不足以覆盖全部 ${nextJobs.length} 个槽位，已按证据匹配现有文件。`
+					: "候选来自已经落盘的原创素材，可逐张复核并加入项目。",
+		});
+	}
+
+	function toggleCandidate(candidateId: string) {
+		setSelectedCandidateIds((current) => {
+			const next = new Set(current);
+			if (next.has(candidateId)) {
+				next.delete(candidateId);
+			} else if (next.size < 20) {
+				next.add(candidateId);
+			} else {
+				toast.info("单次最多加入 20 张候选");
+			}
+			return next;
+		});
+	}
+
+	async function importCandidates() {
+		const assets = candidates
+			.filter((candidate) => selectedCandidateIds.has(candidate.candidateId))
+			.map((candidate) => candidate.asset);
+		if (assets.length === 0 || isImportingCandidates) return;
+		setIsImportingCandidates(true);
+		try {
+			const imported = await onImportGeneratedAssets(assets);
+			if (imported) setSelectedCandidateIds(new Set());
+		} finally {
+			setIsImportingCandidates(false);
+		}
 	}
 
 	const surfaceSwitch = (
@@ -1069,7 +1195,10 @@ function VisualLabView() {
 		return (
 			<div className="space-y-3 pb-5">
 				{surfaceSwitch}
-				<VisionCutGeneratedLibrary className="min-h-[720px] rounded-[8px] border border-white/10" />
+				<VisionCutGeneratedLibrary
+					className="min-h-[720px] rounded-[8px] border border-white/10"
+					onImportAssets={onImportGeneratedAssets}
+				/>
 			</div>
 		);
 	}
@@ -1107,9 +1236,9 @@ function VisualLabView() {
 				</div>
 				<div className="flex items-center justify-between gap-3 p-3">
 					<div>
-						<p className="text-[11px] font-medium">概念图生成队列</p>
+						<p className="text-[11px] font-medium">本地视觉候选板</p>
 						<p className="mt-0.5 text-[9px] text-muted-foreground">
-							分镜、补镜、封面和多画幅统一排队
+							先按用途和画幅匹配可用原创素材，也可保留 Prompt 给外部模型
 						</p>
 					</div>
 					<span className="font-mono text-[18px] font-semibold">{count}</span>
@@ -1263,7 +1392,7 @@ function VisualLabView() {
 					onClick={createBatch}
 				>
 					<ImagePlus className="size-4" />
-					建立 {count} 张生成队列
+					生成 {count} 个视觉候选
 				</Button>
 			</section>
 
@@ -1273,10 +1402,24 @@ function VisualLabView() {
 						<div>
 							<h3 className="text-[12px] font-semibold">生成墙</h3>
 							<p className="mt-0.5 text-[8px] text-muted-foreground">
-								{jobs.length} 张 · 每页 {JOBS_PER_PAGE} 张
+								{candidates.length} 张可用 · 已选 {selectedCandidateIds.size}
 							</p>
 						</div>
-						<div className="flex items-center gap-1">
+						<div className="flex items-center gap-1.5">
+							<Button
+								className="h-11 bg-[#d7ff3f] px-3 text-[9px] text-black hover:bg-[#c8ef35]"
+								disabled={
+									selectedCandidateIds.size === 0 || isImportingCandidates
+								}
+								onClick={importCandidates}
+							>
+								{isImportingCandidates ? (
+									<Loader2 className="size-3.5 animate-spin" />
+								) : (
+									<Images className="size-3.5" />
+								)}
+								加入项目
+							</Button>
 							<Button
 								variant="outline"
 								size="icon"
@@ -1305,11 +1448,13 @@ function VisualLabView() {
 						</div>
 					</div>
 					<div className="grid grid-cols-2 gap-2 min-[440px]:grid-cols-3">
-						{visibleJobs.map((job, index) => (
+						{visibleCandidates.map((candidate, index) => (
 							<VisualJobCard
-								key={job.id}
-								job={job}
+								key={candidate.candidateId}
+								candidate={candidate}
 								index={page * JOBS_PER_PAGE + index}
+								selected={selectedCandidateIds.has(candidate.candidateId)}
+								onToggle={() => toggleCandidate(candidate.candidateId)}
 							/>
 						))}
 					</div>
@@ -1531,6 +1676,124 @@ function OpenLibraryView({
 	);
 }
 
+function StudioJourneyRail({
+	assetCount,
+	projectSnapshot,
+	storyGraph,
+	agentOrchestration,
+	mediaIndexes,
+	exportManifest,
+	onNavigate,
+}: {
+	assetCount: number;
+	projectSnapshot: ProjectIntelligenceSnapshot;
+	storyGraph: StoryGraph;
+	agentOrchestration: AgentOrchestration | null;
+	mediaIndexes: readonly MediaIndex[];
+	exportManifest: ExportManifest | null;
+	onNavigate: (view: StudioView) => void;
+}) {
+	const analyzableAssetIds = new Set(
+		projectSnapshot.assets
+			.filter((asset) => asset.type !== "image")
+			.map((asset) => asset.id),
+	);
+	const analyzedAssetCount = new Set(
+		mediaIndexes
+			.filter((index) => analyzableAssetIds.has(index.assetId))
+			.map((index) => index.assetId),
+	).size;
+	const succeededAgentCount =
+		agentOrchestration?.tasks.filter((task) => task.status === "succeeded")
+			.length ?? 0;
+	const journey = buildStudioJourney({
+		assetCount,
+		analyzableAssetCount: analyzableAssetIds.size,
+		analyzedAssetCount,
+		hasIntent: Boolean(agentOrchestration?.intent.userIntent.trim()),
+		storyNodeCount: storyGraph.nodes.length,
+		timelineElementCount: projectSnapshot.timelineElementCount,
+		succeededAgentCount,
+		totalAgentCount: agentOrchestration?.tasks.length ?? 0,
+		exportReady: exportManifest?.preflight.readyForVideoRenderHandoff ?? false,
+		exportBlockerCount: exportManifest?.preflight.blockers.length ?? 0,
+	});
+
+	return (
+		<section className="border-b bg-muted/20 px-2.5 py-2.5">
+			<div className="mb-2 flex items-center justify-between gap-3">
+				<div>
+					<p className="text-[10px] font-semibold">创作旅程</p>
+					<p className="mt-0.5 text-[8px] text-muted-foreground">
+						{journey.completedCount}/4 阶段完成
+					</p>
+				</div>
+				{journey.nextStage ? (
+					<button
+						type="button"
+						className="flex min-h-11 items-center gap-1.5 rounded-[6px] border bg-background px-2.5 text-[9px] font-semibold hover:bg-accent xl:min-h-8"
+						onClick={() =>
+							onNavigate(journey.nextStage?.targetView ?? "project")
+						}
+					>
+						{JOURNEY_VIEW_LABELS[journey.nextStage.targetView]}
+						<ChevronRight className="size-3" />
+					</button>
+				) : (
+					<span className="text-[9px] font-medium text-emerald-600">
+						可交付
+					</span>
+				)}
+			</div>
+			<div className="grid grid-cols-4 gap-1" aria-label="创作进度">
+				{journey.stages.map((stage, index) => (
+					<button
+						key={stage.id}
+						type="button"
+						className={cn(
+							"min-h-14 min-w-0 rounded-[6px] border px-1.5 py-1.5 text-left transition xl:min-h-[52px]",
+							stage.status === "complete" &&
+								"border-emerald-500/30 bg-emerald-500/[0.06]",
+							stage.status === "current" &&
+								"border-[#d7ff3f]/50 bg-[#d7ff3f]/[0.055]",
+							stage.status === "waiting" && "text-muted-foreground",
+						)}
+						onClick={() => onNavigate(stage.targetView)}
+					>
+						<span className="flex items-center gap-1 text-[8px] font-semibold">
+							<span
+								className={cn(
+									"flex size-4 shrink-0 items-center justify-center rounded-[3px] border font-mono text-[7px]",
+									stage.status === "complete" &&
+										"border-emerald-500/40 text-emerald-600",
+									stage.status === "current" &&
+										"border-[#d7ff3f]/50 text-foreground",
+								)}
+							>
+								{stage.status === "complete" ? (
+									<Check className="size-2.5" />
+								) : (
+									index + 1
+								)}
+							</span>
+							{stage.label}
+						</span>
+						<span className="mt-1 block truncate text-[7px] text-muted-foreground">
+							{stage.summary}
+						</span>
+					</button>
+				))}
+			</div>
+			<div className="mt-2 h-1 overflow-hidden rounded-[2px] bg-border">
+				<div
+					className="h-full bg-[#d7ff3f] transition-[width] duration-200 motion-reduce:transition-none"
+					style={{ width: `${journey.progressPercent}%` }}
+				/>
+			</div>
+		</section>
+	);
+}
+
 export function AIProductStudio({
 	assetCount,
 	projectId,
@@ -1551,6 +1814,7 @@ export function AIProductStudio({
 	onMediaIndexChange,
 	onStoryGraphChange,
 	onImportOpenverse,
+	onImportGeneratedAssets,
 	onUseRecipe,
 }: AIProductStudioProps) {
 	const [view, setView] = useState<StudioView>(() =>
@@ -1563,6 +1827,10 @@ export function AIProductStudio({
 	const [settings, setSettings] = useState<StudioProSettings>(
 		DEFAULT_STUDIO_PRO_SETTINGS,
 	);
+	const activeViewGroup =
+		STUDIO_VIEW_GROUPS.find((group) =>
+			group.views.some((item) => item.id === view),
+		) ?? STUDIO_VIEW_GROUPS[0];
 	const openModels = () => {
 		setView("models");
 		onOpenModels?.();
@@ -1610,28 +1878,56 @@ export function AIProductStudio({
 						}
 					/>
 				</div>
-				<nav
-					className="scrollbar-hidden flex overflow-x-auto border-t"
-					aria-label="AI 创作工作面"
-				>
-					{STUDIO_VIEWS.map((item) => {
-						const Icon = item.icon;
-						return (
-							<button
-								key={item.id}
-								type="button"
-								aria-current={view === item.id ? "page" : undefined}
-								className="flowcut-studio-tab relative flex min-h-11 min-w-[72px] flex-1 items-center justify-center gap-1.5 border-r px-1 text-[9px] font-medium last:border-r-0"
-								data-active={view === item.id ? "true" : "false"}
-								onClick={() => setView(item.id)}
-							>
-								<Icon className="size-3.5" />
-								{item.label}
-							</button>
-						);
-					})}
+				<nav className="border-t" aria-label="AI 创作工作面">
+					<div className="grid grid-cols-4 border-b">
+						{STUDIO_VIEW_GROUPS.map((group) => {
+							const Icon = group.icon;
+							const isActive = group.id === activeViewGroup.id;
+							return (
+								<button
+									key={group.id}
+									type="button"
+									aria-pressed={isActive}
+									className="flowcut-studio-tab relative flex min-h-11 items-center justify-center gap-1.5 border-r px-1 text-[10px] font-semibold last:border-r-0"
+									data-active={isActive ? "true" : "false"}
+									onClick={() => setView(group.views[0].id)}
+								>
+									<Icon className="size-3.5" />
+									{group.label}
+								</button>
+							);
+						})}
+					</div>
+					<div className="scrollbar-hidden flex overflow-x-auto">
+						{activeViewGroup.views.map((item) => {
+							const Icon = item.icon;
+							return (
+								<button
+									key={item.id}
+									type="button"
+									aria-current={view === item.id ? "page" : undefined}
+									className="flowcut-studio-tab relative flex min-h-10 min-w-[92px] flex-1 items-center justify-center gap-1.5 border-r px-2 text-[10px] font-medium last:border-r-0"
+									data-active={view === item.id ? "true" : "false"}
+									onClick={() => setView(item.id)}
+								>
+									<Icon className="size-3.5" />
+									{item.label}
+								</button>
+							);
+						})}
+					</div>
 				</nav>
 			</header>
+
+			<StudioJourneyRail
+				assetCount={assetCount}
+				projectSnapshot={projectSnapshot}
+				storyGraph={storyGraph}
+				agentOrchestration={agentOrchestration}
+				mediaIndexes={mediaIndexes}
+				exportManifest={exportManifest}
+				onNavigate={setView}
+			/>
 
 			<ScrollArea className="min-h-0 flex-1">
 				<div className="flowcut-studio-view p-3" key={view}>
@@ -1710,7 +2006,9 @@ export function AIProductStudio({
 							onOpenDirector={onOpenDirector}
 						/>
 					) : null}
-					{view === "visual" ? <VisualLabView /> : null}
+					{view === "visual" ? (
+						<VisualLabView onImportGeneratedAssets={onImportGeneratedAssets} />
+					) : null}
 					{view === "library" ? (
 						<OpenLibraryView onImportOpenverse={onImportOpenverse} />
 					) : null}

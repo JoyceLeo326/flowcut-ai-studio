@@ -2,11 +2,20 @@ import { describe, expect, test } from "bun:test";
 import { createExportManifest, type ExportManifest } from "./export-manifest";
 import {
 	createExportJobQueue,
+	createResumableExportJobQueue,
+	hasDownloadableExportArtifact,
+	isRetryableExportJob,
 	markInterruptedExportQueue,
 	runExportJobQueue,
 	type ExportRuntimeSnapshot,
 } from "./export-job";
-import { ExportJobStore, MemoryExportJobStorage } from "./export-job-store";
+import {
+	createExportArtifactBundle,
+	ExportJobStore,
+	getDownloadableExportArtifacts,
+	isExportJobQueue,
+	MemoryExportJobStorage,
+} from "./export-job-store";
 
 function manifest({
 	projectCanvasSize = { width: 1920, height: 1080 },
@@ -142,6 +151,42 @@ describe("local export job queue", () => {
 			output: { width: 1920, height: 1080 },
 		});
 		expect(queue.guarantees.timelineMutation).toBe(false);
+	});
+
+	test("accepts a one-pixel canvas rounding difference but still rejects a real reframe", () => {
+		const queue = createExportJobQueue({
+			manifest: manifest({
+				projectCanvasSize: { width: 608, height: 1080 },
+				variants: [
+					{
+						id: "vertical",
+						label: "9:16 delivery",
+						platform: "douyin",
+						aspectRatio: "9:16",
+					},
+					{
+						id: "portrait",
+						label: "4:5 delivery",
+						platform: "xiaohongshu",
+						aspectRatio: "4:5",
+					},
+				],
+			}),
+			runtime: runtime({ width: 608, height: 1080 }),
+			queueId: "queue-rounded-canvas",
+		});
+
+		expect(queue.jobs[0]).toMatchObject({
+			status: "queued",
+			capability: { state: "supported" },
+			output: { width: 1080, height: 1920 },
+		});
+		expect(queue.jobs[1]).toMatchObject({
+			status: "failed",
+			capability: { state: "rejected" },
+			failure: { code: "REFRAME_NOT_REVIEWED" },
+			output: { width: 1080, height: 1350 },
+		});
 	});
 
 	test("renders supported variants sequentially and records only measured bytes and elapsed time", async () => {
@@ -318,6 +363,348 @@ describe("local export job queue", () => {
 			"failed",
 			"cancelled",
 		]);
+	});
+
+	test("marks a persisted queued-only session cancelled instead of leaving it stuck", () => {
+		const queue = createExportJobQueue({
+			manifest: manifest({
+				variants: [
+					{
+						id: "one",
+						label: "One",
+						platform: "generic",
+						aspectRatio: "16:9",
+					},
+				],
+			}),
+			runtime: runtime(),
+			queueId: "queue-not-started",
+		});
+
+		const restored = markInterruptedExportQueue({
+			queue,
+			at: "2026-07-27T01:00:00.000Z",
+		});
+
+		expect(restored.status).toBe("cancelled");
+		expect(restored.jobs[0].status).toBe("cancelled");
+		expect(isRetryableExportJob(restored.jobs[0])).toBe(true);
+	});
+
+	test("retries only unfinished supported work and reuses verified completed artifacts", async () => {
+		const exportManifest = manifest({
+			variants: [
+				{
+					id: "master-a",
+					label: "YouTube master",
+					platform: "youtube",
+					aspectRatio: "16:9",
+				},
+				{
+					id: "master-b",
+					label: "Bilibili master",
+					platform: "bilibili",
+					aspectRatio: "16:9",
+				},
+			],
+		});
+		const first = createExportJobQueue({
+			manifest: exportManifest,
+			runtime: runtime(),
+			queueId: "queue-first",
+		});
+		let callCount = 0;
+		const partial = await runExportJobQueue({
+			queue: first,
+			signal: new AbortController().signal,
+			renderer: {
+				async render({ job }) {
+					callCount += 1;
+					return job.variantId === "master-a"
+						? { success: true, buffer: new Uint8Array([1, 2, 3]).buffer }
+						: { success: false, error: "temporary renderer failure" };
+				},
+			},
+		});
+
+		const retry = createResumableExportJobQueue({
+			manifest: exportManifest,
+			runtime: runtime(),
+			previousQueue: partial,
+			createdAt: "2026-07-27T02:00:00.000Z",
+			queueId: "queue-retry",
+		});
+
+		expect(callCount).toBe(2);
+		expect(retry.retryOfQueueId).toBe("queue-first");
+		expect(retry.reusedArtifactCount).toBe(1);
+		expect(retry.jobs.map((job) => job.status)).toEqual([
+			"completed",
+			"queued",
+		]);
+		expect(retry.jobs[0].artifactOrigin).toBe("reused-local-artifact");
+		expect(retry.jobs[0].attempt).toBe(1);
+		expect(retry.jobs[1].attempt).toBe(2);
+
+		const retryCalls: string[] = [];
+		const completed = await runExportJobQueue({
+			queue: retry,
+			signal: new AbortController().signal,
+			renderer: {
+				async render({ job }) {
+					retryCalls.push(job.variantId);
+					return { success: true, buffer: new Uint8Array([4, 5]).buffer };
+				},
+			},
+		});
+
+		expect(retryCalls).toEqual(["master-b"]);
+		expect(completed.status).toBe("completed");
+		expect(completed.jobs[0].artifact?.byteLength).toBe(3);
+		expect(completed.jobs[1].artifactOrigin).toBe("rendered-this-queue");
+	});
+
+	test("does not reuse an artifact whose output contract or bytes are invalid", async () => {
+		const exportManifest = manifest({
+			variants: [
+				{
+					id: "master",
+					label: "Master",
+					platform: "generic",
+					aspectRatio: "16:9",
+				},
+			],
+		});
+		const completed = await runExportJobQueue({
+			queue: createExportJobQueue({
+				manifest: exportManifest,
+				runtime: runtime(),
+				queueId: "queue-invalid-artifact",
+			}),
+			signal: new AbortController().signal,
+			renderer: {
+				async render() {
+					return { success: true, buffer: new Uint8Array([1, 2]).buffer };
+				},
+			},
+		});
+		const corrupt = {
+			...completed,
+			jobs: completed.jobs.map((job) => ({
+				...job,
+				artifact: job.artifact
+					? { ...job.artifact, byteLength: job.artifact.byteLength + 1 }
+					: null,
+			})),
+		};
+
+		expect(hasDownloadableExportArtifact(corrupt.jobs[0])).toBe(false);
+		expect(isExportJobQueue(corrupt)).toBe(false);
+		const retry = createResumableExportJobQueue({
+			manifest: exportManifest,
+			runtime: runtime(),
+			previousQueue: corrupt,
+			queueId: "queue-no-reuse",
+		});
+		expect(retry.reusedArtifactCount).toBe(0);
+		expect(retry.jobs[0].status).toBe("queued");
+		expect(retry.jobs[0].attempt).toBe(2);
+	});
+
+	test("does not reuse a same-named artifact when the platform output contract changed", async () => {
+		const originalManifest = manifest({
+			variants: [
+				{
+					id: "master",
+					label: "Master",
+					platform: "youtube",
+					aspectRatio: "16:9",
+				},
+			],
+		});
+		const completed = await runExportJobQueue({
+			queue: createExportJobQueue({
+				manifest: originalManifest,
+				runtime: runtime(),
+				queueId: "queue-platform-original",
+			}),
+			signal: new AbortController().signal,
+			renderer: {
+				async render() {
+					return { success: true, buffer: new Uint8Array([1]).buffer };
+				},
+			},
+		});
+		const changedPlatformManifest = manifest({
+			variants: [
+				{
+					id: "master",
+					label: "Master",
+					platform: "bilibili",
+					aspectRatio: "16:9",
+				},
+			],
+		});
+		const sameManifestIdQueue = {
+			...completed,
+			manifestId: changedPlatformManifest.manifestId,
+			jobs: completed.jobs.map((job) => ({
+				...job,
+				output: {
+					...job.output,
+					fileName:
+						changedPlatformManifest.intent.variants[0].plannedFiles.video,
+				},
+				artifact: job.artifact
+					? {
+							...job.artifact,
+							fileName:
+								changedPlatformManifest.intent.variants[0].plannedFiles.video,
+						}
+					: null,
+			})),
+		};
+
+		const retry = createResumableExportJobQueue({
+			manifest: changedPlatformManifest,
+			runtime: runtime(),
+			previousQueue: sameManifestIdQueue,
+			queueId: "queue-platform-changed",
+		});
+
+		expect(retry.reusedArtifactCount).toBe(0);
+		expect(retry.jobs[0].status).toBe("queued");
+	});
+
+	test("treats an empty renderer buffer as a failed non-downloadable result", async () => {
+		const failed = await runExportJobQueue({
+			queue: createExportJobQueue({
+				manifest: manifest({
+					variants: [
+						{
+							id: "master",
+							label: "Master",
+							platform: "generic",
+							aspectRatio: "16:9",
+						},
+					],
+				}),
+				runtime: runtime(),
+			}),
+			signal: new AbortController().signal,
+			renderer: {
+				async render() {
+					return { success: true, buffer: new ArrayBuffer(0) };
+				},
+			},
+		});
+
+		expect(failed.jobs[0].failure?.code).toBe("RENDERER_RETURNED_EMPTY_BUFFER");
+		expect(failed.jobs[0].artifact).toBeNull();
+		expect(getDownloadableExportArtifacts(failed)).toHaveLength(0);
+	});
+
+	test("builds a standards-based local ZIP with stable platform file names", async () => {
+		const exportManifest = manifest({
+			variants: [
+				{
+					id: "youtube",
+					label: "Landscape master",
+					platform: "youtube",
+					aspectRatio: "16:9",
+				},
+				{
+					id: "bilibili",
+					label: "Bilibili master",
+					platform: "bilibili",
+					aspectRatio: "16:9",
+				},
+			],
+		});
+		const completed = await runExportJobQueue({
+			queue: createExportJobQueue({
+				manifest: exportManifest,
+				runtime: runtime(),
+				queueId: "queue-bundle",
+			}),
+			signal: new AbortController().signal,
+			renderer: {
+				async render({ job }) {
+					return {
+						success: true,
+						buffer: new Uint8Array(
+							job.variantId === "youtube" ? [1, 2, 3] : [4, 5],
+						).buffer,
+					};
+				},
+			},
+		});
+
+		const bundle = await createExportArtifactBundle(completed);
+		const bytes = new Uint8Array(await bundle.blob.arrayBuffer());
+		const decoded = new TextDecoder().decode(bytes);
+
+		expect(bundle.fileName).toBe("Launch-Film_visioncut-delivery.zip");
+		expect(bundle.mimeType).toBe("application/zip");
+		expect(new DataView(bytes.buffer).getUint32(0, true)).toBe(0x04034b50);
+		expect(new DataView(bytes.buffer).getUint32(bytes.length - 22, true)).toBe(
+			0x06054b50,
+		);
+		expect(decoded).toContain(completed.jobs[0].output.fileName);
+		expect(decoded).toContain(completed.jobs[1].output.fileName);
+		expect(getDownloadableExportArtifacts(completed)).toHaveLength(2);
+	});
+
+	test("refuses a delivery bundle when persisted artifacts collide by file name", async () => {
+		const completed = await runExportJobQueue({
+			queue: createExportJobQueue({
+				manifest: manifest({
+					variants: [
+						{
+							id: "one",
+							label: "One",
+							platform: "generic",
+							aspectRatio: "16:9",
+						},
+						{
+							id: "two",
+							label: "Two",
+							platform: "generic",
+							aspectRatio: "16:9",
+						},
+					],
+				}),
+				runtime: runtime(),
+			}),
+			signal: new AbortController().signal,
+			renderer: {
+				async render({ job }) {
+					return {
+						success: true,
+						buffer: new Uint8Array(job.variantId === "one" ? [1] : [2]).buffer,
+					};
+				},
+			},
+		});
+		const firstFileName = completed.jobs[0].output.fileName;
+		const collision = {
+			...completed,
+			jobs: completed.jobs.map((job, index) =>
+				index === 0
+					? job
+					: {
+							...job,
+							output: { ...job.output, fileName: firstFileName },
+							artifact: job.artifact
+								? { ...job.artifact, fileName: firstFileName }
+								: null,
+						},
+			),
+		};
+
+		await expect(createExportArtifactBundle(collision)).rejects.toThrow(
+			"存在重复文件名",
+		);
 	});
 
 	test("persists completed Blob artifacts for later download", async () => {

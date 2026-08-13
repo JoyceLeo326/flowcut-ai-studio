@@ -41,6 +41,7 @@ const EVIDENCE_GATED_ACTION_ROLES = new Set<AgentRuntimeRole>([
 	"editor",
 	"color",
 	"sound",
+	"growth",
 ]);
 const SENSITIVE_KEYS = new Set([
 	"apikey",
@@ -740,10 +741,15 @@ function outputKindForRole(role: AgentRuntimeRole): AgentRuntimeActionKind {
 	}
 }
 
-type EvidenceGatedActionRole = "camera" | "editor" | "color" | "sound";
+type EvidenceGatedActionRole =
+	| "camera"
+	| "editor"
+	| "color"
+	| "sound"
+	| "growth";
 
 interface RoleActionEvidenceRule {
-	readonly actionKind: "camera" | "edit" | "color" | "sound";
+	readonly actionKind: "camera" | "edit" | "color" | "sound" | "growth";
 	readonly strongEvidenceKinds: ReadonlySet<AgentEvidenceKind>;
 	readonly explanation: string;
 }
@@ -782,6 +788,17 @@ const ROLE_ACTION_EVIDENCE_MATRIX = {
 		]),
 		explanation:
 			"Sound actions require audio analysis or transcript evidence; generic audio metadata cannot establish a timing or mix decision.",
+	},
+	growth: {
+		actionKind: "growth",
+		strongEvidenceKinds: new Set<AgentEvidenceKind>([
+			"publication-target",
+			"audience-brief",
+			"brand-guideline",
+			"performance-data",
+		]),
+		explanation:
+			"Growth actions require a publication target, audience brief, brand guideline, or performance data; creative intent alone cannot establish a distribution decision.",
 	},
 } as const satisfies Record<EvidenceGatedActionRole, RoleActionEvidenceRule>;
 
@@ -922,6 +939,7 @@ function buildAgentPrompts({ run }: { run: AgentRuntimeRun }): {
 		'{"summary":"...","findings":[{"findingId":"...","statement":"...","evidenceIds":["..."]}],"actions":[{"actionId":"...","kind":"direction|story|camera|edit|color|sound|growth|note","title":"...","description":"...","targetReference":"optional","evidenceIds":["..."],"applicable":false}],"conflicts":[{"conflictId":"...","targetReference":"...","description":"...","evidenceIds":["..."]}]}',
 		"Every factual finding and action must cite evidenceId values from the supplied evidence.",
 		"Camera, Editor, Color, and Sound actions use separate evidence compatibility rules; generic metadata alone never makes an action eligible.",
+		"Growth actions require publication, audience, brand, or performance evidence and must not claim predicted retention or virality without performance data.",
 		"Camera footage-specific framing or movement findings and actions must cite scene-analysis or visual-analysis evidence; generic metadata is context only.",
 		"Do not refer to an upstream result by task ID alone. Use the supplied artifactId and artifactDigest pair.",
 		"Never claim to have inspected media beyond the supplied evidence metadata.",

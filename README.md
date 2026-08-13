@@ -55,17 +55,25 @@ The two public links above serve the first surface. They do not pretend to expos
   undo or redo the whole operation without leaving partial edits.
 - Run Director, Story, Camera, Editor, Color, Sound, and Growth as a versioned
   evidence DAG in rule-based local mode or with an optional session-only BYOK model.
+- Review evidence-bound Color, Sound, and Growth intent patches, approve or reject
+  them explicitly, activate them with a receipt, and undo them without pretending
+  the underlying media or an external platform was changed.
 - Plan narrative structure in a draggable, connectable, persistent Story Graph
   and apply reviewed story-order changes to the timeline.
+- Browse 61 verified, locally bundled original visual assets, match them to visual
+  concept slots, and import selected files into the active project.
+- Preview, save, and place bundled original sound effects and music on the
+  timeline with no external key; optionally add Freesound search when configured.
 - Exchange strict ChatCut v2 handoff/result envelopes with baseline
   fingerprints, schema validation, atomic import, undo/redo, and receipts.
 - Keep project, timeline, intent, blueprint, Story Graph, Agent, and transcript
   sidecars in integrity-checked project versions that can be restored.
 - Manage an opt-in, explainable Creator DNA from explicit decisions only.
-- Edit with a real preview canvas, multi-track timeline, properties, effects,
-  transitions, captions, and local MP4/WebM export.
+- Edit with a real preview canvas, multi-track timeline, properties, five
+  transition presets, editable adjustment layers, freeze frames, captions, and
+  local MP4/WebM export.
 - Build honest multi-platform delivery manifests that distinguish planning,
-  queueing, rendering, download, and upload states.
+  queueing, rendering, retry, persistent download, ZIP packaging, and upload states.
 
 ## Important Boundaries
 
@@ -147,6 +155,8 @@ launcher-managed browser data.
    import its validated result.
 7. Check **项目版本** before major changes and use **交付** to resolve blockers,
    prepare variants, and open the real local video exporter.
+8. Use **素材 > 转场 / 调节** and the timeline freeze-frame action for manual
+   finishing; use **声音 > Music** for bundled music or configured online search.
 
 The current browser workspace and the production target architecture are separated explicitly
 in [docs/architecture/visioncut-system.md](docs/architecture/visioncut-system.md).

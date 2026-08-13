@@ -4,9 +4,11 @@ import { useSoundsStore } from "@/sounds/sounds-store";
 export function useSoundSearch({
 	query,
 	commercialOnly,
+	type,
 }: {
 	query: string;
 	commercialOnly: boolean;
+	type: "effects" | "songs";
 }) {
 	const {
 		searchResults,
@@ -39,7 +41,7 @@ export function useSoundSearch({
 
 			const searchParams = new URLSearchParams({
 				page: nextPage.toString(),
-				type: "effects",
+				type,
 			});
 
 			if (query.trim()) {
@@ -55,14 +57,14 @@ export function useSoundSearch({
 				const data = await response.json();
 
 				if (query.trim()) {
-					appendSearchResults(data.results);
+					appendSearchResults({ results: data.results });
 				} else {
-					appendTopSounds(data.results);
+					appendTopSounds({ results: data.results });
 				}
 
 				setCurrentPage({ page: nextPage });
 				setHasNextPage({ hasNext: !!data.next });
-				setTotalCount(data.count);
+				setTotalCount({ count: data.count });
 			} else {
 				setSearchError({ error: `Load more failed: ${response.status}` });
 			}
@@ -76,6 +78,7 @@ export function useSoundSearch({
 	};
 
 	useEffect(() => {
+		const searchKey = `${type}:${commercialOnly ? "commercial" : "all"}:${query}`;
 		if (!query.trim()) {
 			setSearchResults({ results: [] });
 			setSearchError({ error: null });
@@ -83,7 +86,7 @@ export function useSoundSearch({
 			return;
 		}
 
-		if (query === lastSearchQuery && searchResults.length > 0) {
+		if (searchKey === lastSearchQuery && searchResults.length > 0) {
 			return;
 		}
 
@@ -95,15 +98,21 @@ export function useSoundSearch({
 				setSearchError({ error: null });
 				resetPagination();
 
+				const searchParams = new URLSearchParams({
+					q: query,
+					type,
+					page: "1",
+					commercial_only: commercialOnly.toString(),
+				});
 				const response = await fetch(
-					`/api/sounds/search?q=${encodeURIComponent(query)}&type=effects&page=1`,
+					`/api/sounds/search?${searchParams.toString()}`,
 				);
 
 				if (!ignore) {
 					if (response.ok) {
 						const data = await response.json();
 						setSearchResults({ results: data.results });
-						setLastSearchQuery({ query: query });
+						setLastSearchQuery({ query: searchKey });
 						setHasNextPage({ hasNext: !!data.next });
 						setTotalCount({ count: data.count });
 						setCurrentPage({ page: 1 });
@@ -130,6 +139,8 @@ export function useSoundSearch({
 		};
 	}, [
 		query,
+		type,
+		commercialOnly,
 		lastSearchQuery,
 		searchResults.length,
 		setSearchResults,

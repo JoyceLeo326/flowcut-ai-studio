@@ -4,6 +4,7 @@ import {
 	type ExportQuality,
 	type ExportResult,
 } from "@/export";
+import { hasEquivalentAspectRatio } from "@/export/aspect-ratio";
 import {
 	EXPORT_MAX_STUDIO_OUTPUT_COUNT,
 	EXPORT_MIN_VARIANT_COUNT,
@@ -41,6 +42,7 @@ export type ExportJobFailureCode =
 	| "COVER_ARTIFACT_UNSUPPORTED"
 	| "RENDERER_FAILED"
 	| "RENDERER_RETURNED_NO_BUFFER"
+	| "RENDERER_RETURNED_EMPTY_BUFFER"
 	| "RENDER_INTERRUPTED";
 
 export interface ExportJobFailure {
@@ -81,6 +83,8 @@ export interface ExportVariantJob {
 		readonly fileName: string;
 		readonly format: ExportFormat;
 		readonly quality: ExportQuality;
+		readonly platform?: ExportVariantIntent["platform"];
+		readonly aspectRatio?: ExportVariantIntent["aspectRatio"];
 		readonly width: number;
 		readonly height: number;
 		readonly fps: number;
@@ -99,6 +103,11 @@ export interface ExportVariantJob {
 	readonly failure: ExportJobFailure | null;
 	readonly artifact: ExportJobArtifact | null;
 	readonly measurements: ExportJobMeasurements | null;
+	readonly attempt?: number;
+	readonly artifactOrigin?:
+		| "rendered-this-queue"
+		| "reused-local-artifact"
+		| null;
 }
 
 export interface ExportJobQueue {
@@ -116,6 +125,9 @@ export interface ExportJobQueue {
 	readonly finishedAt: string | null;
 	readonly updatedAt: string;
 	readonly jobs: readonly ExportVariantJob[];
+	readonly bundleFileName?: string;
+	readonly retryOfQueueId?: string;
+	readonly reusedArtifactCount?: number;
 	readonly guarantees: {
 		readonly localRendererOnly: true;
 		readonly automaticUpload: false;
@@ -178,17 +190,31 @@ function targetLoudness(variant: ExportVariantIntent): number | null {
 		: null;
 }
 
-function hasSameAspectRatio({
-	width,
-	height,
-	runtime,
-}: {
-	width: number;
-	height: number;
-	runtime: ExportRuntimeSnapshot;
-}): boolean {
+function expectedMimeType(job: ExportVariantJob): string {
+	return getExportMimeType({ format: job.output.format });
+}
+
+export function hasDownloadableExportArtifact(
+	job: ExportVariantJob,
+): job is ExportVariantJob & { readonly artifact: ExportJobArtifact } {
+	const { artifact } = job;
+	if (job.status !== "completed" || !artifact || artifact.byteLength <= 0) {
+		return false;
+	}
 	return (
-		width * runtime.canvasSize.height === height * runtime.canvasSize.width
+		artifact.fileName === job.output.fileName &&
+		artifact.mimeType === expectedMimeType(job) &&
+		artifact.blob instanceof Blob &&
+		artifact.blob.size === artifact.byteLength &&
+		(artifact.blob.type === "" || artifact.blob.type === artifact.mimeType) &&
+		job.measurements?.encodedByteLength === artifact.byteLength
+	);
+}
+
+export function isRetryableExportJob(job: ExportVariantJob): boolean {
+	return (
+		job.capability.state === "supported" &&
+		(job.status === "failed" || job.status === "cancelled")
 	);
 }
 
@@ -281,10 +307,9 @@ function variantRejections({
 		};
 	}
 	if (
-		!hasSameAspectRatio({
-			width: variant.dimensions.width,
-			height: variant.dimensions.height,
-			runtime,
+		!hasEquivalentAspectRatio({
+			source: runtime.canvasSize,
+			output: variant.dimensions,
 		})
 	) {
 		const message = `需要 ${variant.dimensions.width}×${variant.dimensions.height}，但当前画布为 ${runtime.canvasSize.width}×${runtime.canvasSize.height}。现有 renderer 没有经审阅的自动重构图能力，本次拒绝改变比例。`;
@@ -459,6 +484,8 @@ export function createExportJobQueue({
 				fileName: variant.plannedFiles.video,
 				format: variant.container,
 				quality: OUTPUT_QUALITY,
+				platform: variant.platform,
+				aspectRatio: variant.aspectRatio,
 				width: variant.dimensions.width,
 				height: variant.dimensions.height,
 				fps: manifest.project.fps,
@@ -479,6 +506,8 @@ export function createExportJobQueue({
 			failure,
 			artifact: null,
 			measurements: null,
+			attempt: 1,
+			artifactOrigin: null,
 		} satisfies ExportVariantJob;
 	});
 	const status = deriveQueueStatus(jobs);
@@ -498,12 +527,104 @@ export function createExportJobQueue({
 		finishedAt: isTerminal(status) ? createdAt : null,
 		updatedAt: createdAt,
 		jobs,
+		bundleFileName: `${manifest.intent.fileNameStem}_visioncut-delivery.zip`,
+		reusedArtifactCount: 0,
 		guarantees: {
 			localRendererOnly: true,
 			automaticUpload: false,
 			timelineMutation: false,
 			loudnessMeasurementClaimed: false,
 		},
+	};
+}
+
+function outputsMatch({
+	left,
+	right,
+}: {
+	left: ExportVariantJob["output"];
+	right: ExportVariantJob["output"];
+}): boolean {
+	return (
+		left.fileName === right.fileName &&
+		left.format === right.format &&
+		left.quality === right.quality &&
+		left.platform === right.platform &&
+		left.aspectRatio === right.aspectRatio &&
+		left.width === right.width &&
+		left.height === right.height &&
+		left.fps === right.fps &&
+		left.includeAudio === right.includeAudio &&
+		left.targetLoudnessLufs === right.targetLoudnessLufs &&
+		left.targetDurationSeconds === right.targetDurationSeconds
+	);
+}
+
+export function createResumableExportJobQueue({
+	manifest,
+	runtime,
+	previousQueue,
+	createdAt = new Date().toISOString(),
+	queueId,
+}: {
+	manifest: ExportManifest;
+	runtime: ExportRuntimeSnapshot;
+	previousQueue: ExportJobQueue | null;
+	createdAt?: string;
+	queueId?: string;
+}): ExportJobQueue {
+	const freshQueue = createExportJobQueue({
+		manifest,
+		runtime,
+		createdAt,
+		queueId,
+	});
+	if (
+		!previousQueue ||
+		previousQueue.manifestId !== manifest.manifestId ||
+		previousQueue.projectId !== runtime.projectId ||
+		previousQueue.projectVersion !== runtime.projectVersion ||
+		previousQueue.sceneId !== runtime.sceneId
+	) {
+		return freshQueue;
+	}
+
+	let reusedArtifactCount = 0;
+	const jobs = freshQueue.jobs.map((freshJob) => {
+		if (freshJob.capability.state === "rejected") return freshJob;
+		const previousJob = previousQueue.jobs.find(
+			(candidate) => candidate.variantId === freshJob.variantId,
+		);
+		if (
+			!previousJob ||
+			!outputsMatch({ left: previousJob.output, right: freshJob.output })
+		) {
+			return freshJob;
+		}
+		if (hasDownloadableExportArtifact(previousJob)) {
+			reusedArtifactCount += 1;
+			return {
+				...freshJob,
+				status: "completed" as const,
+				progress: 1,
+				startedAt: previousJob.startedAt,
+				finishedAt: previousJob.finishedAt ?? createdAt,
+				artifact: previousJob.artifact,
+				measurements: previousJob.measurements,
+				attempt: previousJob.attempt ?? 1,
+				artifactOrigin: "reused-local-artifact" as const,
+			};
+		}
+		return {
+			...freshJob,
+			attempt: (previousJob.attempt ?? 1) + 1,
+		};
+	});
+
+	return {
+		...updateQueue({ queue: freshQueue, jobs, at: createdAt }),
+		retryOfQueueId: previousQueue.queueId,
+		reusedArtifactCount,
 	};
 }
 
@@ -537,7 +658,13 @@ export function markInterruptedExportQueue({
 	queue: ExportJobQueue;
 	at?: string;
 }): ExportJobQueue {
-	if (!queue.jobs.some((job) => job.status === "rendering")) return queue;
+	if (
+		!queue.jobs.some(
+			(job) => job.status === "rendering" || job.status === "queued",
+		)
+	) {
+		return queue;
+	}
 	return updateQueue({
 		queue,
 		jobs: queue.jobs.map((job) =>
@@ -683,8 +810,12 @@ export async function runExportJobQueue({
 			break;
 		}
 
-		if (!result.success || !result.buffer) {
+		if (!result.success || !result.buffer || result.buffer.byteLength === 0) {
 			const missingBuffer = result.success && !result.buffer;
+			const emptyBuffer =
+				result.success &&
+				Boolean(result.buffer) &&
+				result.buffer?.byteLength === 0;
 			queue = replaceJob({
 				queue,
 				variantId: runningJob.variantId,
@@ -698,12 +829,16 @@ export async function runExportJobQueue({
 						kind: "render-error",
 						code: missingBuffer
 							? "RENDERER_RETURNED_NO_BUFFER"
-							: "RENDERER_FAILED",
+							: emptyBuffer
+								? "RENDERER_RETURNED_EMPTY_BUFFER"
+								: "RENDERER_FAILED",
 						message:
 							result.error ??
 							(missingBuffer
 								? "renderer 没有返回视频数据。"
-								: "renderer 执行失败。"),
+								: emptyBuffer
+									? "renderer 返回了空文件，未生成可下载产物。"
+									: "renderer 执行失败。"),
 					},
 				}),
 			});
@@ -745,6 +880,7 @@ export async function runExportJobQueue({
 						measuredSeconds: null,
 					},
 				},
+				artifactOrigin: "rendered-this-queue",
 			}),
 		});
 		onChange?.(queue);

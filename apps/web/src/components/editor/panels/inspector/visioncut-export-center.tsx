@@ -33,9 +33,16 @@ import {
 	type ExportIssue,
 	type ExportManifest,
 } from "@/ai-studio/export-manifest";
-import type { ExportJobQueue, ExportVariantJob } from "@/ai-studio/export-job";
+import {
+	hasDownloadableExportArtifact,
+	isRetryableExportJob,
+	type ExportJobArtifact,
+	type ExportJobQueue,
+	type ExportVariantJob,
+} from "@/ai-studio/export-job";
 import {
 	downloadExportArtifact,
+	downloadExportArtifactBundle,
 	exportJobStore,
 } from "@/ai-studio/export-job-store";
 import { Button } from "@/components/ui/button";
@@ -294,7 +301,13 @@ function RequirementRow({
 	);
 }
 
-function VariantExecutionState({ job }: { job: ExportVariantJob | undefined }) {
+function VariantExecutionState({
+	job,
+	onDownload,
+}: {
+	job: ExportVariantJob | undefined;
+	onDownload: (artifact: ExportJobArtifact) => void;
+}) {
 	if (!job) {
 		return (
 			<div className="flex items-start gap-2 border-t pt-3 text-[10px] text-muted-foreground">
@@ -304,6 +317,7 @@ function VariantExecutionState({ job }: { job: ExportVariantJob | undefined }) {
 		);
 	}
 	const isRejected = job.capability.state === "rejected";
+	const isDownloadable = hasDownloadableExportArtifact(job);
 
 	return (
 		<div className="border-t pt-3">
@@ -338,7 +352,7 @@ function VariantExecutionState({ job }: { job: ExportVariantJob | undefined }) {
 							{job.failure.message}
 						</p>
 					)}
-					{job.artifact && job.measurements && (
+					{isDownloadable && job.measurements && (
 						<div className="mt-2">
 							<p className="break-all text-[10px] font-medium">
 								{job.artifact.fileName}
@@ -348,13 +362,19 @@ function VariantExecutionState({ job }: { job: ExportVariantJob | undefined }) {
 								{(job.measurements.renderElapsedMs / 1000).toFixed(1)}s · LUFS
 								未测量 · 编码后时长未探测
 							</p>
+							<p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+								{job.artifactOrigin === "reused-local-artifact"
+									? "已复用本机保存的真实产物"
+									: "本次队列生成的真实产物"}
+								{job.attempt && job.attempt > 1
+									? ` · 第 ${job.attempt} 次尝试`
+									: ""}
+							</p>
 							<Button
 								type="button"
 								variant="outline"
 								className="mt-2 min-h-11 w-full rounded-[6px]"
-								onClick={() => {
-									if (job.artifact) downloadExportArtifact(job.artifact);
-								}}
+								onClick={() => onDownload(job.artifact)}
 							>
 								<Download aria-hidden="true" />
 								下载已渲染文件
@@ -439,6 +459,9 @@ export function VisionCutExportCenter({
 	className,
 }: VisionCutExportCenterProps) {
 	const [downloadError, setDownloadError] = useState<string | null>(null);
+	const [bundleState, setBundleState] = useState<
+		"idle" | "preparing" | "downloaded"
+	>("idle");
 	const { preflight, project, sourceEvidence } = exportManifest;
 	const storedQueue = useExportJobQueue(project.id);
 	const activeQueue =
@@ -451,12 +474,29 @@ export function VisionCutExportCenter({
 		exportManifest.intent.variants.length >= 1 &&
 		exportManifest.intent.variants.length <= EXPORT_MAX_STUDIO_OUTPUT_COUNT;
 	const reviewCount = preflight.warnings.length;
-	const completedCount =
-		activeQueue?.jobs.filter((job) => job.status === "completed").length ?? 0;
+	const downloadableJobs =
+		activeQueue?.jobs.filter(hasDownloadableExportArtifact) ?? [];
+	const completedCount = downloadableJobs.length;
 	const failedCount =
 		activeQueue?.jobs.filter((job) => job.status === "failed").length ?? 0;
+	const rejectedCount =
+		activeQueue?.jobs.filter(
+			(job) => job.status === "failed" && job.capability.state === "rejected",
+		).length ?? 0;
+	const renderFailureCount = failedCount - rejectedCount;
 	const cancelledCount =
 		activeQueue?.jobs.filter((job) => job.status === "cancelled").length ?? 0;
+	const retryableCount =
+		activeQueue?.jobs.filter(isRetryableExportJob).length ?? 0;
+	const isPartiallyCompleted =
+		completedCount > 0 && (failedCount > 0 || cancelledCount > 0);
+	const queueStatusLabel = activeQueue
+		? isPartiallyCompleted
+			? "部分完成"
+			: JOB_STATUS_LABELS[activeQueue.status]
+		: null;
+	const actionCanStart =
+		canStartLocalQueue && (!activeQueue || retryableCount > 0);
 	const captionEvidence = sourceEvidence.timeline;
 	const deliveryLoudness = exportManifest.intent.deliveryContract.loudness;
 	const loudnessLabel =
@@ -480,8 +520,36 @@ export function VisionCutExportCenter({
 		}
 	}
 
+	function handleArtifactDownload(artifact: ExportJobArtifact) {
+		try {
+			downloadExportArtifact(artifact);
+			setDownloadError(null);
+		} catch (error) {
+			setDownloadError(
+				error instanceof Error ? error.message : "无法下载本地产物。",
+			);
+		}
+	}
+
+	async function handleBundleDownload() {
+		if (!activeQueue || completedCount === 0 || bundleState === "preparing") {
+			return;
+		}
+		setBundleState("preparing");
+		setDownloadError(null);
+		try {
+			await downloadExportArtifactBundle(activeQueue);
+			setBundleState("downloaded");
+		} catch (error) {
+			setBundleState("idle");
+			setDownloadError(
+				error instanceof Error ? error.message : "无法创建本地交付包。",
+			);
+		}
+	}
+
 	function handleStartQueue() {
-		if (!canStartLocalQueue || queueIsActive) return;
+		if (!actionCanStart || queueIsActive) return;
 		requestVisionCutExportQueue({ manifest: exportManifest });
 	}
 
@@ -523,7 +591,7 @@ export function VisionCutExportCenter({
 					value={activeQueue ? `${completedCount} 个可下载` : "尚未启动队列"}
 					detail={
 						activeQueue
-							? "Blob 保存在本机浏览器存储"
+							? `${activeQueue.reusedArtifactCount ?? 0} 个沿用已有结果 · Blob 保存在本机浏览器存储`
 							: "点击下方按钮后才会调用 renderer"
 					}
 					tone={completedCount > 0 ? "available" : "unavailable"}
@@ -533,18 +601,20 @@ export function VisionCutExportCenter({
 					label="执行结果"
 					value={
 						activeQueue
-							? `${failedCount} 失败 · ${cancelledCount} 取消`
+							? `${completedCount} 完成 · ${rejectedCount} 拒绝 · ${renderFailureCount} 失败${cancelledCount > 0 ? ` · ${cancelledCount} 取消` : ""}`
 							: `${reviewCount} 项预检提醒`
 					}
 					detail={
-						failedCount > 0
-							? "不可靠规格已拒绝或 renderer 失败"
+							renderFailureCount > 0
+							? `${retryableCount} 个任务可重试`
+							: rejectedCount > 0
+								? "不支持的规格已明确拒绝"
 							: "拒绝项不会伪造成文件"
 					}
 					tone={
-						failedCount > 0
+						renderFailureCount > 0
 							? "blocked"
-							: reviewCount > 0
+							: rejectedCount > 0 || reviewCount > 0
 								? "review"
 								: "available"
 					}
@@ -554,7 +624,7 @@ export function VisionCutExportCenter({
 					label="本地队列"
 					value={
 						activeQueue
-							? `${JOB_STATUS_LABELS[activeQueue.status]} · ${Math.round(activeQueue.progress * 100)}%`
+							? `${queueStatusLabel} · ${Math.round(activeQueue.progress * 100)}%`
 							: canStartLocalQueue
 								? "可明确启动"
 								: "导出器未接入"
@@ -569,8 +639,10 @@ export function VisionCutExportCenter({
 					tone={
 						activeQueue?.status === "completed"
 							? "available"
-							: activeQueue?.status === "failed"
+							: renderFailureCount > 0
 								? "blocked"
+								: isPartiallyCompleted
+									? "review"
 								: activeQueue?.status === "queued" ||
 									  activeQueue?.status === "rendering"
 									? "review"
@@ -820,7 +892,10 @@ export function VisionCutExportCenter({
 										</ul>
 									</div>
 									<div className="mt-3">
-										<VariantExecutionState job={executionJob} />
+										<VariantExecutionState
+											job={executionJob}
+											onDownload={handleArtifactDownload}
+										/>
 									</div>
 								</div>
 							</details>
@@ -895,7 +970,7 @@ export function VisionCutExportCenter({
 							真实执行边界
 						</h3>
 						<p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-							清单仍是声明；本地队列只对与当前画布和完整时长完全一致的变体执行现有浏览器
+							清单仍是声明；本地队列只对与当前画布同画幅且完整时长一致的变体执行现有浏览器
 							renderer。异画幅、改时长、外挂字幕和独立封面会被拒绝，不会永久改动时间线。
 						</p>
 					</div>
@@ -907,7 +982,7 @@ export function VisionCutExportCenter({
 							icon: MonitorUp,
 							label: "视频渲染",
 							value: activeQueue
-								? `${JOB_STATUS_LABELS[activeQueue.status]} · ${completedCount} 个文件`
+								? `${queueStatusLabel} · ${completedCount} 个文件`
 								: "未执行",
 						},
 						{
@@ -938,6 +1013,23 @@ export function VisionCutExportCenter({
 				</div>
 
 				<div className="mt-3 border-y">
+					{activeQueue && completedCount > 0 && (
+						<div className="flex min-w-0 items-start gap-2.5 border-t py-2.5 first:border-t-0">
+							<PackageCheck
+								className="mt-0.5 size-3.5 shrink-0 text-emerald-700 dark:text-emerald-300"
+								aria-hidden="true"
+							/>
+							<div className="min-w-0 flex-1">
+								<p className="text-[10px] font-medium">
+									本地交付包 · {completedCount} 个真实成片
+								</p>
+								<code className="mt-0.5 block break-all font-sans text-[10px] text-muted-foreground">
+									{activeQueue.bundleFileName ??
+										`${exportManifest.intent.fileNameStem}_visioncut-delivery.zip`}
+								</code>
+							</div>
+						</div>
+					)}
 					{exportManifest.localCapabilityBoundary.availableArtifacts.map(
 						(artifact) => (
 							<div
@@ -960,7 +1052,7 @@ export function VisionCutExportCenter({
 						),
 					)}
 					{activeQueue?.jobs
-						.filter((job) => job.artifact)
+						.filter(hasDownloadableExportArtifact)
 						.map((job) => (
 							<div
 								key={job.variantId}
@@ -991,10 +1083,29 @@ export function VisionCutExportCenter({
 					<HardDriveDownload aria-hidden="true" />
 					导出本地制作清单 JSON
 				</Button>
+				{activeQueue && completedCount > 0 && (
+					<Button
+						variant="outline"
+						className="min-h-11 w-full rounded-[6px]"
+						disabled={bundleState === "preparing"}
+						onClick={() => void handleBundleDownload()}
+					>
+						{bundleState === "preparing" ? (
+							<LoaderCircle className="animate-spin motion-reduce:animate-none" />
+						) : (
+							<Download aria-hidden="true" />
+						)}
+						{bundleState === "preparing"
+							? "正在整理本地交付包"
+							: bundleState === "downloaded"
+								? `再次下载全部 ${completedCount} 个成片`
+								: `下载全部 ${completedCount} 个成片`}
+					</Button>
+				)}
 				<Button
 					variant="outline"
 					className="min-h-11 w-full rounded-[6px]"
-					disabled={!canStartLocalQueue}
+					disabled={!canStartLocalQueue || (!queueIsActive && !actionCanStart)}
 					onClick={queueIsActive ? handleCancelQueue : handleStartQueue}
 					title={
 						!canStartLocalQueue
@@ -1013,17 +1124,27 @@ export function VisionCutExportCenter({
 					)}
 					{queueIsActive
 						? "取消本地交付队列"
-						: activeQueue
-							? "重新启动本地交付队列"
-							: "启动本地多规格交付"}
+						: activeQueue && retryableCount > 0
+							? `重试 ${retryableCount} 个未完成任务`
+							: activeQueue && completedCount > 0
+								? "可执行变体均已完成"
+								: activeQueue
+									? "没有可重试任务"
+									: "启动本地多规格交付"}
 				</Button>
 
 				<p className="text-[10px] leading-relaxed text-muted-foreground">
 					{queueIsActive
 						? "关闭此面板不会取消；只有上方取消按钮会中止当前 renderer，并把未开始任务标为已取消。"
-						: canStartLocalQueue
-							? "启动后按清单顺序处理 1-6 个变体。支持项生成可下载 Blob；不可靠规格保留拒绝原因。"
-							: "当前界面未连接本地队列，或清单变体数量超出 1-6 个执行边界。"}
+						: activeQueue && retryableCount > 0
+							? `只重试 ${retryableCount} 个失败或取消的支持项；${completedCount} 个已完成产物通过校验后直接复用。`
+							: activeQueue && completedCount > 0
+								? "现有真实产物可以单个下载或打包下载；规格拒绝项不会被伪造成成片。"
+								: activeQueue
+									? "当前任务均因预检或能力边界被明确拒绝；请调整交付规格后生成新清单。"
+									: canStartLocalQueue
+										? "启动后按清单顺序处理 1-6 个变体。画幅与时长匹配的平台版本可执行；不可靠规格保留拒绝原因。"
+										: "当前界面未连接本地队列，或清单变体数量超出 1-6 个执行边界。"}
 				</p>
 				{downloadError && (
 					<div

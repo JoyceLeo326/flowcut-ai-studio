@@ -22,7 +22,8 @@ export type FrameItemDescriptor =
 	  }
 	| {
 			type: "sceneEffect";
-			effectPassGroups: EffectPass[][];
+			/** The bundled WASM enum expects its struct-variant field in snake case. */
+			effect_pass_groups: EffectPass[][];
 	  };
 
 export type QuadTransformDescriptor = {

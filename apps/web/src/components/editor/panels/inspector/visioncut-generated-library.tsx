@@ -11,6 +11,7 @@ import {
 	Grid3X3,
 	ImageOff,
 	Images,
+	Loader2,
 	MapPinned,
 	Mic2,
 	Package,
@@ -66,6 +67,9 @@ export interface VisionCutGeneratedLibraryProps {
 	className?: string;
 	defaultSelectedIds?: readonly string[];
 	onSelectionChange?: (assets: readonly VisionCutGeneratedAsset[]) => void;
+	onImportAssets?: (
+		assets: readonly VisionCutGeneratedAsset[],
+	) => Promise<boolean>;
 }
 
 function getFallbackSurface(id: string) {
@@ -194,10 +198,13 @@ export function VisionCutGeneratedLibrary({
 	className,
 	defaultSelectedIds = [],
 	onSelectionChange,
+	onImportAssets,
 }: VisionCutGeneratedLibraryProps) {
 	const [query, setQuery] = useState("");
 	const [category, setCategory] = useState<CategoryFilter>("all");
 	const [page, setPage] = useState(1);
+	const [isImporting, setIsImporting] = useState(false);
+	const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
 	const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
 		const validIds = new Set(
 			VISIONCUT_AVAILABLE_GENERATED_LIBRARY.map((asset) => asset.id),
@@ -255,10 +262,35 @@ export function VisionCutGeneratedLibrary({
 		const nextIds = new Set(selectedIds);
 		if (nextIds.has(assetId)) {
 			nextIds.delete(assetId);
+			setSelectionNotice(null);
 		} else {
+			if (nextIds.size >= 20) {
+				setSelectionNotice("单次最多加入 20 张，请先导入当前选择。");
+				return;
+			}
 			nextIds.add(assetId);
+			setSelectionNotice(null);
 		}
 		commitSelection(nextIds);
+	}
+
+	async function importSelection() {
+		if (!onImportAssets || selectedIds.size === 0 || isImporting) return;
+		const selectedAssets = VISIONCUT_AVAILABLE_GENERATED_LIBRARY.filter(
+			(asset) => selectedIds.has(asset.id),
+		);
+		setIsImporting(true);
+		try {
+			const imported = await onImportAssets(selectedAssets);
+			if (imported) {
+				commitSelection(new Set());
+				setSelectionNotice(null);
+			} else {
+				setSelectionNotice("导入未完成，已保留当前选择。");
+			}
+		} finally {
+			setIsImporting(false);
+		}
 	}
 
 	return (
@@ -435,12 +467,35 @@ export function VisionCutGeneratedLibrary({
 				)}
 			</div>
 
-			<footer className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-[#0c0d0f] px-3 py-2.5 sm:px-4">
-				<div className="text-[10px] text-white/45" aria-live="polite">
-					第 <span className="font-medium text-white/78">{currentPage}</span> /{" "}
-					{pageCount} 页
+			<footer className="flex min-h-16 flex-wrap items-center justify-between gap-2 border-t border-white/10 bg-[#0c0d0f] px-3 py-2.5 sm:px-4">
+				<div
+					className="min-w-0 flex-1 text-[10px] text-white/45"
+					aria-live="polite"
+				>
+					<p>
+						第 <span className="font-medium text-white/78">{currentPage}</span>{" "}
+						/ {pageCount} 页 · 已选 {selectedIds.size}/20
+					</p>
+					{selectionNotice ? (
+						<p className="mt-0.5 text-amber-300/80">{selectionNotice}</p>
+					) : null}
 				</div>
 				<div className="flex items-center gap-2">
+					{onImportAssets ? (
+						<button
+							type="button"
+							className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-[4px] bg-[#d7ff3f] px-3 text-[11px] font-semibold text-black outline-none hover:bg-[#c8ef35] focus-visible:ring-2 focus-visible:ring-[#9ce9f2] disabled:pointer-events-none disabled:opacity-40"
+							disabled={selectedIds.size === 0 || isImporting}
+							onClick={importSelection}
+						>
+							{isImporting ? (
+								<Loader2 className="size-4 animate-spin" />
+							) : (
+								<Images className="size-4" />
+							)}
+							加入项目
+						</button>
+					) : null}
 					<button
 						type="button"
 						className="flex size-11 cursor-pointer items-center justify-center rounded-[4px] border border-white/12 bg-transparent text-white/70 outline-none hover:bg-white/[0.05] hover:text-white focus-visible:ring-2 focus-visible:ring-[#9ce9f2] disabled:pointer-events-none disabled:opacity-35"

@@ -152,6 +152,8 @@ import {
 	type StudioProSettings,
 } from "@/ai-studio/catalog";
 import type { OpenverseSearchItem } from "@/ai-studio/openverse";
+import type { VisionCutGeneratedAsset } from "@/ai-studio/generated-library";
+import { prepareGeneratedAssetFiles } from "@/ai-studio/generated-asset-import";
 import type { MediaIndex } from "@/ai-studio/media-index";
 import {
 	loadMediaIndexHistory,
@@ -1619,6 +1621,69 @@ export function AIWorkspacePanel() {
 		}
 	};
 
+	const handleImportGeneratedAssets = async (
+		generatedAssets: readonly VisionCutGeneratedAsset[],
+	) => {
+		if (!project) {
+			toast.error("请先打开一个项目");
+			return false;
+		}
+
+		const existingNames = new Set(
+			assets.map((asset) => asset.name.trim().toLocaleLowerCase()),
+		);
+		const pendingAssets = generatedAssets.filter(
+			(asset) => !existingNames.has(`${asset.slug}.webp`.toLocaleLowerCase()),
+		);
+		if (pendingAssets.length === 0) {
+			toast.info("所选视觉素材已在项目中");
+			return true;
+		}
+
+		try {
+			const preparation = await prepareGeneratedAssetFiles({
+				assets: pendingAssets,
+			});
+			if (preparation.files.length === 0) {
+				throw new Error("所选素材暂时无法读取");
+			}
+
+			const processedAssets = await processMediaAssets({
+				files: [...preparation.files],
+			});
+			let importedCount = 0;
+			const storageFailures: string[] = [];
+			for (const asset of processedAssets) {
+				try {
+					await editor.media.addMediaAsset({
+						projectId: project.metadata.id,
+						asset,
+					});
+					importedCount += 1;
+				} catch {
+					storageFailures.push(asset.name);
+				}
+			}
+
+			if (importedCount === 0) {
+				throw new Error("浏览器无法保存所选素材");
+			}
+			const failedCount = preparation.failures.length + storageFailures.length;
+			toast.success(`已加入 ${importedCount} 个视觉素材`, {
+				description:
+					failedCount > 0
+						? `${failedCount} 个素材未能导入，其余素材已经可以在画布中使用。`
+						: "已写入当前项目素材库，可拖到画布或交给 AI 编排。",
+			});
+			return true;
+		} catch (error) {
+			toast.error("无法加入视觉素材", {
+				description: error instanceof Error ? error.message : undefined,
+			});
+			return false;
+		}
+	};
+
 	const handleSingleChoice = ({
 		field,
 		value,
@@ -2863,6 +2928,7 @@ export function AIWorkspacePanel() {
 				initialIntent={startingIntent}
 				onImportMedia={requestMediaImport}
 				onImportOpenverse={handleImportOpenverse}
+				onImportGeneratedAssets={handleImportGeneratedAssets}
 				onOpenDirector={() => setSurface("director")}
 				onOpenModels={() => setSurface("models")}
 				onOpenNativeExport={requestNativeExport}

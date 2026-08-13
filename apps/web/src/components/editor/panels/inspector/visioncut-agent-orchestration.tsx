@@ -38,6 +38,21 @@ import {
 	type AgentTask,
 } from "@/ai-studio/agent-orchestrator";
 import {
+	activateAgentIntentPatch,
+	approveAgentOperationProposal,
+	createAgentOperationReviewLedger,
+	getActiveAgentIntentPatches,
+	rejectAgentOperationProposal,
+	undoAgentIntentPatch,
+	type AgentOperationProposal,
+	type AgentOperationReviewLedger,
+} from "@/ai-studio/agent-operation-review";
+import {
+	IndexedDBAgentOperationReviewStorage,
+	loadAgentOperationReviewLedger,
+	saveAgentOperationReviewLedger,
+} from "@/ai-studio/agent-operation-review-store";
+import {
 	AGENT_RUNTIME_DEFAULT_ROLES,
 	createAgentRuntimeSession,
 	executeAgentRuntimeSession,
@@ -213,6 +228,14 @@ function errorMessage(error: unknown): string {
 
 function transitionTimestamp(orchestration: AgentOrchestration): string {
 	const updatedAt = Date.parse(orchestration.updatedAt);
+	const baseline = Number.isFinite(updatedAt) ? updatedAt : 0;
+	return new Date(Math.max(Date.now(), baseline + 1)).toISOString();
+}
+
+function operationTransitionTimestamp(
+	ledger: AgentOperationReviewLedger,
+): string {
+	const updatedAt = Date.parse(ledger.updatedAt);
 	const baseline = Number.isFinite(updatedAt) ? updatedAt : 0;
 	return new Date(Math.max(Date.now(), baseline + 1)).toISOString();
 }
@@ -401,8 +424,47 @@ function SectionLabel({
 	);
 }
 
-function ActionRow({ action }: { action: AgentRuntimeAction }) {
+function ActionRow({
+	action,
+	proposal,
+	disabled,
+	onApprove,
+	onReject,
+	onActivate,
+	onUndo,
+}: {
+	action: AgentRuntimeAction;
+	proposal: AgentOperationProposal | null;
+	disabled: boolean;
+	onApprove: (proposalId: string) => Promise<void>;
+	onReject: (proposalId: string, note: string) => Promise<void>;
+	onActivate: (proposalId: string) => Promise<void>;
+	onUndo: (proposalId: string, receiptId: string) => Promise<void>;
+}) {
 	const status = ACTION_STATUS[action.applicability];
+	const [showReject, setShowReject] = useState(false);
+	const [rejectionNote, setRejectionNote] = useState("");
+	const [busy, setBusy] = useState(false);
+	const [reviewError, setReviewError] = useState<string | null>(null);
+	const runReviewAction = async (operation: () => Promise<void>) => {
+		setBusy(true);
+		setReviewError(null);
+		try {
+			await operation();
+		} catch (error) {
+			setReviewError(errorMessage(error));
+		} finally {
+			setBusy(false);
+		}
+	};
+	const submitRejection = () => {
+		if (proposal === null || !rejectionNote.trim()) return;
+		void runReviewAction(async () => {
+			await onReject(proposal.proposalId, rejectionNote.trim());
+			setShowReject(false);
+			setRejectionNote("");
+		});
+	};
 	return (
 		<div className="border-t py-2.5 first:border-t-0">
 			<div className="flex min-w-0 items-start justify-between gap-3">
@@ -429,6 +491,170 @@ function ActionRow({ action }: { action: AgentRuntimeAction }) {
 						<li key={blocker}>{blocker}</li>
 					))}
 				</ul>
+			) : null}
+			{proposal ? (
+				<div className="mt-2.5 border-y bg-muted/20 px-2.5 py-2.5">
+					<div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+						<div className="min-w-0">
+							<p className="text-[10px] font-semibold">可执行意图补丁</p>
+							<p className="mt-0.5 font-mono text-[8px] text-muted-foreground">
+								{proposal.patch.operation}
+							</p>
+						</div>
+						<span
+							className={cn(
+								"text-[9px] font-medium",
+								proposal.availability === "conflicted"
+									? "text-amber-700 dark:text-amber-300"
+									: proposal.activation.status === "active"
+										? "text-emerald-700 dark:text-emerald-300"
+										: "text-muted-foreground",
+							)}
+						>
+							{proposal.availability === "conflicted"
+								? "冲突待处理"
+								: proposal.activation.status === "active"
+									? "已激活"
+									: proposal.activation.status === "undone"
+										? "已撤销"
+										: proposal.review.status === "approved"
+											? "已批准"
+											: proposal.review.status === "rejected"
+												? "已拒绝"
+												: "待人工审批"}
+						</span>
+					</div>
+					<p className="mt-2 break-all text-[9px] leading-relaxed text-muted-foreground">
+						目标：{proposal.targetReference}
+					</p>
+					<p className="mt-1 break-all font-mono text-[8px] text-muted-foreground">
+						补丁：{proposal.patch.patchFingerprint}
+					</p>
+					{proposal.blockers.length > 0 ? (
+						<ul className="mt-2 space-y-1 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+							{proposal.blockers.map((blocker) => (
+								<li key={blocker}>{blocker}</li>
+							))}
+						</ul>
+					) : null}
+					{proposal.review.note ? (
+						<p className="mt-2 text-[9px] leading-relaxed text-muted-foreground">
+							审批备注：{proposal.review.note}
+						</p>
+					) : null}
+					{proposal.activation.receiptId ? (
+						<p className="mt-1 break-all font-mono text-[8px] text-muted-foreground">
+							回执：{proposal.activation.receiptId}
+						</p>
+					) : null}
+					{showReject && proposal.review.status === "pending" ? (
+						<div className="mt-2.5 border-t pt-2.5">
+							<label
+								htmlFor={`reject-operation-${proposal.proposalId}`}
+								className="text-[9px] font-medium"
+							>
+								拒绝原因
+							</label>
+							<textarea
+								id={`reject-operation-${proposal.proposalId}`}
+								value={rejectionNote}
+								disabled={disabled || busy}
+								maxLength={800}
+								className="mt-1.5 min-h-20 w-full resize-y rounded-[6px] border bg-background px-3 py-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
+								placeholder="说明为什么不采用这条建议"
+								onChange={(event) => setRejectionNote(event.target.value)}
+							/>
+							<div className="mt-2 grid grid-cols-2 gap-2">
+								<Button
+									variant="outline"
+									className="min-h-11 rounded-[6px]"
+									disabled={disabled || busy}
+									onClick={() => setShowReject(false)}
+								>
+									<X aria-hidden="true" />
+									取消
+								</Button>
+								<Button
+									variant="destructive"
+									className="min-h-11 rounded-[6px]"
+									disabled={disabled || busy || !rejectionNote.trim()}
+									onClick={submitRejection}
+								>
+									<Ban aria-hidden="true" />
+									确认拒绝
+								</Button>
+							</div>
+						</div>
+					) : (
+						<div className="mt-2.5 flex flex-wrap justify-end gap-2 border-t pt-2.5">
+							{proposal.availability === "ready" &&
+							proposal.review.status === "pending" ? (
+								<>
+									<Button
+										variant="ghost"
+										className="min-h-11 rounded-[6px]"
+										disabled={disabled || busy}
+										onClick={() => setShowReject(true)}
+									>
+										<Ban aria-hidden="true" />
+										拒绝建议
+									</Button>
+									<Button
+										variant="outline"
+										className="min-h-11 rounded-[6px]"
+										disabled={disabled || busy}
+										onClick={() =>
+											void runReviewAction(() => onApprove(proposal.proposalId))
+										}
+									>
+										<ShieldCheck aria-hidden="true" />
+										批准建议
+									</Button>
+								</>
+							) : null}
+							{proposal.review.status === "approved" &&
+							proposal.activation.status === "inactive" ? (
+								<Button
+									className="min-h-11 rounded-[6px]"
+									disabled={disabled || busy}
+									onClick={() =>
+										void runReviewAction(() => onActivate(proposal.proposalId))
+									}
+								>
+									<Play aria-hidden="true" />
+									激活意图补丁
+								</Button>
+							) : null}
+							{proposal.activation.status === "active" &&
+							proposal.activation.receiptId ? (
+								<Button
+									variant="outline"
+									className="min-h-11 rounded-[6px]"
+									disabled={disabled || busy}
+									onClick={() =>
+										void runReviewAction(() =>
+											onUndo(
+												proposal.proposalId,
+												proposal.activation.receiptId!,
+											),
+										)
+									}
+								>
+									<RotateCcw aria-hidden="true" />
+									撤销补丁
+								</Button>
+							) : null}
+						</div>
+					)}
+					{reviewError ? (
+						<p className="mt-2 text-[9px] text-destructive" role="alert">
+							{reviewError}
+						</p>
+					) : null}
+					<p className="mt-2 text-[8px] leading-relaxed text-muted-foreground">
+						激活仅写入可撤销的项目意图，不会直接调色、混音、发布或修改媒体。
+					</p>
+				</div>
 			) : null}
 		</div>
 	);
@@ -490,6 +716,12 @@ function AgentRow({
 	onToggle,
 	onChange,
 	onRetry,
+	operationProposals,
+	operationReviewDisabled,
+	onApproveOperation,
+	onRejectOperation,
+	onActivateOperation,
+	onUndoOperation,
 }: {
 	task: AgentTask;
 	runtimeRun: AgentRuntimeRun | null;
@@ -500,6 +732,12 @@ function AgentRow({
 	onToggle: (role: AgentRole) => void;
 	onChange: (next: AgentOrchestration) => void;
 	onRetry: (runId: string) => Promise<void>;
+	operationProposals: readonly AgentOperationProposal[];
+	operationReviewDisabled: boolean;
+	onApproveOperation: (proposalId: string) => Promise<void>;
+	onRejectOperation: (proposalId: string, note: string) => Promise<void>;
+	onActivateOperation: (proposalId: string) => Promise<void>;
+	onUndoOperation: (proposalId: string, receiptId: string) => Promise<void>;
 }) {
 	const presentation = ROLE_PRESENTATION[task.role];
 	const RoleIcon = presentation.icon;
@@ -703,9 +941,26 @@ function AgentRow({
 					</p>
 					{runtimeRun.artifact.actions.length > 0 ? (
 						<div className="mt-2">
-							{runtimeRun.artifact.actions.map((action) => (
-								<ActionRow key={action.actionId} action={action} />
-							))}
+							{runtimeRun.artifact.actions.map((action) => {
+								const proposal =
+									operationProposals.find(
+										(candidate) =>
+											candidate.source.runId === runtimeRun.runId &&
+											candidate.source.actionId === action.actionId,
+									) ?? null;
+								return (
+									<ActionRow
+										key={action.actionId}
+										action={action}
+										proposal={proposal}
+										disabled={operationReviewDisabled}
+										onApprove={onApproveOperation}
+										onReject={onRejectOperation}
+										onActivate={onActivateOperation}
+										onUndo={onUndoOperation}
+									/>
+								);
+							})}
 						</div>
 					) : (
 						<p className="mt-2 text-[9px] text-muted-foreground">
@@ -834,6 +1089,9 @@ export function VisionCutAgentOrchestration({
 	disabled = false,
 }: VisionCutAgentOrchestrationProps) {
 	const storageRef = useRef(new IndexedDBAgentSessionStorage());
+	const operationStorageRef = useRef(
+		new IndexedDBAgentOperationReviewStorage(),
+	);
 	const abortRef = useRef<AbortController | null>(null);
 	const [runtimeSession, setRuntimeSession] =
 		useState<AgentRuntimeSession | null>(null);
@@ -845,6 +1103,9 @@ export function VisionCutAgentOrchestration({
 	const [isExecuting, setIsExecuting] = useState(false);
 	const [isLoadingHistory, setIsLoadingHistory] = useState(true);
 	const [runtimeError, setRuntimeError] = useState<string | null>(null);
+	const [operationLedger, setOperationLedger] =
+		useState<AgentOperationReviewLedger | null>(null);
+	const [isLoadingOperations, setIsLoadingOperations] = useState(false);
 
 	const providerSummary = (() => {
 		const session = loadModelProviderSession();
@@ -884,6 +1145,64 @@ export function VisionCutAgentOrchestration({
 			active = false;
 		};
 	}, [orchestration.orchestrationId, orchestration.projectId]);
+
+	useEffect(() => {
+		if (
+			runtimeSession === null ||
+			runtimeSession.status === "queued" ||
+			runtimeSession.status === "running"
+		) {
+			return;
+		}
+		let active = true;
+		queueMicrotask(() => {
+			if (active) setIsLoadingOperations(true);
+		});
+		void loadAgentOperationReviewLedger({
+			session: runtimeSession,
+			storage: operationStorageRef.current,
+		})
+			.then(async (stored) => {
+				if (!active) return;
+				if (stored !== null) {
+					setOperationLedger(stored);
+					return;
+				}
+				const created = createAgentOperationReviewLedger({
+					session: runtimeSession,
+					createdAt: new Date().toISOString(),
+				});
+				const saved = await saveAgentOperationReviewLedger({
+					ledger: created,
+					storage: operationStorageRef.current,
+				});
+				if (active) setOperationLedger(saved);
+			})
+			.catch((error: unknown) => {
+				if (!active) return;
+				setRuntimeError(errorMessage(error));
+				setOperationLedger(null);
+			})
+			.finally(() => {
+				if (active) setIsLoadingOperations(false);
+			});
+		return () => {
+			active = false;
+		};
+	}, [runtimeSession]);
+
+	const currentOperationLedger = useMemo(() => {
+		if (
+			operationLedger === null ||
+			runtimeSession === null ||
+			operationLedger.sessionId !== runtimeSession.sessionId ||
+			operationLedger.mergeFingerprint !== runtimeSession.merge.fingerprint ||
+			operationLedger.sourceRuntimeRevision !== runtimeSession.revision
+		) {
+			return null;
+		}
+		return operationLedger;
+	}, [operationLedger, runtimeSession]);
 
 	const persistUpdate = useCallback(async ({ session }: AgentRuntimeUpdate) => {
 		const saved = await saveAgentRuntimeSession({
@@ -1053,6 +1372,104 @@ export function VisionCutAgentOrchestration({
 		}
 	};
 
+	const persistOperationLedger = useCallback(
+		async (next: AgentOperationReviewLedger) => {
+			const saved = await saveAgentOperationReviewLedger({
+				ledger: next,
+				storage: operationStorageRef.current,
+			});
+			setOperationLedger(saved);
+		},
+		[],
+	);
+
+	const approveOperation = useCallback(
+		async (proposalId: string) => {
+			if (currentOperationLedger === null || runtimeSession === null) {
+				throw new Error("可执行建议仍在加载，请稍后重试。");
+			}
+			await persistOperationLedger(
+				approveAgentOperationProposal({
+					ledger: currentOperationLedger,
+					session: runtimeSession,
+					proposalId,
+					approvedBy: "local-user",
+					at: operationTransitionTimestamp(currentOperationLedger),
+					note: "用户批准将证据约束建议转为项目意图补丁。",
+				}),
+			);
+		},
+		[currentOperationLedger, persistOperationLedger, runtimeSession],
+	);
+
+	const rejectOperation = useCallback(
+		async (proposalId: string, note: string) => {
+			if (currentOperationLedger === null || runtimeSession === null) {
+				throw new Error("可执行建议仍在加载，请稍后重试。");
+			}
+			await persistOperationLedger(
+				rejectAgentOperationProposal({
+					ledger: currentOperationLedger,
+					session: runtimeSession,
+					proposalId,
+					rejectedBy: "local-user",
+					at: operationTransitionTimestamp(currentOperationLedger),
+					note,
+				}),
+			);
+		},
+		[currentOperationLedger, persistOperationLedger, runtimeSession],
+	);
+
+	const activateOperation = useCallback(
+		async (proposalId: string) => {
+			if (currentOperationLedger === null || runtimeSession === null) {
+				throw new Error("可执行建议仍在加载，请稍后重试。");
+			}
+			await persistOperationLedger(
+				activateAgentIntentPatch({
+					ledger: currentOperationLedger,
+					session: runtimeSession,
+					proposalId,
+					activatedBy: "local-user",
+					at: operationTransitionTimestamp(currentOperationLedger),
+				}),
+			);
+		},
+		[currentOperationLedger, persistOperationLedger, runtimeSession],
+	);
+
+	const undoOperation = useCallback(
+		async (proposalId: string, receiptId: string) => {
+			if (currentOperationLedger === null || runtimeSession === null) {
+				throw new Error("可执行建议仍在加载，请稍后重试。");
+			}
+			await persistOperationLedger(
+				undoAgentIntentPatch({
+					ledger: currentOperationLedger,
+					session: runtimeSession,
+					proposalId,
+					activationReceiptId: receiptId,
+					undoneBy: "local-user",
+					at: operationTransitionTimestamp(currentOperationLedger),
+				}),
+			);
+		},
+		[currentOperationLedger, persistOperationLedger, runtimeSession],
+	);
+
+	const activeIntentPatchCount = useMemo(() => {
+		if (currentOperationLedger === null || runtimeSession === null) return 0;
+		try {
+			return getActiveAgentIntentPatches({
+				ledger: currentOperationLedger,
+				session: runtimeSession,
+			}).length;
+		} catch {
+			return 0;
+		}
+	}, [currentOperationLedger, runtimeSession]);
+
 	const cancel = () => {
 		abortRef.current?.abort();
 	};
@@ -1205,9 +1622,17 @@ export function VisionCutAgentOrchestration({
 						disabled={disabled}
 						executing={isExecuting}
 						orchestration={orchestration}
+						operationProposals={currentOperationLedger?.proposals ?? []}
+						operationReviewDisabled={
+							disabled || isExecuting || isLoadingOperations
+						}
 						onToggle={toggleRole}
 						onChange={onChange}
 						onRetry={retryRun}
+						onApproveOperation={approveOperation}
+						onRejectOperation={rejectOperation}
+						onActivateOperation={activateOperation}
+						onUndoOperation={undoOperation}
 					/>
 				))}
 			</section>
@@ -1224,6 +1649,11 @@ export function VisionCutAgentOrchestration({
 							</p>
 							<p className="mt-1 break-all font-mono text-[8px] text-muted-foreground">
 								{runtimeSession.merge.fingerprint}
+							</p>
+							<p className="mt-1 text-[9px] text-muted-foreground">
+								可审批意图 {currentOperationLedger?.proposals.length ?? 0} ·
+								已激活 {activeIntentPatchCount}
+								{isLoadingOperations ? " · 正在读取审批账本" : ""}
 							</p>
 						</section>
 						<section>
@@ -1253,7 +1683,7 @@ export function VisionCutAgentOrchestration({
 						<ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
 						<p>
 							IndexedDB
-							保存输入证据、提供方/模型、时间、耗时、失败、重试、结构化产物与冲突；API
+							保存输入证据、提供方/模型、时间、耗时、失败、重试、结构化产物、冲突、建议审批和撤销回执；API
 							Key 只在当前会话闭包中用于请求，不进入运行时或审计记录。
 						</p>
 					</div>
