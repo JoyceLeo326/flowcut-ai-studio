@@ -33,13 +33,6 @@ jobs:
       - name: Test public mirror decision engine
         run: bun run test:mirror
 
-      - name: Validate visual story manifest and runtime reachability
-        run: bun run visual-story:validate
-
-      - name: Require fifty newly added unique story bitmaps
-        if: github.event_name == 'pull_request'
-        run: node qa/validate-image-delta.mjs --root . --base "${{ github.event.pull_request.base.sha }}" --manifest mirror-src/assets/story-v3/manifest.json
-
       - name: Lint web app
         run: bun run lint:web
 

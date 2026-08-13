@@ -177,16 +177,7 @@ Recommended public entry: [joyceleo326.github.io/flowcut-ai-studio](https://joyc
 npm run quality:mirror
 ```
 
-The publishable output is `public-mirror/`. Its HTML, CSS, JavaScript, SVG, and WebP assets use relative local paths; `mirror-manifest.json` records the public capability boundary and SHA-256 for every runtime file. `mirror-src/assets/story/GENERATION_MANIFEST.md` records source-call provenance and story purpose for the original 24 chapter frames. The v3 field-story contract adds 50 unique, independently generated 768×512 WebP scenes under `mirror-src/assets/story-v3/`: every manifest record names the person, situation, action, product state, result, alt text, exact generation prompt, and runtime consumer. Twenty of those scenes are mounted on the default path; all fifty remain reachable by phase without a network request.
-
-Regenerate the deterministic manifest/runtime records after editing their reviewed source, then validate all assets:
-
-```bash
-npm run visual-story:build
-npm run visual-story:validate
-```
-
-Image files are intentionally not synthesized by that build command. Each was produced by one built-in image-generation call, copied into the repository, decoded, hash-checked, and manually reviewed. The reproducible QA checklist lives in `docs/visual-v3-qa-checklist.md`.
+The publishable output is `public-mirror/`. Its HTML, CSS, JavaScript, SVG, and WebP assets use relative local paths; `mirror-manifest.json` records the public capability boundary and SHA-256 for every runtime file. `mirror-src/assets/story/GENERATION_MANIFEST.md` records source-call provenance and story purpose for the 24 chapter frames that still move with the live decision state. Image count is not a completion metric: the release is gated on the end-to-end decision, confirmation, timeline, download, and review loop.
 
 To preview only the public product without installing the full editor dependencies:
 
@@ -207,8 +198,6 @@ node --test mirror-src/experience.test.mjs mirror-src/public-mirror.test.mjs
 node --check mirror-src/app.js
 node --check mirror-src/experience.js
 node --check mirror-src/story-scenes.js
-node --check mirror-src/visual-story-v3.js
-node qa/validate-visual-story.mjs --root . --manifest mirror-src/assets/story-v3/manifest.json
 node scripts/build-public-mirror.mjs
 node --experimental-vm-modules scripts/http-mirror-smoke.mjs
 node scripts/secret-guard.mjs public-mirror
@@ -231,8 +220,7 @@ Deployment is intentionally static:
 │   ├── index.html
 │   ├── app.js                  # Mission, routes, confirmation, export, review
 │   ├── experience.js           # Decision state and version history
-│   ├── visual-story-v3.js      # 50 phase-organized runtime story records
-│   └── assets/                 # Original mark, 24 chapter frames, 50 v3 field scenes
+│   └── assets/                 # Original mark and 24 state-driven chapter frames
 ├── apps/web/                   # Full Next.js editor shell
 ├── rust/                       # Platform-neutral editing and media core
 ├── scripts/                    # Build, HTTP smoke and secret guards

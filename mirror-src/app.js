@@ -7,7 +7,6 @@ import {
   normalizeEditMission,
 } from "./experience.js";
 import { STORY_CHAPTERS, STORY_SCENES, storyChapterForStage } from "./story-scenes.js";
-import { VISUAL_STORIES_V3, VISUAL_STORY_PHASES_V3 } from "./visual-story-v3.js";
 
 const STORAGE_KEY = "flowcut-evidence-session-v2";
 const byId = (id) => document.getElementById(id);
@@ -24,8 +23,6 @@ const ROUTE_VISUALS = {
 
 let state = { mission: null, plans: [], selectedId: null, decision: null, activeClipId: null, zoom: 100, mediaAssets: [] };
 let activeStoryChapter = "intake";
-let activeFieldStoryPhase = "all";
-let fieldStoryExpanded = false;
 let selectedSourceFiles = [];
 let sourcePreviewUrl = null;
 
@@ -44,47 +41,6 @@ function toast(message) {
   node.classList.add("is-visible");
   window.clearTimeout(toast.timer);
   toast.timer = window.setTimeout(() => node.classList.remove("is-visible"), 2300);
-}
-
-export function renderFieldStoryV3({ phase = activeFieldStoryPhase, expanded = fieldStoryExpanded, announce = false } = {}) {
-  activeFieldStoryPhase = phase;
-  fieldStoryExpanded = expanded;
-  const phaseStories = phase === "all" ? VISUAL_STORIES_V3 : VISUAL_STORIES_V3.filter((story) => story.phase === phase);
-  const visibleStories = phase === "all" && !expanded ? phaseStories.filter((story) => story.coreReachable) : phaseStories;
-  const filters = byId("field-story-v3-filters");
-  filters.innerHTML = [
-    { id: "all", label: "核心 20 幕" },
-    ...VISUAL_STORY_PHASES_V3.map(({ id, label }) => ({ id, label })),
-  ]
-    .map(
-      ({ id, label }) => `<button class="field-story-v3-control" type="button" data-field-story-phase="${id}" aria-pressed="${id === phase}">${escapeHtml(label)}</button>`,
-    )
-    .join("");
-  filters.querySelectorAll("[data-field-story-phase]").forEach((button) => {
-    button.addEventListener("click", () => renderFieldStoryV3({ phase: button.dataset.fieldStoryPhase, expanded: false, announce: true }));
-  });
-
-  byId("field-story-v3-grid").innerHTML = visibleStories
-    .map(
-      (story, index) => `<article class="field-story-v3-card">
-        <figure><img src="${story.src}" width="768" height="512" loading="lazy" decoding="async" alt="${escapeHtml(story.alt)}" /><span>${String(VISUAL_STORIES_V3.indexOf(story) + 1).padStart(2, "0")}</span></figure>
-        <div><small>${escapeHtml(story.phaseLabel)} · ${escapeHtml(story.person)}</small><h3>${escapeHtml(story.productState)}</h3><p>${escapeHtml(story.outcome)}</p><dl><div><dt>发生</dt><dd>${escapeHtml(story.situation)}</dd></div><div><dt>动作</dt><dd>${escapeHtml(story.action)}</dd></div></dl></div>
-      </article>`,
-    )
-    .join("");
-
-  const moreButton = byId("field-story-v3-more");
-  moreButton.hidden = phase !== "all";
-  moreButton.setAttribute("aria-expanded", String(expanded));
-  moreButton.textContent = expanded ? "收起到核心 20 幕" : "查看完整 50 幕证据路径";
-  moreButton.onclick = () => renderFieldStoryV3({ phase: "all", expanded: !fieldStoryExpanded, announce: true });
-  const status = byId("field-story-v3-status");
-  status.textContent = `当前展示 ${visibleStories.length} / ${phaseStories.length} 幕；每一幕都对应人物、动作、产品状态与结果。`;
-  if (announce) status.focus({ preventScroll: true });
-}
-
-function setFieldStoryPhase(phase) {
-  renderFieldStoryV3({ phase, expanded: false });
 }
 
 function persist() {
@@ -209,7 +165,6 @@ function acceptSourceFiles(files) {
   persist();
   setProgressStatus(state.mediaAssets.length ? `${state.mediaAssets.length} 个素材待剪` : "新剪辑待定义");
   if (accepted.length) renderStoryChapter("conflict");
-  if (accepted.length) setFieldStoryPhase("intake");
 }
 
 export function renderStoryChapter(stage, { scroll = false } = {}) {
@@ -406,7 +361,6 @@ missionForm.addEventListener("submit", (event) => {
   byId("review").classList.add("is-hidden");
   persist();
   renderStoryChapter("compare");
-  setFieldStoryPhase("compare");
   renderRoutes({ scroll: true });
   setProgressStatus("3 路可比较");
 });
@@ -452,7 +406,6 @@ byId("confirm-route").addEventListener("click", () => {
   state.activeClipId = state.decision.timeline[0].id;
   persist();
   renderStoryChapter("confirm");
-  setFieldStoryPhase("confirm");
   renderTimeline({ scroll: true });
   toast("路线已确认，真实时间线已经铺开。");
 });
@@ -471,12 +424,10 @@ byId("timeline-zoom-in").addEventListener("click", () => {
 
 byId("download-md").addEventListener("click", () => {
   if (!state.decision) return;
-  setFieldStoryPhase("deliver");
   download(`${state.decision.exportSpec.filenameStem}.md`, buildDownloads(state.decision).markdown, "text/markdown;charset=utf-8");
 });
 byId("download-json").addEventListener("click", () => {
   if (!state.decision) return;
-  setFieldStoryPhase("deliver");
   download(`${state.decision.exportSpec.filenameStem}.json`, buildDownloads(state.decision).json, "application/json;charset=utf-8");
 });
 
@@ -493,7 +444,6 @@ reviewForm.addEventListener("submit", (event) => {
   reviewForm.elements.note.value = "";
   persist();
   renderStoryChapter("feedback");
-  setFieldStoryPhase("revise");
   renderRoutes();
   renderRevision();
   setProgressStatus("下一刀已更新");
@@ -525,7 +475,6 @@ try {
 
 syncMaterialCount();
 renderSourceFiles();
-renderFieldStoryV3({ phase: "all", expanded: false });
 renderStoryChapter(state.decision?.revisions?.length ? "feedback" : state.decision ? "confirm" : state.plans.length ? "compare" : "intake");
 setProgressStatus(
   state.decision?.nextRound
