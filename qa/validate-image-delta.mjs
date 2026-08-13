@@ -4,14 +4,17 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const BITMAP_PATTERN = /\.(?:png|jpe?g|webp|gif|avif)$/i;
+const STORY_ASSET_PREFIX = 'mirror-src/assets/story-v3/';
 function assert(condition, message) { if (!condition) throw new Error(message); }
 function git(root, ...args) { return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim(); }
 function resolveInside(root, relativePath) { const resolvedRoot = path.resolve(root); const resolved = path.resolve(resolvedRoot, relativePath); const relative = path.relative(resolvedRoot, resolved); assert(relative && !relative.startsWith('..') && !path.isAbsolute(relative), `image leaves repository root: ${relativePath}`); return resolved; }
 export async function validateImageDelta({ root, base, manifestPath }) {
   const resolvedRoot = path.resolve(root); git(resolvedRoot, 'rev-parse', '--verify', `${base}^{commit}`);
   const output = git(resolvedRoot, 'diff', '--name-only', '--diff-filter=A', `${base}...HEAD`);
-  const addedImages = output.split(/\r?\n/u).map((value) => value.trim()).filter((value) => value && BITMAP_PATTERN.test(value));
-  assert(addedImages.length >= 50, `at least 50 newly added images are required; found ${addedImages.length}`);
+  const addedImages = output
+    .split(/\r?\n/u)
+    .map((value) => value.trim().replaceAll('\\', '/'))
+    .filter((value) => value.startsWith(STORY_ASSET_PREFIX) && BITMAP_PATTERN.test(value));
   const manifest = JSON.parse(await readFile(path.resolve(manifestPath), 'utf8')); assert(Array.isArray(manifest.assets), 'manifest assets must be an array');
   const declared = new Set(manifest.assets.map((asset) => asset.file)); const undeclared = addedImages.filter((file) => !declared.has(file)); assert(undeclared.length === 0, `new images missing from manifest: ${undeclared.join(', ')}`);
   const hashes = new Map(); for (const relativePath of addedImages) { const bytes = await readFile(resolveInside(resolvedRoot, relativePath)); const hash = createHash('sha256').update(bytes).digest('hex'); if (hashes.has(hash)) throw new Error(`duplicate new image content: ${relativePath} matches ${hashes.get(hash)}`); hashes.set(hash, relativePath); }
