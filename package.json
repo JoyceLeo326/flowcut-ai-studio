@@ -21,7 +21,7 @@
 		"publish:wasm": "bun run build:wasm && npm publish rust/wasm/pkg --access public",
 		"start:tools": "turbo run start --filter=@opencut/tools",
 		"test": "bun test",
-		"test:mirror": "node --test mirror-src/experience.test.mjs mirror-src/public-mirror.test.mjs",
+		"test:mirror": "node --test mirror-src/experience.test.mjs mirror-src/public-mirror.test.mjs mirror-src/vercel-deployment.test.mjs",
 		"build:public-mirror": "node scripts/build-public-mirror.mjs",
 		"test:public-mirror": "node --experimental-vm-modules scripts/http-mirror-smoke.mjs",
 		"security:secrets": "node scripts/secret-guard.mjs . apps/web/.next",
