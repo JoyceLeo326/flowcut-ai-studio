@@ -1,20 +1,11 @@
 import type { ExportOptions, ExportResult } from "@/export";
+import { hasEquivalentAspectRatio } from "@/export/aspect-ratio";
 import { createTimelineAudioBuffer } from "@/media/audio";
 import type { MediaAsset } from "@/media/types";
 import type { TBackground, TCanvasSize } from "@/project/types";
 import type { SceneTracks } from "@/timeline";
 import { buildScene } from "./scene-builder";
 import { SceneExporter } from "./scene-exporter";
-
-function hasSameAspectRatio({
-	source,
-	output,
-}: {
-	source: TCanvasSize;
-	output: TCanvasSize;
-}): boolean {
-	return source.width * output.height === source.height * output.width;
-}
 
 export async function exportProjectSnapshot({
 	tracks,
@@ -41,7 +32,10 @@ export async function exportProjectSnapshot({
 		return { success: false, error: "Project is empty" };
 	}
 	if (
-		!hasSameAspectRatio({ source: sourceCanvasSize, output: outputCanvasSize })
+		!hasEquivalentAspectRatio({
+			source: sourceCanvasSize,
+			output: outputCanvasSize,
+		})
 	) {
 		return {
 			success: false,

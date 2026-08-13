@@ -126,7 +126,7 @@ async function collectNode({
 		}
 		items.push({
 			type: "sceneEffect",
-			effectPassGroups: [node.resolved.passes],
+			effect_pass_groups: [node.resolved.passes],
 		});
 		return;
 	}

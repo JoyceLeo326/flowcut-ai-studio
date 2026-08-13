@@ -55,19 +55,25 @@ import {
 	START_VISIONCUT_EXPORT_QUEUE_EVENT,
 	isVisionCutExportQueueCancelRequest,
 	isVisionCutExportQueueRequest,
+	requestVisionCutExportQueue,
 } from "@/editor/navigation-events";
 import {
 	createExportJobQueue,
+	createResumableExportJobQueue,
+	hasDownloadableExportArtifact,
+	isRetryableExportJob,
 	runExportJobQueue,
 	type ExportJobQueue,
 	type ExportVariantJob,
 } from "@/ai-studio/export-job";
 import type { ExportManifest } from "@/ai-studio/export-manifest";
 import {
+	downloadExportArtifactBundle,
 	downloadExportArtifact,
 	exportJobStore,
 } from "@/ai-studio/export-job-store";
 import { exportProjectSnapshot } from "@/services/renderer/project-exporter";
+import { cloneSceneTracksForExport } from "@/ai-studio/export-scene-snapshot";
 
 function isExportFormat(value: string): value is ExportFormat {
 	return EXPORT_FORMAT_VALUES.some((formatValue) => formatValue === value);
@@ -175,23 +181,36 @@ export function ExportButton() {
 			}
 			const duration = editor.timeline.getTotalDuration();
 			const currentDurationSeconds = mediaTimeToSeconds({ time: duration });
-			const tracksSnapshot = structuredClone(scene.tracks);
+			const tracksSnapshot = cloneSceneTracksForExport(scene.tracks);
 			const mediaAssetsSnapshot = [...editor.media.getAssets()];
 			const sourceCanvasSize = { ...project.settings.canvasSize };
 			const background = structuredClone(project.settings.background);
 
 			let nextQueue: ExportJobQueue;
 			try {
-				nextQueue = createExportJobQueue({
-					manifest,
-					runtime: {
-						projectId: project.metadata.id,
-						projectVersion: project.version,
-						sceneId: scene.id,
-						canvasSize: project.settings.canvasSize,
-						durationSeconds: currentDurationSeconds,
-					},
-				});
+				const storedQueue = exportJobStore.getProject(project.metadata.id);
+				nextQueue = storedQueue
+					? createResumableExportJobQueue({
+							manifest,
+							runtime: {
+								projectId: project.metadata.id,
+								projectVersion: project.version,
+								sceneId: scene.id,
+								canvasSize: project.settings.canvasSize,
+								durationSeconds: currentDurationSeconds,
+							},
+							previousQueue: storedQueue,
+						})
+					: createExportJobQueue({
+							manifest,
+							runtime: {
+								projectId: project.metadata.id,
+								projectVersion: project.version,
+								sceneId: scene.id,
+								canvasSize: project.settings.canvasSize,
+								durationSeconds: currentDurationSeconds,
+							},
+						});
 			} catch (error) {
 				setQueueError(
 					error instanceof Error ? error.message : "无法创建本地交付队列。",
@@ -331,6 +350,7 @@ export function ExportButton() {
 			{hasProject && queueManifest ? (
 				visibleQueue ? (
 					<ExportQueuePopover
+						key={visibleQueue.queueId}
 						queue={visibleQueue}
 						error={queueError}
 						onCancel={() => {
@@ -338,6 +358,9 @@ export function ExportButton() {
 								activeQueueRef.current.controller.abort();
 							}
 						}}
+						onRetry={() =>
+							requestVisionCutExportQueue({ manifest: queueManifest })
+						}
 						onOpenNativeExport={() => {
 							setQueueManifest(null);
 							setQueueError(null);
@@ -436,20 +459,43 @@ function ExportQueuePopover({
 	queue,
 	error,
 	onCancel,
+	onRetry,
 	onOpenNativeExport,
 }: {
 	queue: ExportJobQueue;
 	error: string | null;
 	onCancel: () => void;
+	onRetry: () => void;
 	onOpenNativeExport: () => void;
 }) {
 	const isActive = queue.status === "queued" || queue.status === "rendering";
-	const completedCount = queue.jobs.filter(
-		(job) => job.status === "completed",
-	).length;
 	const rejectedCount = queue.jobs.filter(
 		(job) => job.capability.state === "rejected",
 	).length;
+	const retryableCount = queue.jobs.filter(isRetryableExportJob).length;
+	const downloadableJobs = queue.jobs.filter(hasDownloadableExportArtifact);
+	const completedCount = downloadableJobs.length;
+	const [bundleState, setBundleState] = useState<
+		"idle" | "preparing" | "downloaded"
+	>("idle");
+	const [bundleError, setBundleError] = useState<string | null>(null);
+
+	const handleBundleDownload = async () => {
+		if (downloadableJobs.length === 0 || bundleState === "preparing") return;
+		setBundleState("preparing");
+		setBundleError(null);
+		try {
+			await downloadExportArtifactBundle(queue);
+			setBundleState("downloaded");
+		} catch (downloadError) {
+			setBundleState("idle");
+			setBundleError(
+				downloadError instanceof Error
+					? downloadError.message
+					: "无法创建本地交付包。",
+			);
+		}
+	};
 
 	return (
 		<PopoverContent
@@ -515,7 +561,7 @@ function ExportQueuePopover({
 										{job.failure.message}
 									</p>
 								)}
-								{job.artifact && job.measurements && (
+								{hasDownloadableExportArtifact(job) && job.measurements && (
 									<div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
 										<span>{formatExportBytes(job.artifact.byteLength)}</span>
 										<span>
@@ -563,6 +609,34 @@ function ExportQueuePopover({
 					renderer，不修改时间线、不自动上传。文件大小与渲染耗时来自实际结果；LUFS
 					和编码后时长尚未测量。
 				</p>
+				{downloadableJobs.length > 0 && (
+					<Button
+						type="button"
+						variant="outline"
+						className="min-h-11 w-full rounded-[6px]"
+						disabled={bundleState === "preparing"}
+						onClick={() => void handleBundleDownload()}
+					>
+						{bundleState === "preparing" ? (
+							<LoaderCircle className="animate-spin motion-reduce:animate-none" />
+						) : (
+							<Download />
+						)}
+						{bundleState === "preparing"
+							? "正在整理交付包"
+							: bundleState === "downloaded"
+								? `再次下载 ${downloadableJobs.length} 个成片`
+								: `下载全部 ${downloadableJobs.length} 个成片`}
+					</Button>
+				)}
+				{bundleError && (
+					<p
+						className="text-[10px] leading-relaxed text-destructive"
+						role="alert"
+					>
+						{bundleError}
+					</p>
+				)}
 				{isActive && (
 					<Button
 						type="button"
@@ -573,6 +647,21 @@ function ExportQueuePopover({
 						<XCircle aria-hidden="true" />
 						取消整个队列
 					</Button>
+				)}
+				{!isActive && retryableCount > 0 && (
+					<>
+						<Button
+							type="button"
+							className="min-h-11 w-full rounded-[6px]"
+							onClick={onRetry}
+						>
+							<RotateCcw aria-hidden="true" />
+							重试 {retryableCount} 个未完成任务
+						</Button>
+						<p className="text-[10px] leading-relaxed text-muted-foreground">
+							已有成片会从本机存储复用，不会重复渲染；规格拒绝项仍保持拒绝。
+						</p>
+					</>
 				)}
 				<Button
 					type="button"

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useEditor } from "@/editor/use-editor";
 import { useElementSelection } from "@/timeline/hooks/element/use-element-selection";
 import {
@@ -24,7 +25,12 @@ import {
 	getSourceAudioActionLabel,
 	isSourceAudioSeparated,
 } from "@/timeline/audio-separation";
-import { hasMediaId } from "@/timeline";
+import {
+	captureFreezeFrameAsset,
+	getFreezeFrameErrorMessage,
+	hasMediaId,
+	resolveFreezeFrameTarget,
+} from "@/timeline";
 import { cn } from "@/utils/ui";
 import { useTimelineStore } from "@/timeline/timeline-store";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -49,6 +55,8 @@ import { OcRippleIcon } from "@/components/icons";
 import { GraphEditorPopover } from "./graph-editor/popover";
 import { PopoverTrigger } from "@/components/ui/popover";
 import { useGraphEditorController } from "./graph-editor/use-controller";
+import { FreezeFrameCommand } from "@/commands/timeline";
+import { toast } from "sonner";
 
 export function TimelineToolbar({
 	zoomLevel,
@@ -69,7 +77,7 @@ export function TimelineToolbar({
 
 	return (
 		<ScrollArea className="scrollbar-hidden">
-			<div className="flex h-10 items-center justify-between border-b px-2 py-1">
+			<div className="flex min-h-10 items-center justify-between border-b px-2 py-1">
 				<ToolbarLeftSection />
 
 				<SceneSelector />
@@ -87,6 +95,7 @@ export function TimelineToolbar({
 
 function ToolbarLeftSection() {
 	const editor = useEditor();
+	const [isFreezingFrame, setIsFreezingFrame] = useState(false);
 	const mediaAssets = useEditor((currentEditor) =>
 		currentEditor.media.getAssets(),
 	);
@@ -139,6 +148,40 @@ function ToolbarLeftSection() {
 		invokeAction(action);
 	};
 
+	const handleFreezeFrame = async ({ event }: { event: React.MouseEvent }) => {
+		event.stopPropagation();
+		if (isFreezingFrame) return;
+
+		setIsFreezingFrame(true);
+		editor.playback.pause();
+		try {
+			const project = editor.project.getActive();
+			const target = resolveFreezeFrameTarget({
+				tracks: editor.scenes.getActiveScene().tracks,
+				selection: selectedElements,
+				mediaAssets: editor.media.getAssets(),
+				playheadTime: editor.playback.getCurrentTime(),
+			});
+			const asset = await captureFreezeFrameAsset({ target });
+			const command = new FreezeFrameCommand({
+				projectId: project.metadata.id,
+				target,
+				asset,
+			});
+			await command.prepare();
+			editor.command.execute({ command });
+			toast.success("Freeze frame created", {
+				description: "A two-second still was inserted at the playhead.",
+			});
+		} catch (error) {
+			toast.error("Couldn't create freeze frame", {
+				description: getFreezeFrameErrorMessage(error),
+			});
+		} finally {
+			setIsFreezingFrame(false);
+		}
+	};
+
 	return (
 		<div className="flex items-center gap-1">
 			<TooltipProvider delayDuration={500}>
@@ -185,9 +228,14 @@ function ToolbarLeftSection() {
 
 				<ToolbarButton
 					icon={<HugeiconsIcon icon={SnowIcon} />}
-					tooltip="Freeze frame (coming soon)"
-					disabled={true}
-					onClick={({ event: _event }) => {}}
+					tooltip={
+						isFreezingFrame
+							? "Creating freeze frame..."
+							: "Freeze frame at playhead"
+					}
+					disabled={isFreezingFrame}
+					isBusy={isFreezingFrame}
+					onClick={handleFreezeFrame}
 				/>
 
 				<ToolbarButton
@@ -336,6 +384,7 @@ function ToolbarButton({
 	onClick,
 	disabled,
 	isActive,
+	isBusy,
 	buttonWrapper,
 }: {
 	icon: React.ReactNode;
@@ -343,6 +392,7 @@ function ToolbarButton({
 	onClick?: ({ event }: { event: React.MouseEvent }) => void;
 	disabled?: boolean;
 	isActive?: boolean;
+	isBusy?: boolean;
 	buttonWrapper?: (button: React.ReactElement) => React.ReactElement;
 }) {
 	const button = (
@@ -350,9 +400,12 @@ function ToolbarButton({
 			variant={isActive ? "secondary" : "text"}
 			size="icon"
 			disabled={disabled}
+			aria-label={tooltip}
+			aria-busy={isBusy || undefined}
 			onClick={onClick ? (event) => onClick({ event }) : undefined}
 			className={cn(
-				"rounded-sm",
+				"touch-manipulation rounded-sm [@media(pointer:coarse)]:size-11",
+				isBusy ? "animate-pulse" : "",
 				disabled ? "cursor-not-allowed opacity-50" : "",
 			)}
 		>

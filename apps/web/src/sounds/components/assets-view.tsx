@@ -35,13 +35,27 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
+type SoundTab = "sound-effects" | "music" | "saved";
+
+function isSoundTab(value: string): value is SoundTab {
+	return value === "sound-effects" || value === "music" || value === "saved";
+}
+
 export function SoundsView() {
+	const [activeTab, setActiveTab] = useState<SoundTab>("sound-effects");
 	return (
 		<div className="flex h-full flex-col">
-			<Tabs defaultValue="sound-effects" className="flex h-full flex-col">
+			<Tabs
+				value={activeTab}
+				onValueChange={(value) => {
+					if (isSoundTab(value)) setActiveTab(value);
+				}}
+				className="flex h-full flex-col"
+			>
 				<div className="px-3 pt-4 pb-0">
 					<TabsList>
 						<TabsTrigger value="sound-effects">Sound effects</TabsTrigger>
+						<TabsTrigger value="music">Music</TabsTrigger>
 						<TabsTrigger value="saved">Saved</TabsTrigger>
 					</TabsList>
 				</div>
@@ -50,20 +64,30 @@ export function SoundsView() {
 					value="sound-effects"
 					className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0"
 				>
-					<SoundEffectsView />
+					{activeTab === "sound-effects" ? (
+						<SoundEffectsView soundType="effects" />
+					) : null}
+				</TabsContent>
+				<TabsContent
+					value="music"
+					className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0"
+				>
+					{activeTab === "music" ? (
+						<SoundEffectsView soundType="songs" />
+					) : null}
 				</TabsContent>
 				<TabsContent
 					value="saved"
 					className="mt-0 flex min-h-0 flex-1 flex-col p-5 pt-0"
 				>
-					<SavedSoundsView />
+					{activeTab === "saved" ? <SavedSoundsView /> : null}
 				</TabsContent>
 			</Tabs>
 		</div>
 	);
 }
 
-function SoundEffectsView() {
+function SoundEffectsView({ soundType }: { soundType: "effects" | "songs" }) {
 	const {
 		topSoundEffects,
 		isLoading,
@@ -74,7 +98,6 @@ function SoundEffectsView() {
 		loadSavedSounds,
 		showCommercialOnly,
 		toggleCommercialFilter,
-		hasLoaded,
 		setTopSoundEffects,
 		setLoading,
 		setError,
@@ -92,6 +115,7 @@ function SoundEffectsView() {
 	} = useSoundSearch({
 		query: searchQuery,
 		commercialOnly: showCommercialOnly,
+		type: soundType,
 	});
 
 	const [playingId, setPlayingId] = useState<number | null>(null);
@@ -110,10 +134,6 @@ function SoundEffectsView() {
 	}, [loadSavedSounds]);
 
 	useEffect(() => {
-		if (hasLoaded) {
-			return;
-		}
-
 		let shouldIgnore = false;
 
 		const fetchTopSounds = async () => {
@@ -121,10 +141,11 @@ function SoundEffectsView() {
 				if (!shouldIgnore) {
 					setLoading({ loading: true });
 					setError({ error: null });
+					setTopSoundEffects({ sounds: [] });
 				}
 
 				const response = await fetch(
-					"/api/sounds/search?page_size=50&sort=downloads",
+					`/api/sounds/search?page_size=50&sort=downloads&type=${soundType}&commercial_only=${showCommercialOnly}`,
 				);
 
 				if (!shouldIgnore) {
@@ -162,7 +183,8 @@ function SoundEffectsView() {
 			clearTimeout(timeoutId);
 		};
 	}, [
-		hasLoaded,
+		soundType,
+		showCommercialOnly,
 		setTopSoundEffects,
 		setLoading,
 		setError,
@@ -226,7 +248,9 @@ function SoundEffectsView() {
 		<div className="mt-1 flex h-full flex-col gap-5">
 			<div className="flex items-center gap-3">
 				<Input
-					placeholder="Search sound effects"
+					placeholder={
+						soundType === "songs" ? "Search music" : "Search sound effects"
+					}
 					className="w-full"
 					containerClassName="w-full"
 					value={searchQuery}
@@ -444,10 +468,8 @@ function SavedSoundsView() {
 							</Button>
 							<Button
 								variant="destructive"
-								onClick={async ({
-									stopPropagation,
-								}: React.MouseEvent<HTMLButtonElement>) => {
-									stopPropagation();
+								onClick={async (event) => {
+									event.stopPropagation();
 									await clearSavedSounds();
 									setShowClearDialog(false);
 								}}
@@ -492,17 +514,15 @@ function AudioItem({ sound, isPlaying, onPlay }: AudioItemProps) {
 		onPlay({ sound });
 	};
 
-	const handleSaveClick = ({
-		stopPropagation,
-	}: React.MouseEvent<HTMLButtonElement>) => {
-		stopPropagation();
+	const handleSaveClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+		event.stopPropagation();
 		toggleSavedSound({ soundEffect: sound });
 	};
 
-	const handleAddToTimeline = async ({
-		stopPropagation,
-	}: React.MouseEvent<HTMLButtonElement>) => {
-		stopPropagation();
+	const handleAddToTimeline = async (
+		event: React.MouseEvent<HTMLButtonElement>,
+	) => {
+		event.stopPropagation();
 		await addSoundToTimeline({ sound });
 	};
 

@@ -36,7 +36,7 @@ jobs:
       - name: Validate visual story manifest and runtime reachability
         run: bun run visual-story:validate
 
-      - name: Require fifty newly added unique story bitmaps
+      - name: Validate newly added story bitmaps
         if: github.event_name == 'pull_request'
         run: node qa/validate-image-delta.mjs --root . --base "${{ github.event.pull_request.base.sha }}" --manifest mirror-src/assets/story-v3/manifest.json
 

@@ -1,5 +1,10 @@
 import { webEnv } from "@/env/web";
 import { checkRateLimit } from "@/auth/rate-limit";
+import { buildFreesoundSearchParams } from "@/sounds/freesound-search";
+import {
+	localSoundToSearchResult,
+	searchLocalSounds,
+} from "@/sounds/local-sound-library";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -12,7 +17,10 @@ const searchParamsSchema = z.object({
 		.enum(["downloads", "rating", "created", "score"])
 		.default("downloads"),
 	min_rating: z.coerce.number().min(0).max(5).default(3),
-	commercial_only: z.coerce.boolean().default(true),
+	commercial_only: z
+		.enum(["true", "false"])
+		.default("true")
+		.transform((value) => value === "true"),
 });
 
 const freesoundResultSchema = z.object({
@@ -88,36 +96,6 @@ const apiResponseSchema = z.object({
 	minRating: z.number().optional(),
 });
 
-function buildSortParameter({ query, sort }: { query?: string; sort: string }) {
-	if (!query) return `${sort}_desc`;
-	return sort === "score" ? "score" : `${sort}_desc`;
-}
-
-function applyEffectsFilters({
-	params,
-	min_rating,
-	commercial_only,
-}: {
-	params: URLSearchParams;
-	min_rating: number;
-	commercial_only: boolean;
-}) {
-	params.append("filter", "duration:[* TO 30.0]");
-	params.append("filter", `avg_rating:[${min_rating} TO *]`);
-
-	if (commercial_only) {
-		params.append(
-			"filter",
-			'license:("Attribution" OR "Creative Commons 0" OR "Attribution Noncommercial" OR "Attribution Commercial")',
-		);
-	}
-
-	params.append(
-		"filter",
-		"tag:sound-effect OR tag:sfx OR tag:foley OR tag:ambient OR tag:nature OR tag:mechanical OR tag:electronic OR tag:impact OR tag:whoosh OR tag:explosion",
-	);
-}
-
 function transformFreesoundResult(
 	result: z.infer<typeof freesoundResultSchema>,
 ) {
@@ -157,17 +135,6 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const apiKey = webEnv.FREESOUND_API_KEY;
-		if (!apiKey) {
-			return NextResponse.json(
-				{
-					error: "Online sound search is not configured.",
-					message: "Import local audio files instead.",
-				},
-				{ status: 503 },
-			);
-		}
-
 		const { searchParams } = new URL(request.url);
 
 		const validationResult = searchParamsSchema.safeParse({
@@ -177,6 +144,7 @@ export async function GET(request: NextRequest) {
 			page_size: searchParams.get("page_size") || undefined,
 			sort: searchParams.get("sort") || undefined,
 			min_rating: searchParams.get("min_rating") || undefined,
+			commercial_only: searchParams.get("commercial_only") || undefined,
 		});
 
 		if (!validationResult.success) {
@@ -198,46 +166,57 @@ export async function GET(request: NextRequest) {
 			min_rating,
 			commercial_only,
 		} = validationResult.data;
-
-		if (type === "songs") {
-			return NextResponse.json(
-				{
-					error: "Songs are not available yet",
-					message:
-						"Song search functionality is coming soon. Try searching for sound effects instead.",
-				},
-				{ status: 501 },
-			);
+		const soundType = type || "effects";
+		const localResults = searchLocalSounds({ query, type: soundType }).map(
+			(sound) => localSoundToSearchResult({ sound }),
+		);
+		const apiKey = webEnv.FREESOUND_API_KEY;
+		if (!apiKey) {
+			return NextResponse.json({
+				count: localResults.length,
+				next: null,
+				previous: null,
+				results: page === 1 ? localResults : [],
+				query: query || "",
+				type: soundType,
+				page,
+				pageSize,
+				sort,
+				minRating: min_rating,
+			});
 		}
 
-		const baseUrl = "https://freesound.org/apiv2/search/text/";
-
-		const sortParam = buildSortParameter({ query, sort });
-
-		const params = new URLSearchParams({
-			query: query || "",
-			token: apiKey,
-			page: page.toString(),
-			page_size: pageSize.toString(),
-			sort: sortParam,
-			fields:
-				"id,name,description,url,previews,download,duration,filesize,type,channels,bitrate,bitdepth,samplerate,username,tags,license,created,num_downloads,avg_rating,num_ratings",
+		const params = buildFreesoundSearchParams({
+			query,
+			type: soundType,
+			page,
+			pageSize,
+			sort,
+			minRating: min_rating,
+			commercialOnly: commercial_only,
 		});
 
-		const isEffectsSearch = type === "effects" || !type;
-		if (isEffectsSearch) {
-			applyEffectsFilters({ params, min_rating, commercial_only });
-		}
-
-		const response = await fetch(`${baseUrl}?${params.toString()}`);
+		const response = await fetch(
+			`https://freesound.org/apiv2/search/?${params.toString()}`,
+			{ headers: { Authorization: `Token ${apiKey}` } },
+		);
 
 		if (!response.ok) {
 			const errorText = await response.text();
 			console.error("Freesound API error:", response.status, errorText);
-			return NextResponse.json(
-				{ error: "Failed to search sounds" },
-				{ status: response.status },
-			);
+			return NextResponse.json({
+				count: localResults.length,
+				next: null,
+				previous: null,
+				results: page === 1 ? localResults : [],
+				query: query || "",
+				type: soundType,
+				page,
+				pageSize,
+				sort,
+				minRating: min_rating,
+				upstreamUnavailable: true,
+			});
 		}
 
 		const rawData = await response.json();
@@ -248,23 +227,35 @@ export async function GET(request: NextRequest) {
 				"Invalid Freesound API response:",
 				freesoundValidation.error,
 			);
-			return NextResponse.json(
-				{ error: "Invalid response from Freesound API" },
-				{ status: 502 },
-			);
+			return NextResponse.json({
+				count: localResults.length,
+				next: null,
+				previous: null,
+				results: page === 1 ? localResults : [],
+				query: query || "",
+				type: soundType,
+				page,
+				pageSize,
+				sort,
+				minRating: min_rating,
+				upstreamUnavailable: true,
+			});
 		}
 
 		const data = freesoundValidation.data;
 
-		const transformedResults = data.results.map(transformFreesoundResult);
+		const transformedResults = [
+			...(page === 1 ? localResults : []),
+			...data.results.map(transformFreesoundResult),
+		];
 
 		const responseData = {
-			count: data.count,
-			next: data.next,
-			previous: data.previous,
+			count: data.count + localResults.length,
+			next: data.next ? String(page + 1) : null,
+			previous: data.previous ? String(page - 1) : null,
 			results: transformedResults,
 			query: query || "",
-			type: type || "effects",
+			type: soundType,
 			page,
 			pageSize,
 			sort,
