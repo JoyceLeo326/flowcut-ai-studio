@@ -8,7 +8,7 @@
 
 FlowCut 不替你按下确认键。它把素材观察、观众、平台和期限摊在一起，让三条剪法的得失都看得见。你选定之后，会得到一份能继续改、也能带去复盘的时间线。
 
-[在线使用（GitHub Pages）](https://joyceleo326.github.io/flowcut-ai-studio/) · [备用入口（Vercel）](https://flowcut-ai-studio.vercel.app/) · [中文完整使用指南](docs/USAGE.zh-CN.md)
+[完整编辑器（Vercel）](https://flowcut-ai-studio.vercel.app/projects) · [静态兼容体验（GitHub Pages）](https://joyceleo326.github.io/flowcut-ai-studio/) · [中文完整使用指南](docs/USAGE.zh-CN.md)
 
 ## 把这一刀想清楚
 
@@ -179,9 +179,9 @@ bun run build:web
 
 ### Public product
 
-`mirror-src/` is the deployable, server-free FlowCut product. Its causal loop is local source preview → conflict → three visual candidates → human choice → explicit confirmation → real download → structured feedback → changed next recommendation → confirmed V2 with preserved decision history.
+The complete Next.js editor is deployed on Vercel. It includes project creation, local media import, the AI creation workspace, Creative Canvas, timeline tools, browser rendering, and persisted delivery artifacts. `mirror-src/` remains a server-free compatibility experience with the causal loop local source preview → conflict → three visual candidates → human choice → explicit confirmation → real download → structured feedback → changed next recommendation → confirmed V2 with preserved decision history.
 
-Recommended public entry: [joyceleo326.github.io/flowcut-ai-studio](https://joyceleo326.github.io/flowcut-ai-studio/). Static Vercel backup: [flowcut-ai-studio.vercel.app](https://flowcut-ai-studio.vercel.app/). The recommended entry is verified from the current mainland China network used for release checks; reachability can still vary by region, operator, and third-party hosting policy, so it is not presented as a permanent 100% availability guarantee.
+Full product: [flowcut-ai-studio.vercel.app/projects](https://flowcut-ai-studio.vercel.app/projects). Static compatibility experience: [joyceleo326.github.io/flowcut-ai-studio](https://joyceleo326.github.io/flowcut-ai-studio/). Reachability can vary by region, operator, and third-party hosting policy, so neither entry is presented as a permanent 100% availability guarantee.
 
 ```bash
 npm run quality:mirror
@@ -213,7 +213,7 @@ Open <http://localhost:4173>. To test the exact publishable output instead, run 
 The focused public-product gate can run with Node.js alone:
 
 ```bash
-node --test mirror-src/experience.test.mjs mirror-src/public-mirror.test.mjs
+node --test mirror-src/experience.test.mjs mirror-src/public-mirror.test.mjs mirror-src/vercel-deployment.test.mjs
 node --check mirror-src/app.js
 node --check mirror-src/experience.js
 node --check mirror-src/story-scenes.js
@@ -226,12 +226,12 @@ node scripts/secret-guard.mjs public-mirror
 
 `npm run quality:mirror` runs the same sequence. The full editor uses the Bun commands documented above; `bun run quality` additionally runs lint, the complete test suite, the web build, public-mirror build, HTTP smoke tests, and source/build secret guards.
 
-Deployment is intentionally static:
+Deployment is split by capability:
 
 - `.github/workflows/pages.yml` builds `public-mirror/` and publishes it to GitHub Pages;
-- `vercel.json` serves the same public mirror as a root-path backup;
+- `vercel.json` builds `apps/web` and publishes the complete Next.js editor to Vercel;
 - `mirror-manifest.json` records every public runtime file and SHA-256 digest;
-- no server route, environment file, provider key, user project, or local media file is copied into the public artifact.
+- the static Pages artifact never receives server routes, environment files, provider keys, user projects, or local media files.
 
 ## Repository map
 
