@@ -4,11 +4,12 @@ import { describe, test } from "node:test";
 
 describe("FlowCut mainland-first static release", () => {
   test("the runtime starts at the task and blocks outbound connections", async () => {
-    const [html, css, app, vercelText] = await Promise.all([
+    const [html, css, app, vercelText, pagesWorkflow] = await Promise.all([
       readFile("mirror-src/index.html", "utf8"),
       readFile("mirror-src/styles.css", "utf8"),
       readFile("mirror-src/app.js", "utf8"),
       readFile("vercel.json", "utf8"),
+      readFile(".github/workflows/pages.yml", "utf8"),
     ]);
     const vercel = JSON.parse(vercelText);
 
@@ -17,14 +18,13 @@ describe("FlowCut mainland-first static release", () => {
     assert.doesNotMatch(`${html}\n${css}\n${app}`, /google|gstatic|cdn|analytics/i);
     assert.match(html, /http-equiv="Content-Security-Policy"[^>]*connect-src 'none'/);
     assert.match(html, /http-equiv="Content-Security-Policy"[^>]*object-src 'none'/);
-    assert.equal(vercel.outputDirectory, "public-mirror");
-    assert.equal(vercel.buildCommand, "node scripts/build-public-mirror.mjs");
-    assert.equal(vercel.framework, null);
-    const headers = vercel.headers.flatMap((entry) => entry.headers).map((header) => `${header.key}: ${header.value}`).join("\n");
-    assert.match(headers, /Content-Security-Policy:.*connect-src 'none'/);
-    assert.match(headers, /media-src 'self' blob:/);
-    assert.match(headers, /frame-ancestors 'none'/);
-    assert.match(headers, /Permissions-Policy:/);
+    assert.equal(vercel.framework, "nextjs");
+    assert.equal(vercel.installCommand, "bun install --frozen-lockfile");
+    assert.equal(vercel.buildCommand, "bun run build:web");
+    assert.equal(vercel.outputDirectory, "apps/web/.next");
+    assert.match(pagesWorkflow, /run: npm run quality:mirror/);
+    assert.match(pagesWorkflow, /path: public-mirror/);
+    assert.match(pagesWorkflow, /actions\/deploy-pages@v4/);
   });
 
   test("320, 390, and 430 layouts declare safe-area and keyboard-safe behavior", async () => {
